@@ -1,18 +1,18 @@
 import Foundation
 
-final class Server: Serving {
-    let address: URL
-    let password: String
+public final class Server: Serving {
+    public let address: URL
+    public let password: String
     let session: URLSession
 
     ///
     /// WebDAV root address for the account on the server.
     ///
     var webDAVAddress: URL {
-        address.appending(components: "remote.php", "dav", "files", user)
+        address.appending(components: "remote.php", "dav", "files", user, directoryHint: .isDirectory)
     }
 
-    let user: String
+    public let user: String
 
     // MARK: - Private
 
@@ -33,7 +33,7 @@ final class Server: Serving {
 
     // MARK: - Public
 
-    init(address: URL, password: String, user: String) {
+    public init(address: URL, password: String, user: String) {
         self.address = address
         self.password = password
         self.session = URLSession(configuration: .ephemeral)
@@ -43,8 +43,8 @@ final class Server: Serving {
     ///
     /// List the content of the remote directory.
     ///
-    func content(at path: String) async throws -> [Item] {
-        let url = webDAVAddress.appending(path: path)
+    public func content(at path: String) async throws -> [Item] {
+        let url = webDAVAddress.appending(path: path, directoryHint: .isDirectory)
         let requestDocument = RequestBodyFactory.makeRequestBodyForDirectoryContentListing()
 
         var request = makeWebDAVRequest(for: url, method: .propfind)
@@ -61,6 +61,14 @@ final class Server: Serving {
         let responses = root.elements(forName: "d:response")
 
         let items = responses.compactMap { response -> Item? in
+            guard let href = response.elements(forName: "d:href").first?.stringValue else {
+                return nil
+            }
+
+            guard href != url.path() else {
+                return nil // Filter out metadata about the listed directory itself.
+            }
+
             guard let propstat = response.elements(forName: "d:propstat").first else {
                 return nil
             }
