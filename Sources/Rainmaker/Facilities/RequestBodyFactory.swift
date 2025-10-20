@@ -10,10 +10,12 @@ enum RequestBodyFactory {
     }
 
     static func makeRequestBodyForDirectoryContentListing() -> XMLDocument {
+        let contentlength = XMLElement(name: "d:getcontentlength")
         let displayname = XMLElement(name: "d:displayname")
         let resourcetype = XMLElement(name: "d:resourcetype")
 
         let prop = XMLElement(name: "d:prop")
+        prop.addChild(contentlength)
         prop.addChild(displayname)
         prop.addChild(resourcetype)
 

@@ -1,9 +1,18 @@
+import Foundation
+
 ///
 /// Semantic errors specific to this library.
 ///
-enum RainmakerError: Error {
+enum RainmakerError: Error, CustomStringConvertible {
     ///
     /// The response most likely was not in the expected format or structure.
     ///
-    case responseDecodingFailed
+    case responseDecodingFailed(_ reason: String)
+
+    var description: String {
+        switch self {
+            case .responseDecodingFailed(let reason):
+                reason
+        }
+    }
 }

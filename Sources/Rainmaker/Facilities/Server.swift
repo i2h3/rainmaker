@@ -55,35 +55,42 @@ public final class Server: Serving {
         let responseDocument = try XMLDocument(data: data)
 
         guard let root = responseDocument.rootElement() else {
-            throw RainmakerError.responseDecodingFailed
+            throw RainmakerError.responseDecodingFailed("Failed to get root element of document.")
         }
 
         let responses = root.elements(forName: "d:response")
 
-        let items = responses.compactMap { response -> Item? in
-            guard let href = response.elements(forName: "d:href").first?.stringValue else {
-                return nil
+        let items = try responses.compactMap { response -> Item? in
+            guard let href = URL(string: response.elements(forName: "d:href").first?.stringValue ?? "") else {
+                throw RainmakerError.responseDecodingFailed("Failed to get href.")
             }
 
-            guard href != url.path() else {
+            guard href.path() != url.path() else {
                 return nil // Filter out metadata about the listed directory itself.
             }
 
             guard let propstat = response.elements(forName: "d:propstat").first else {
-                return nil
+                throw RainmakerError.responseDecodingFailed("Failed to find propstat element for: \(href.absoluteString)")
             }
 
             guard let prop = propstat.elements(forName: "d:prop").first else {
-                return nil
+                throw RainmakerError.responseDecodingFailed("Failed to find prop element for: \(href.absoluteString)")
             }
 
             guard let displayName = prop.elements(forName: "d:displayname").first?.stringValue else {
-                return nil
+                throw RainmakerError.responseDecodingFailed("Failed to get display name for: \(href.absoluteString)")
             }
 
             let isDirectory = prop.elements(forName: "d:resourcetype").first?.elements(forName: "d:collection").isEmpty == false
+            var size: UInt64?
 
-            return Item(isDirectory: isDirectory, name: displayName)
+            if isDirectory == false {
+                if let sizeString = prop.elements(forName: "d:getcontentlength").first?.stringValue {
+                    size = UInt64(sizeString)
+                }
+            }
+
+            return Item(isDirectory: isDirectory, name: displayName, size: size, url: href)
         }
 
         return items
