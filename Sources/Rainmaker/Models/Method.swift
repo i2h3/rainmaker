@@ -1,7 +1,7 @@
 ///
 /// HTTP request methods.
 ///
-public enum Method: String, RawRepresentable {
+enum Method: String, RawRepresentable {
     ///
     /// Fetch properties of remote items.
     ///

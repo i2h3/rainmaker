@@ -1,5 +1,8 @@
 import Foundation
 
+///
+/// Default implementation of ``Serving``.
+/// 
 public final class Server: Serving {
     public let address: URL
     public let password: String
