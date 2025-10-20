@@ -1,0 +1,69 @@
+name: Documentation
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  Build:
+    runs-on: macos-latest
+    steps:
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - uses: actions/checkout@v4
+      - name: Build documentation
+        run: |
+          xcodebuild docbuild \
+            -scheme Rainmaker \
+            -destination 'platform=macOS' \
+            -skipPackagePluginValidation \
+            -derivedDataPath ./DerivedData
+          $(xcrun --find docc) process-archive \
+            transform-for-static-hosting ./DerivedData/Build/Products/Debug/Rainmaker.doccarchive \
+            --output-path ./docs \
+            --hosting-base-path /rainmaker
+      - name: Create root redirect
+        run: |
+          cat > ./docs/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8">
+            <title>Rainmaker Documentation</title>
+            <meta http-equiv="refresh" content="0; url=./documentation/rainmaker/">
+            <link rel="canonical" href="./documentation/rainmaker/">
+          </head>
+          <body>
+            <p>Redirecting to <a href="./documentation/rainmaker/">Rainmaker Documentation</a>...</p>
+            <script>
+              window.location.href = "./documentation/rainmaker/";
+            </script>
+          </body>
+          </html>
+          EOF
+      - name: Upload static files as artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./docs
+
+  Deploy: # See: https://github.com/actions/deploy-pages
+    needs: Build
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
