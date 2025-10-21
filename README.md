@@ -1,13 +1,13 @@
 # Rainmaker
 
-A simple Swift API to access Nextcloud files programmatically.
+A simple Swift library to access [Nextcloud](https://www.nextcloud.com) files programmatically.
 This intentionally sticks to the basics and does not attempt to cover all the Nextcloud features.
 It is stateless and does not have any dependencies except first-party frameworks provided by the target platforms.
-For the simplest use cases, you might prefer this over NextcloudKit.
+For the simplest use cases, you might prefer this over [NextcloudKit](https://github.com/nextcloud/NextcloudKit).
 
-## Example
+## Swift API Example
 
-Running the following code against a local Nextcloud Docker container with the default files in the user's root directory:
+Running the following code against [a local Nextcloud Docker container](https://hub.docker.com/_/nextcloud) with the default files in the user's root directory:
 
 ```swift
 let server = Server(address: URL(string: "http://localhost:8081")!, password: "admin", user: "admin")
