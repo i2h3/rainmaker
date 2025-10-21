@@ -13,21 +13,20 @@ let package = Package(
         .watchOS(.v26),
     ],
     products: [
-        // Products define the executables and libraries a package produces, making them visible to other packages.
-        .library(
-            name: "Rainmaker",
-            targets: ["Rainmaker"]
-        ),
+        .executable(name: "rainmaker", targets: ["RainmakerCLI"]),
+        .library(name: "Rainmaker", targets: ["Rainmaker"]),
+        .library(name: "RainmakerMocks", targets: ["RainmakerMocks"]),
+    ],
+    dependencies: [
+        .package(url: "https://github.com/apple/swift-argument-parser", from: "1.6.2"),
     ],
     targets: [
-        // Targets are the basic building blocks of a package, defining a module or a test suite.
-        // Targets can depend on other targets in this package and products from dependencies.
-        .target(
-            name: "Rainmaker"
-        ),
-        .testTarget(
-            name: "RainmakerTests",
-            dependencies: ["Rainmaker"]
-        ),
+        .target(name: "Rainmaker"),
+        .executableTarget(name: "RainmakerCLI", dependencies: [
+            .product(name: "ArgumentParser", package: "swift-argument-parser"),
+            "Rainmaker"
+        ]),
+        .target(name: "RainmakerMocks", dependencies: ["Rainmaker"]),
+        .testTarget(name: "RainmakerTests", dependencies: ["Rainmaker"]),
     ]
 )
