@@ -1,11 +1,16 @@
 import Foundation
 
 ///
-/// Represents a file system item.
+/// Represents a file system item, directories and files alike.
 ///
 public struct Item: Model {
     ///
-    /// Whether the item is a directory or not.
+    /// The full path of the item on the server.
+    ///
+    public let href: URL
+
+    ///
+    /// Whether the item is a directory or file.
     ///
     public let isDirectory: Bool
 
@@ -16,11 +21,7 @@ public struct Item: Model {
 
     ///
     /// The size of the item in bytes.
+    /// This is `nil` for directories.
     ///
     public let size: UInt64?
-
-    ///
-    /// The fully qualified URL of the item.
-    ///
-    public let url: URL
 }

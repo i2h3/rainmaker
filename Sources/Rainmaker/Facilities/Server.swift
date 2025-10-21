@@ -93,7 +93,7 @@ public final class Server: Serving {
                 }
             }
 
-            return Item(isDirectory: isDirectory, name: displayName, size: size, url: href)
+            return Item(href: href, isDirectory: isDirectory, name: displayName, size: size)
         }
 
         return items
