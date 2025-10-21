@@ -1,0 +1,118 @@
+name: Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  test-macos:
+    name: Test on macOS
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Show Swift version
+        run: swift --version
+      
+      - name: Run tests
+        run: swift test
+
+  test-ios:
+    name: Test on iOS
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: List available simulators
+        run: xcrun simctl list devices available
+      
+      - name: Run tests on iOS Simulator
+        run: |
+          xcodebuild test \
+            -scheme Rainmaker \
+            -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+            -enableCodeCoverage YES
+
+  test-tvos:
+    name: Test on tvOS
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Run tests on tvOS Simulator
+        run: |
+          xcodebuild test \
+            -scheme Rainmaker \
+            -destination 'platform=tvOS Simulator,name=Apple TV 4K (3rd generation)' \
+            -enableCodeCoverage YES
+
+  test-watchos:
+    name: Test on watchOS
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Run tests on watchOS Simulator
+        run: |
+          xcodebuild test \
+            -scheme Rainmaker \
+            -destination 'platform=watchOS Simulator,name=Apple Watch Ultra 2 (49mm)' \
+            -enableCodeCoverage YES
+
+  test-visionos:
+    name: Test on visionOS
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Run tests on visionOS Simulator
+        run: |
+          xcodebuild test \
+            -scheme Rainmaker \
+            -destination 'platform=visionOS Simulator,name=Apple Vision Pro' \
+            -enableCodeCoverage YES
+
+  test-linux:
+    name: Test on Linux
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Swift
+        uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: '6.2'
+      
+      - name: Show Swift version
+        run: swift --version
+      
+      - name: Run tests
+        run: swift test
+
+  test-windows:
+    name: Test on Windows
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Swift
+        uses: compnerd/gha-setup-swift@main
+        with:
+          branch: swift-6.2-release
+          tag: 6.2-RELEASE
+      
+      - name: Show Swift version
+        run: swift --version
+      
+      - name: Run tests
+        run: swift test
