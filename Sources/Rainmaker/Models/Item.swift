@@ -2,8 +2,6 @@ import Foundation
 
 ///
 /// Represents a file system item, directories and files alike.
-/// 
-/// > To Do: Add properties: https://docs.nextcloud.com/server/stable/developer_manual/client_apis/WebDAV/basic.html
 ///
 public struct Item: Model, Identifiable {
     ///
@@ -26,6 +24,9 @@ public struct Item: Model, Identifiable {
         let unread: UInt
     }
 
+    ///
+    /// Structured information about related comments.
+    ///
     public let comments: Comments
 
     ///
@@ -380,6 +381,9 @@ public struct Item: Model, Identifiable {
         case upload
     }
 
+    ///
+    /// Custom encoding implementation.
+    ///
     public func encode(to encoder: any Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(self.comments, forKey: .comments)
