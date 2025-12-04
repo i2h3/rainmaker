@@ -27,7 +27,7 @@ jobs:
           $(xcrun --find docc) process-archive \
             transform-for-static-hosting ./DerivedData/Build/Products/Debug/Rainmaker.doccarchive \
             --output-path ./docs \
-            --hosting-base-path /Rainmaker
+            --hosting-base-path /rainmaker
       - name: Create root redirect
         run: |
           cat > ./docs/index.html << 'EOF'
