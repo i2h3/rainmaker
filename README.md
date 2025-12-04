@@ -1,17 +1,21 @@
 # Rainmaker
 
-[![macOS](https://github.com/i2h3/rainmaker/actions/workflows/test.yml/badge.svg?event=push&job=test-macos)](https://github.com/i2h3/rainmaker/actions/workflows/test.yml)
-[![iOS](https://github.com/i2h3/rainmaker/actions/workflows/test.yml/badge.svg?event=push&job=test-ios)](https://github.com/i2h3/rainmaker/actions/workflows/test.yml)
-[![tvOS](https://github.com/i2h3/rainmaker/actions/workflows/test.yml/badge.svg?event=push&job=test-tvos)](https://github.com/i2h3/rainmaker/actions/workflows/test.yml)
-[![watchOS](https://github.com/i2h3/rainmaker/actions/workflows/test.yml/badge.svg?event=push&job=test-watchos)](https://github.com/i2h3/rainmaker/actions/workflows/test.yml)
-[![visionOS](https://github.com/i2h3/rainmaker/actions/workflows/test.yml/badge.svg?event=push&job=test-visionos)](https://github.com/i2h3/rainmaker/actions/workflows/test.yml)
-[![Linux](https://github.com/i2h3/rainmaker/actions/workflows/test.yml/badge.svg?event=push&job=test-linux)](https://github.com/i2h3/rainmaker/actions/workflows/test.yml)
-[![Windows](https://github.com/i2h3/rainmaker/actions/workflows/test.yml/badge.svg?event=push&job=test-windows)](https://github.com/i2h3/rainmaker/actions/workflows/test.yml)
+[![Tests](https://github.com/i2h3/rainmaker/actions/workflows/test.yml/badge.svg)](https://github.com/i2h3/rainmaker/actions/workflows/test.yml)
 
-A simple Swift library to access [Nextcloud](https://www.nextcloud.com) files programmatically.
+A simple Swift library and CLI to access [Nextcloud](https://www.nextcloud.com) files programmatically.
 This intentionally sticks to the basics and does not attempt to cover all the Nextcloud features.
-It is stateless and does not have any dependencies except first-party frameworks provided by the target platforms.
+It is stateless and is built using first-party frameworks like Foundation.
 For the simplest use cases, you might prefer this over [NextcloudKit](https://github.com/nextcloud/NextcloudKit).
+
+## Supported Platforms
+
+* **iOS** 26 and newer
+* **macOS** 26 and newer
+* **tvOS** 26 and newer
+* **visionOS** 26 and newer
+* **watchOS** 26 and newer
+* **Windows** (still unverified but should work)
+* **Linux** (still unverified but should work)
 
 ## CLI Example
 
