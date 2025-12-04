@@ -1,3 +1,7 @@
+<div align="center">
+    <img src="Rainmaker.png" alt="Logo of Rainmaker" width="256" height="256" />
+</div>
+
 # Rainmaker
 
 [![Tests](https://github.com/i2h3/rainmaker/actions/workflows/test.yml/badge.svg)](https://github.com/i2h3/rainmaker/actions/workflows/test.yml)
