@@ -2,6 +2,9 @@ import Foundation
 import Testing
 @testable import Rainmaker
 
+///
+/// About folder content listing.
+///
 @Suite("Listing Tests") struct ListingTests {
     let server: any Serving
 

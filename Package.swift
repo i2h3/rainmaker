@@ -13,8 +13,8 @@ let package = Package(
         .watchOS(.v26),
     ],
     products: [
-        .executable(name: "rainmaker", targets: ["RainmakerCLI"]),
         .library(name: "Rainmaker", targets: ["Rainmaker"]),
+        .executable(name: "RainmakerCLI", targets: ["RainmakerCLI"]),
         .library(name: "RainmakerMocks", targets: ["RainmakerMocks"]),
     ],
     dependencies: [

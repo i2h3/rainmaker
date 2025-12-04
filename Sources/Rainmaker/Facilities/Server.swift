@@ -72,28 +72,7 @@ public final class Server: Serving {
                 return nil // Filter out metadata about the listed directory itself.
             }
 
-            guard let propstat = response.elements(forName: "d:propstat").first else {
-                throw RainmakerError.responseDecodingFailed("Failed to find propstat element for: \(href.absoluteString)")
-            }
-
-            guard let prop = propstat.elements(forName: "d:prop").first else {
-                throw RainmakerError.responseDecodingFailed("Failed to find prop element for: \(href.absoluteString)")
-            }
-
-            guard let displayName = prop.elements(forName: "d:displayname").first?.stringValue else {
-                throw RainmakerError.responseDecodingFailed("Failed to get display name for: \(href.absoluteString)")
-            }
-
-            let isDirectory = prop.elements(forName: "d:resourcetype").first?.elements(forName: "d:collection").isEmpty == false
-            var size: UInt64?
-
-            if isDirectory == false {
-                if let sizeString = prop.elements(forName: "d:getcontentlength").first?.stringValue {
-                    size = UInt64(sizeString)
-                }
-            }
-
-            return Item(href: href, isDirectory: isDirectory, name: displayName, size: size)
+            return try Item(response: response)
         }
 
         return items
