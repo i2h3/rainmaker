@@ -44,7 +44,7 @@ jobs:
       - name: Run tests on iOS Simulator
         run: |
           xcodebuild test \
-            -scheme Rainmaker \
+            -scheme Rainmaker-Package \
             -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
             -enableCodeCoverage YES
 
@@ -63,7 +63,7 @@ jobs:
       - name: Run tests on tvOS Simulator
         run: |
           xcodebuild test \
-            -scheme Rainmaker \
+            -scheme Rainmaker-Package \
             -destination 'platform=tvOS Simulator,name=Apple TV 4K (3rd generation)' \
             -enableCodeCoverage YES
 
@@ -82,7 +82,7 @@ jobs:
       - name: Run tests on watchOS Simulator
         run: |
           xcodebuild test \
-            -scheme Rainmaker \
+            -scheme Rainmaker-Package \
             -destination 'platform=watchOS Simulator,name=Apple Watch Ultra 2 (49mm)' \
             -enableCodeCoverage YES
 
@@ -101,7 +101,7 @@ jobs:
       - name: Run tests on visionOS Simulator
         run: |
           xcodebuild test \
-            -scheme Rainmaker \
+            -scheme Rainmaker-Package \
             -destination 'platform=visionOS Simulator,name=Apple Vision Pro' \
             -enableCodeCoverage YES
 
