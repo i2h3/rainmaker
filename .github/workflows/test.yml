@@ -9,7 +9,7 @@ on:
 
 jobs:
   test-macos:
-    name: Test on macOS
+    name: macOS
     runs-on: macos-latest
     steps:
       - name: Checkout code
@@ -27,7 +27,7 @@ jobs:
         run: swift test
 
   test-ios:
-    name: Test on iOS
+    name: iOS
     runs-on: macos-latest
     steps:
       - name: Checkout code
@@ -49,7 +49,7 @@ jobs:
             -enableCodeCoverage YES
 
   test-tvos:
-    name: Test on tvOS
+    name: tvOS
     runs-on: macos-latest
     steps:
       - name: Checkout code
@@ -68,7 +68,7 @@ jobs:
             -enableCodeCoverage YES
 
   test-watchos:
-    name: Test on watchOS
+    name: watchOS
     runs-on: macos-latest
     steps:
       - name: Checkout code
@@ -87,7 +87,7 @@ jobs:
             -enableCodeCoverage YES
 
   test-visionos:
-    name: Test on visionOS
+    name: visionOS
     runs-on: macos-latest
     steps:
       - name: Checkout code
@@ -106,7 +106,7 @@ jobs:
             -enableCodeCoverage YES
 
   test-linux:
-    name: Test on Linux
+    name: Linux
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -124,7 +124,7 @@ jobs:
         run: swift test
 
   test-windows:
-    name: Test on Windows
+    name: Windows
     runs-on: windows-latest
     steps:
       - name: Checkout code
