@@ -1,0 +1,8 @@
+import Foundation
+
+///
+/// Features of `URLSession` defined as a mockable protocol for tests.
+///
+public protocol Requesting: Sendable {
+    func data(for request: URLRequest) async throws -> (Data, URLResponse)
+}

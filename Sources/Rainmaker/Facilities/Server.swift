@@ -4,9 +4,11 @@ import Foundation
 /// Default implementation of ``Serving``.
 /// 
 public final class Server: Serving {
+    static let resourceURL = Bundle.module.resourceURL!
+
     public let address: URL
     public let password: String
-    let session: URLSession
+    let session: any Requesting
 
     ///
     /// WebDAV root address for the account on the server.
@@ -36,10 +38,10 @@ public final class Server: Serving {
 
     // MARK: - Public
 
-    public init(address: URL, password: String, user: String) {
+    public init(address: URL, password: String, user: String, session: any Requesting = URLSession(configuration: .ephemeral)) {
         self.address = address
         self.password = password
-        self.session = URLSession(configuration: .ephemeral)
+        self.session = session
         self.user = user
     }
 
@@ -48,10 +50,8 @@ public final class Server: Serving {
     ///
     public func content(at path: String) async throws -> [Item] {
         let url = webDAVAddress.appending(path: path, directoryHint: .isDirectory)
-        let requestDocument = RequestBodyFactory.makeRequestBodyForDirectoryContentListing()
-
         var request = makeWebDAVRequest(for: url, method: .propfind)
-        request.httpBody = requestDocument.xmlData
+        request.httpBody = try? Data(contentsOf: Self.resourceURL.appending(component: "Bodies").appending(component: "Listing.xml"))
 
         let (data, _) = try await session.data(for: request)
 
