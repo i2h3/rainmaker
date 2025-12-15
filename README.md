@@ -18,8 +18,6 @@ For the simplest use cases, you might prefer this over [NextcloudKit](https://gi
 * **tvOS** 26 and newer
 * **visionOS** 26 and newer
 * **watchOS** 26 and newer
-* **Windows** (still unverified but should work)
-* **Linux** (still unverified but should work)
 
 ## CLI Example
 
