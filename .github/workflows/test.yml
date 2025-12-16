@@ -3,10 +3,6 @@
 
 name: Tests
 
-concurrency:
-  group: test-${{ github.head_ref || github.ref }}
-  cancel-in-progress: true
-
 on:
   push:
     branches: [ main ]

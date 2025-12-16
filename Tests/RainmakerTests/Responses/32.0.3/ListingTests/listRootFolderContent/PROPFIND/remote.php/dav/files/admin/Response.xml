@@ -5,14 +5,14 @@
     <d:propstat>
       <d:prop>
         <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
-        <d:getlastmodified>Mon, 15 Dec 2025 09:14:42 GMT</d:getlastmodified>
-        <d:getetag>"693fd182b82b6"</d:getetag>
-        <oc:size>38527284</oc:size>
+        <d:getlastmodified>Fri, 19 Dec 2025 14:18:04 GMT</d:getlastmodified>
+        <d:getetag>"69455e9c4ce80"</d:getetag>
+        <oc:size>57430013</oc:size>
         <d:displayname>admin</d:displayname>
         <d:resourcetype>
           <d:collection/>
         </d:resourcetype>
-        <oc:id>00000002ocz6cxhh4pe8</oc:id>
+        <oc:id>00000002oc1nfr9t3i5z</oc:id>
         <oc:fileid>2</oc:fileid>
         <oc:permissions>RGDNVCK</oc:permissions>
         <nc:is-mount-root>false</nc:is-mount-root>
@@ -54,20 +54,20 @@
     <d:propstat>
       <d:prop>
         <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
-        <d:getlastmodified>Mon, 15 Dec 2025 09:14:42 GMT</d:getlastmodified>
-        <d:getetag>"693fd182a9e85"</d:getetag>
+        <d:getlastmodified>Fri, 19 Dec 2025 14:18:04 GMT</d:getlastmodified>
+        <d:getetag>"69455e9c4539f"</d:getetag>
         <oc:size>1108446</oc:size>
         <d:displayname>Documents</d:displayname>
         <d:resourcetype>
           <d:collection/>
         </d:resourcetype>
-        <oc:id>00000049ocz6cxhh4pe8</oc:id>
-        <oc:fileid>49</oc:fileid>
+        <oc:id>00000061oc1nfr9t3i5z</oc:id>
+        <oc:fileid>61</oc:fileid>
         <oc:permissions>RGDNVCK</oc:permissions>
         <nc:is-mount-root>false</nc:is-mount-root>
         <oc:tags/>
         <oc:favorite>0</oc:favorite>
-        <oc:comments-href>/remote.php/dav/comments/files/49</oc:comments-href>
+        <oc:comments-href>/remote.php/dav/comments/files/61</oc:comments-href>
         <oc:comments-count>0</oc:comments-count>
         <oc:comments-unread>0</oc:comments-unread>
         <oc:owner-id>admin</oc:owner-id>
@@ -103,19 +103,19 @@
     <d:propstat>
       <d:prop>
         <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
-        <d:getlastmodified>Mon, 15 Dec 2025 09:14:42 GMT</d:getlastmodified>
-        <d:getetag>"51c177e4e2095547d4f86f7cff3ef800"</d:getetag>
+        <d:getlastmodified>Fri, 19 Dec 2025 14:18:04 GMT</d:getlastmodified>
+        <d:getetag>"2da658347418ea07b147286af2973e3e"</d:getetag>
         <d:getcontenttype>application/pdf</d:getcontenttype>
-        <oc:size>15827401</oc:size>
+        <oc:size>22195408</oc:size>
         <d:displayname>Nextcloud Manual.pdf</d:displayname>
         <d:resourcetype/>
-        <oc:id>00000056ocz6cxhh4pe8</oc:id>
-        <oc:fileid>56</oc:fileid>
+        <oc:id>00000068oc1nfr9t3i5z</oc:id>
+        <oc:fileid>68</oc:fileid>
         <oc:permissions>RGDNVW</oc:permissions>
         <nc:is-mount-root>false</nc:is-mount-root>
         <oc:tags/>
         <oc:favorite>0</oc:favorite>
-        <oc:comments-href>/remote.php/dav/comments/files/56</oc:comments-href>
+        <oc:comments-href>/remote.php/dav/comments/files/68</oc:comments-href>
         <oc:comments-count>0</oc:comments-count>
         <oc:comments-unread>0</oc:comments-unread>
         <oc:owner-id>admin</oc:owner-id>
@@ -150,19 +150,19 @@
     <d:propstat>
       <d:prop>
         <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
-        <d:getlastmodified>Mon, 15 Dec 2025 09:14:42 GMT</d:getlastmodified>
-        <d:getetag>"e9cf36eb74392390f7afcf0bb785bdf8"</d:getetag>
+        <d:getlastmodified>Fri, 19 Dec 2025 14:18:04 GMT</d:getlastmodified>
+        <d:getetag>"9e782e6c20a999c9c184fc1a921fe188"</d:getetag>
         <d:getcontenttype>video/mp4</d:getcontenttype>
         <oc:size>3963036</oc:size>
         <d:displayname>Nextcloud intro.mp4</d:displayname>
         <d:resourcetype/>
-        <oc:id>00000048ocz6cxhh4pe8</oc:id>
-        <oc:fileid>48</oc:fileid>
+        <oc:id>00000060oc1nfr9t3i5z</oc:id>
+        <oc:fileid>60</oc:fileid>
         <oc:permissions>RGDNVW</oc:permissions>
         <nc:is-mount-root>false</nc:is-mount-root>
         <oc:tags/>
         <oc:favorite>0</oc:favorite>
-        <oc:comments-href>/remote.php/dav/comments/files/48</oc:comments-href>
+        <oc:comments-href>/remote.php/dav/comments/files/60</oc:comments-href>
         <oc:comments-count>0</oc:comments-count>
         <oc:comments-unread>0</oc:comments-unread>
         <oc:owner-id>admin</oc:owner-id>
@@ -197,19 +197,19 @@
     <d:propstat>
       <d:prop>
         <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
-        <d:getlastmodified>Mon, 15 Dec 2025 09:14:42 GMT</d:getlastmodified>
-        <d:getetag>"4e327d182557d852cd1214bbb248444a"</d:getetag>
+        <d:getlastmodified>Fri, 19 Dec 2025 14:18:04 GMT</d:getlastmodified>
+        <d:getetag>"17151802fc79f7cd0d56f77c6f643b67"</d:getetag>
         <d:getcontenttype>image/png</d:getcontenttype>
         <oc:size>50598</oc:size>
         <d:displayname>Nextcloud.png</d:displayname>
         <d:resourcetype/>
-        <oc:id>00000055ocz6cxhh4pe8</oc:id>
-        <oc:fileid>55</oc:fileid>
+        <oc:id>00000067oc1nfr9t3i5z</oc:id>
+        <oc:fileid>67</oc:fileid>
         <oc:permissions>RGDNVW</oc:permissions>
         <nc:is-mount-root>false</nc:is-mount-root>
         <oc:tags/>
         <oc:favorite>0</oc:favorite>
-        <oc:comments-href>/remote.php/dav/comments/files/55</oc:comments-href>
+        <oc:comments-href>/remote.php/dav/comments/files/67</oc:comments-href>
         <oc:comments-count>0</oc:comments-count>
         <oc:comments-unread>0</oc:comments-unread>
         <oc:owner-id>admin</oc:owner-id>
@@ -244,14 +244,14 @@
     <d:propstat>
       <d:prop>
         <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
-        <d:getlastmodified>Mon, 15 Dec 2025 09:14:42 GMT</d:getlastmodified>
-        <d:getetag>"693fd182383f5"</d:getetag>
+        <d:getlastmodified>Fri, 19 Dec 2025 14:18:03 GMT</d:getlastmodified>
+        <d:getetag>"69455e9bdb230"</d:getetag>
         <oc:size>5656463</oc:size>
         <d:displayname>Photos</d:displayname>
         <d:resourcetype>
           <d:collection/>
         </d:resourcetype>
-        <oc:id>00000003ocz6cxhh4pe8</oc:id>
+        <oc:id>00000003oc1nfr9t3i5z</oc:id>
         <oc:fileid>3</oc:fileid>
         <oc:permissions>RGDNVCK</oc:permissions>
         <nc:is-mount-root>false</nc:is-mount-root>
@@ -293,13 +293,13 @@
     <d:propstat>
       <d:prop>
         <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
-        <d:getlastmodified>Mon, 15 Dec 2025 09:14:42 GMT</d:getlastmodified>
-        <d:getetag>"091d6a328277d105d13e2894d8d10e7b"</d:getetag>
+        <d:getlastmodified>Fri, 19 Dec 2025 14:18:03 GMT</d:getlastmodified>
+        <d:getetag>"4618961b589e0ba13a66746cf6765ffe"</d:getetag>
         <d:getcontenttype>text/markdown</d:getcontenttype>
         <oc:size>197</oc:size>
         <d:displayname>Readme.md</d:displayname>
         <d:resourcetype/>
-        <oc:id>00000013ocz6cxhh4pe8</oc:id>
+        <oc:id>00000013oc1nfr9t3i5z</oc:id>
         <oc:fileid>13</oc:fileid>
         <oc:permissions>RGDNVW</oc:permissions>
         <nc:is-mount-root>false</nc:is-mount-root>
@@ -340,19 +340,19 @@
     <d:propstat>
       <d:prop>
         <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
-        <d:getlastmodified>Mon, 15 Dec 2025 09:14:42 GMT</d:getlastmodified>
-        <d:getetag>"ea61eac353c9241fffe528cbb0ebf3b0"</d:getetag>
+        <d:getlastmodified>Fri, 19 Dec 2025 14:18:04 GMT</d:getlastmodified>
+        <d:getetag>"029ba0ef169d65215527d3c2d89a393c"</d:getetag>
         <d:getcontenttype>application/pdf</d:getcontenttype>
         <oc:size>976625</oc:size>
         <d:displayname>Reasons to use Nextcloud.pdf</d:displayname>
         <d:resourcetype/>
-        <oc:id>00000054ocz6cxhh4pe8</oc:id>
-        <oc:fileid>54</oc:fileid>
+        <oc:id>00000066oc1nfr9t3i5z</oc:id>
+        <oc:fileid>66</oc:fileid>
         <oc:permissions>RGDNVW</oc:permissions>
         <nc:is-mount-root>false</nc:is-mount-root>
         <oc:tags/>
         <oc:favorite>0</oc:favorite>
-        <oc:comments-href>/remote.php/dav/comments/files/54</oc:comments-href>
+        <oc:comments-href>/remote.php/dav/comments/files/66</oc:comments-href>
         <oc:comments-count>0</oc:comments-count>
         <oc:comments-unread>0</oc:comments-unread>
         <oc:owner-id>admin</oc:owner-id>
@@ -387,14 +387,14 @@
     <d:propstat>
       <d:prop>
         <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
-        <d:getlastmodified>Mon, 15 Dec 2025 09:14:42 GMT</d:getlastmodified>
-        <d:getetag>"693fd18299d73"</d:getetag>
-        <oc:size>10942115</oc:size>
+        <d:getlastmodified>Fri, 19 Dec 2025 14:18:04 GMT</d:getlastmodified>
+        <d:getetag>"69455e9c3ac47"</d:getetag>
+        <oc:size>23476072</oc:size>
         <d:displayname>Templates</d:displayname>
         <d:resourcetype>
           <d:collection/>
         </d:resourcetype>
-        <oc:id>00000014ocz6cxhh4pe8</oc:id>
+        <oc:id>00000014oc1nfr9t3i5z</oc:id>
         <oc:fileid>14</oc:fileid>
         <oc:permissions>RGDNVCK</oc:permissions>
         <nc:is-mount-root>false</nc:is-mount-root>
@@ -436,19 +436,19 @@
     <d:propstat>
       <d:prop>
         <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
-        <d:getlastmodified>Mon, 15 Dec 2025 09:14:42 GMT</d:getlastmodified>
-        <d:getetag>"c756ffdccc54dc4f9cc5befae873ed3e"</d:getetag>
+        <d:getlastmodified>Fri, 19 Dec 2025 14:18:04 GMT</d:getlastmodified>
+        <d:getetag>"9e1cba5f883abc39b9e00fac90caf1c6"</d:getetag>
         <d:getcontenttype>text/markdown</d:getcontenttype>
-        <oc:size>2403</oc:size>
+        <oc:size>3168</oc:size>
         <d:displayname>Templates credits.md</d:displayname>
         <d:resourcetype/>
-        <oc:id>00000057ocz6cxhh4pe8</oc:id>
-        <oc:fileid>57</oc:fileid>
+        <oc:id>00000069oc1nfr9t3i5z</oc:id>
+        <oc:fileid>69</oc:fileid>
         <oc:permissions>RGDNVW</oc:permissions>
         <nc:is-mount-root>false</nc:is-mount-root>
         <oc:tags/>
         <oc:favorite>0</oc:favorite>
-        <oc:comments-href>/remote.php/dav/comments/files/57</oc:comments-href>
+        <oc:comments-href>/remote.php/dav/comments/files/69</oc:comments-href>
         <oc:comments-count>0</oc:comments-count>
         <oc:comments-unread>0</oc:comments-unread>
         <oc:owner-id>admin</oc:owner-id>

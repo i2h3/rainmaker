@@ -21,114 +21,82 @@ NEXTCLOUD_SERVER_HOST="http://localhost:${NEXTCLOUD_SERVER_PORT}"
 
 # MARK: - Generic Fetch Implementations
 
+PROPFIND_REQUEST_BODY='<?xml version="1.0" encoding="UTF-8"?>
+    <d:propfind xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns">
+        <d:prop>
+            <d:creationdate />
+            <d:getlastmodified />
+            <d:getetag />
+            <d:getcontenttype />
+            <oc:size />
+            <d:displayname />
+            <d:resourcetype />
+            <oc:id />
+            <oc:fileid />
+            <oc:permissions />
+            <nc:is-encrypted />
+            <nc:is-mount-root />
+            <oc:tags />
+            <oc:favorite />
+            <oc:comments-href />
+            <oc:comments-count />
+            <oc:comments-unread />
+            <oc:owner-id />
+            <oc:owner-display-name />
+            <oc:checksums />
+            <nc:has-preview />
+            <nc:hidden />
+            <nc:upload_time />
+            <nc:group-folder-id />
+            <nc:lock />
+            <nc:lock-owner-type />
+            <nc:lock-owner />
+            <nc:lock-owner-displayname />
+            <nc:lock-owner-editor />
+            <nc:lock-time />
+            <nc:lock-timeout />
+            <nc:lock-token />
+            <nc:version-label />
+            <nc:version-author />
+        </d:prop>
+    </d:propfind>'
+
 fetch_response() {
-    curl -o "$2.txt" --no-progress-meter \
-         -X "PROPFIND" "${NEXTCLOUD_SERVER_HOST}/remote.php/dav/files/admin/$1" \
+    WEBDAV_PATH_PREFIX="remote.php/dav/files"
+    USER_PATH_PREFIX="${WEBDAV_PATH_PREFIX}/admin"
+    RESOURCE_PATH="${USER_PATH_PREFIX}/$2"
+    FILE_PATH_PREFIX="Tests/RainmakerTests/Responses/${NEXTCLOUD_SERVER_VERSION}/$1/PROPFIND/${RESOURCE_PATH}"
+
+    mkdir -p "${FILE_PATH_PREFIX}"
+
+    curl -o "${FILE_PATH_PREFIX}/Response.txt" --no-progress-meter \
+         -X "PROPFIND" "${NEXTCLOUD_SERVER_HOST}/${RESOURCE_PATH}" \
          -H 'Accept: application/xml' \
          -H 'Content-Type: application/xml' \
          -u 'admin:admin' \
-         -d "$3"
+         -d "$PROPFIND_REQUEST_BODY"
 
-    xmllint --format "$2.txt" > "$2.xml"
-    rm "$2.txt"
+    xmllint --format "${FILE_PATH_PREFIX}/Response.txt" > "${FILE_PATH_PREFIX}/Response.xml"
+    rm "${FILE_PATH_PREFIX}/Response.txt"
 
-    echo "Updated: $2.xml"
+    echo "Updated: ${FILE_PATH_PREFIX}/Response.xml"
 }
 
 # MARK: - Specific Fetch Definitions
 
 fetch_response_ListingTests_listRootFolderContent() {
-    echo "Fetching response for ListingTests.listRootFolderContent..."
-    TARGET_FILE="Tests/RainmakerTests/Responses/${NEXTCLOUD_SERVER_VERSION}/ListingTests/listRootFolderContent/1"
-    REMOTE_PATH=""
-    REQUEST_BODY='<?xml version="1.0" encoding="UTF-8"?>
-    <d:propfind xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns">
-        <d:prop>
-            <d:creationdate />
-            <d:getlastmodified />
-            <d:getetag />
-            <d:getcontenttype />
-            <oc:size />
-            <d:displayname />
-            <d:resourcetype />
-            <oc:id />
-            <oc:fileid />
-            <oc:permissions />
-            <nc:is-encrypted />
-            <nc:is-mount-root />
-            <oc:tags />
-            <oc:favorite />
-            <oc:comments-href />
-            <oc:comments-count />
-            <oc:comments-unread />
-            <oc:owner-id />
-            <oc:owner-display-name />
-            <oc:checksums />
-            <nc:has-preview />
-            <nc:hidden />
-            <nc:upload_time />
-            <nc:group-folder-id />
-            <nc:lock />
-            <nc:lock-owner-type />
-            <nc:lock-owner />
-            <nc:lock-owner-displayname />
-            <nc:lock-owner-editor />
-            <nc:lock-time />
-            <nc:lock-timeout />
-            <nc:lock-token />
-            <nc:version-label />
-            <nc:version-author />
-        </d:prop>
-    </d:propfind>'
-
-    fetch_response "$REMOTE_PATH" "$TARGET_FILE" "$REQUEST_BODY"
+    fetch_response "ListingTests/listRootFolderContent" ""
 }
 
 fetch_response_ListingTests_listDocumentsFolderContent() {
-    echo "Fetching response for ListingTests.listDocumentsFolderContent..."
-    TARGET_FILE="Tests/RainmakerTests/Responses/${NEXTCLOUD_SERVER_VERSION}/ListingTests/listDocumentsFolderContent/1"
-    REMOTE_PATH="Documents/"
-    REQUEST_BODY='<?xml version="1.0" encoding="UTF-8"?>
-    <d:propfind xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns">
-        <d:prop>
-            <d:creationdate />
-            <d:getlastmodified />
-            <d:getetag />
-            <d:getcontenttype />
-            <oc:size />
-            <d:displayname />
-            <d:resourcetype />
-            <oc:id />
-            <oc:fileid />
-            <oc:permissions />
-            <nc:is-encrypted />
-            <nc:is-mount-root />
-            <oc:tags />
-            <oc:favorite />
-            <oc:comments-href />
-            <oc:comments-count />
-            <oc:comments-unread />
-            <oc:owner-id />
-            <oc:owner-display-name />
-            <oc:checksums />
-            <nc:has-preview />
-            <nc:hidden />
-            <nc:upload_time />
-            <nc:group-folder-id />
-            <nc:lock />
-            <nc:lock-owner-type />
-            <nc:lock-owner />
-            <nc:lock-owner-displayname />
-            <nc:lock-owner-editor />
-            <nc:lock-time />
-            <nc:lock-timeout />
-            <nc:lock-token />
-            <nc:version-label />
-            <nc:version-author />
-        </d:prop>
-    </d:propfind>'
+    fetch_response "ListingTests/listDocumentsFolderContent" "Documents"
+}
 
-    fetch_response "$REMOTE_PATH" "$TARGET_FILE" "$REQUEST_BODY"
+fetch_response_ListingTests_listAllContentRecursivelyAndAsynchronously() {
+    fetch_response "ListingTests/listAllContentRecursivelyAndAsynchronously" ""
+    fetch_response "ListingTests/listAllContentRecursivelyAndAsynchronously" "Documents"
+    fetch_response "ListingTests/listAllContentRecursivelyAndAsynchronously" "Photos"
+    fetch_response "ListingTests/listAllContentRecursivelyAndAsynchronously" "Templates"
 }
 
 # MARK: - Deploy Docker Container
@@ -163,15 +131,11 @@ for attempt in {1..30}; do
     fi
 done
 
-# MARK: - Create Destination Folders
-
-mkdir -p "Tests/RainmakerTests/Responses/${NEXTCLOUD_SERVER_VERSION}/ListingTests/listRootFolderContent"
-mkdir -p "Tests/RainmakerTests/Responses/${NEXTCLOUD_SERVER_VERSION}/ListingTests/listDocumentsFolderContent"
-
 # MARK: - Actual Fetches
 
-fetch_response_ListingTests_listRootFolderContent
+fetch_response_ListingTests_listAllContentRecursivelyAndAsynchronously
 fetch_response_ListingTests_listDocumentsFolderContent
+fetch_response_ListingTests_listRootFolderContent
 
 # MARK: - Delete Docker Container
 

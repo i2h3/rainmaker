@@ -3,10 +3,6 @@
 
 name: REUSE
 
-concurrency:
-  group: reuse-${{ github.head_ref || github.ref }}
-  cancel-in-progress: true
-
 on:
   push:
     branches: [ main ]

@@ -6,7 +6,7 @@ import Foundation
 ///
 /// Represents a file system item, directories and files alike.
 ///
-public struct Item: Model, Identifiable {
+public struct Item: Model, Identifiable, CustomStringConvertible, CustomDebugStringConvertible {
     ///
     /// Information about comments related to an Item.
     ///
@@ -116,6 +116,11 @@ public struct Item: Model, Identifiable {
     public let owner: User
 
     ///
+    /// The remote path of the item relative to the user's root directory.
+    ///
+    public let path: String
+
+    ///
     /// A collection of letters with specific semantics for each.
     ///
     public let permissions: Set<Permission>
@@ -133,6 +138,18 @@ public struct Item: Model, Identifiable {
     /// This is `nil` for directories.
     ///
     public let upload: Date?
+
+    // MARK: - CustomStringConvertible
+
+    public var description: String {
+        name
+    }
+
+    // MARK: - CustomDebugStringConvertible
+
+    public var debugDescription: String {
+        path
+    }
 
     // MARK: - Encodable
 
@@ -154,6 +171,7 @@ public struct Item: Model, Identifiable {
         case modification
         case name
         case owner
+        case path
         case permissions
         case size
         case upload
@@ -181,6 +199,7 @@ public struct Item: Model, Identifiable {
         try container.encode(modification, forKey: .modification)
         try container.encode(name, forKey: .name)
         try container.encode(owner, forKey: .owner)
+        try container.encode(path, forKey: .path)
 
         let joinedPermissions = permissions.map(\.description).sorted()
         try container.encode(joinedPermissions, forKey: .permissions)
