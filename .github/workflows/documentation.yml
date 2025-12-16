@@ -31,14 +31,6 @@ jobs:
             transform-for-static-hosting ./DerivedData/Build/Products/Debug/Rainmaker.doccarchive \
             --output-path ./docs \
             --hosting-base-path /rainmaker
-          $(xcrun --find docc) process-archive \
-            transform-for-static-hosting ./DerivedData/Build/Products/Debug/RainmakerCLI.doccarchive \
-            --output-path ./docs \
-            --hosting-base-path /rainmaker-cli
-          $(xcrun --find docc) process-archive \
-            transform-for-static-hosting ./DerivedData/Build/Products/Debug/RainmakerMocks.doccarchive \
-            --output-path ./docs \
-            --hosting-base-path /rainmaker-mocks
       - name: Create root redirect
         run: |
           cat > ./docs/index.html << 'EOF'
