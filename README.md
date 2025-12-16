@@ -33,7 +33,7 @@ $ swift run rainmaker help
 You can provide credentials directly as command-line options:
 
 ```bash
-$ swift run RainmakerCLI list --address "https://cloud.example.com" --user "myuser" --password "mypassword"
+$ swift run RainmakerCLI list --host "https://cloud.example.com" --user "myuser" --password "mypassword"
 ```
 
 ### Using Environment Variables
@@ -41,7 +41,7 @@ $ swift run RainmakerCLI list --address "https://cloud.example.com" --user "myus
 To avoid password leakage and enable a default account pattern, you can set credentials via environment variables:
 
 ```bash
-export RAINMAKER_ADDRESS="https://cloud.example.com"
+export RAINMAKER_HOST="https://cloud.example.com"
 export RAINMAKER_USER="myuser"
 export RAINMAKER_PASSWORD="mypassword"
 

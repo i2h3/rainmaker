@@ -10,9 +10,9 @@ import Foundation
 struct SharedArguments: ParsableArguments {
     @Option(
         name: .shortAndLong,
-        help: "The Nextcloud instance to connect to. Can also be set via RAINMAKER_ADDRESS environment variable."
+        help: "The Nextcloud instance to connect to. Can also be set via RAINMAKER_HOST environment variable."
     )
-    var address: String?
+    var host: String?
 
     @Option(
         name: .shortAndLong,
@@ -31,9 +31,9 @@ struct SharedArguments: ParsableArguments {
     
     mutating func validate() throws {
         try setCredentialFromEnvironment(
-            keyPath: \.address,
-            envVar: "RAINMAKER_ADDRESS",
-            optionName: "--address"
+            keyPath: \.host,
+            envVar: "RAINMAKER_HOST",
+            optionName: "--host"
         )
         
         try setCredentialFromEnvironment(
@@ -63,10 +63,10 @@ struct SharedArguments: ParsableArguments {
         }
     }
     
-    /// Get the address value, guaranteed to be non-nil after validation
-    var addressValue: String {
-        precondition(address != nil, "addressValue accessed before validation")
-        return address!
+    /// Get the host value, guaranteed to be non-nil after validation
+    var hostValue: String {
+        precondition(host != nil, "hostValue accessed before validation")
+        return host!
     }
     
     /// Get the user value, guaranteed to be non-nil after validation
