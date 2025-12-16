@@ -17,13 +17,21 @@ struct List: AsyncParsableCommand {
     @Option(help: "Path to list the content of as in the account.")
     var path: String = "/"
 
+    @Option(help: "Whether content of subdirectories should also be listed.")
+    var recursive: Bool = false
+
     func run() async throws {
         guard let address = URL(string: arguments.hostValue) else {
             throw RainmakerCommandError.invalidAddress
         }
 
         let server = Server(address: address, password: arguments.passwordValue, user: arguments.userValue)
-        let items = try await server.content(at: "/")
+        let stream = try await server.enumerate(at: path, recursively: recursive)
+        var items = [Item]()
+
+        for try await item in stream {
+            items.append(item)
+        }
 
         switch arguments.outputFormat {
             case .json:
@@ -39,7 +47,7 @@ struct List: AsyncParsableCommand {
                 print(json)
             case .plain:
                 for item in items {
-                    print(item.name)
+                    print(item.path)
                 }
         }
     }

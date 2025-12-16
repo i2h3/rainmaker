@@ -8,7 +8,9 @@ import os
 ///
 /// A mock implementation of `URLSession` to return static responses from the test bundle resources.
 ///
-public final class URLTestSession: Requesting {
+public final class URLTestSession: Requesting, @unchecked Sendable {
+    private var requestNumber = 0
+
     let logger: Logger
     let resourcePath: URL
     let testName: String
@@ -51,7 +53,8 @@ public final class URLTestSession: Requesting {
     }
 
     public func data(for request: URLRequest) async throws -> (Data, URLResponse) {
-        let resource = resourcePath.appending(component: "1.xml")
+        requestNumber += 1
+        let resource = resourcePath.appending(component: "\(requestNumber).xml")
         logger.debug("Reading content of \(resource.path())")
         let data = try Data(contentsOf: resource)
         let httpResponse = HTTPURLResponse(url: request.url ?? resource, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: nil)!

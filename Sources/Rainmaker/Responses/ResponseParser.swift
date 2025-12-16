@@ -7,12 +7,12 @@ import Foundation
 /// Parse WebDAV XML responses to own types.
 ///
 enum ResponseParser {
-    static func items(from data: Data) throws -> [Item] {
+    static func items(from data: Data, webDAVPathPrefix: String) throws -> [Item] {
         let root = try XMLTreeBuilder(data: data).parse()
         let responses = root.elements(forName: "d:response")
 
         let items = try responses.map { response in
-            try parseItem(from: response)
+            try parseItem(from: response, webDAVPathPrefix: webDAVPathPrefix)
         }
 
         return items
@@ -20,10 +20,16 @@ enum ResponseParser {
 
     // MARK: - Private
 
-    private static func parseItem(from response: Element) throws -> Item {
+    private static func parseItem(from response: Element, webDAVPathPrefix: String) throws -> Item {
         guard let hrefString = response.firstElement(forName: "d:href")?.stringValue, let href = URL(string: hrefString) else {
             throw RainmakerError.responseDecodingFailed("Failed to get href.")
         }
+
+        guard href.path().hasPrefix(webDAVPathPrefix) else {
+            throw RainmakerError.responseDecodingFailed("href does not have expected prefix!")
+        }
+
+        let path = String(href.path(percentEncoded: false).dropFirst(webDAVPathPrefix.count))
 
         let propstats = response.elements(forName: "d:propstat")
 
@@ -126,12 +132,12 @@ enum ResponseParser {
 
         // MARK: comments
 
-        let path = prop.firstElement(forName: "oc:comments-href")?.stringValue
+        let commentsPath = prop.firstElement(forName: "oc:comments-href")?.stringValue
 
         let commentCount = UInt(prop.firstElement(forName: "oc:comments-count")?.stringValue ?? "") ?? 0
         let unreadCommentCount = UInt(prop.firstElement(forName: "oc:comments-unread")?.stringValue ?? "") ?? 0
 
-        let comments = Item.Comments(path: path, count: commentCount, unread: unreadCommentCount)
+        let comments = Item.Comments(path: commentsPath, count: commentCount, unread: unreadCommentCount)
 
         // MARK: owner
 
@@ -222,6 +228,7 @@ enum ResponseParser {
             modification: modification,
             name: displayName,
             owner: owner,
+            path: path,
             permissions: permissions,
             size: sizeValue,
             upload: upload

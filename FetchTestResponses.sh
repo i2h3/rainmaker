@@ -21,13 +21,53 @@ NEXTCLOUD_SERVER_HOST="http://localhost:${NEXTCLOUD_SERVER_PORT}"
 
 # MARK: - Generic Fetch Implementations
 
+PROPFIND_REQUEST_BODY='<?xml version="1.0" encoding="UTF-8"?>
+    <d:propfind xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns">
+        <d:prop>
+            <d:creationdate />
+            <d:getlastmodified />
+            <d:getetag />
+            <d:getcontenttype />
+            <oc:size />
+            <d:displayname />
+            <d:resourcetype />
+            <oc:id />
+            <oc:fileid />
+            <oc:permissions />
+            <nc:is-encrypted />
+            <nc:is-mount-root />
+            <oc:tags />
+            <oc:favorite />
+            <oc:comments-href />
+            <oc:comments-count />
+            <oc:comments-unread />
+            <oc:owner-id />
+            <oc:owner-display-name />
+            <oc:checksums />
+            <nc:has-preview />
+            <nc:hidden />
+            <nc:upload_time />
+            <nc:group-folder-id />
+            <nc:lock />
+            <nc:lock-owner-type />
+            <nc:lock-owner />
+            <nc:lock-owner-displayname />
+            <nc:lock-owner-editor />
+            <nc:lock-time />
+            <nc:lock-timeout />
+            <nc:lock-token />
+            <nc:version-label />
+            <nc:version-author />
+        </d:prop>
+    </d:propfind>'
+
 fetch_response() {
     curl -o "$2.txt" --no-progress-meter \
          -X "PROPFIND" "${NEXTCLOUD_SERVER_HOST}/remote.php/dav/files/admin/$1" \
          -H 'Accept: application/xml' \
          -H 'Content-Type: application/xml' \
          -u 'admin:admin' \
-         -d "$3"
+         -d "$PROPFIND_REQUEST_BODY"
 
     xmllint --format "$2.txt" > "$2.xml"
     rm "$2.txt"
@@ -41,45 +81,6 @@ fetch_response_ListingTests_listRootFolderContent() {
     echo "Fetching response for ListingTests.listRootFolderContent..."
     TARGET_FILE="Tests/RainmakerTests/Responses/${NEXTCLOUD_SERVER_VERSION}/ListingTests/listRootFolderContent/1"
     REMOTE_PATH=""
-    REQUEST_BODY='<?xml version="1.0" encoding="UTF-8"?>
-    <d:propfind xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns">
-        <d:prop>
-            <d:creationdate />
-            <d:getlastmodified />
-            <d:getetag />
-            <d:getcontenttype />
-            <oc:size />
-            <d:displayname />
-            <d:resourcetype />
-            <oc:id />
-            <oc:fileid />
-            <oc:permissions />
-            <nc:is-encrypted />
-            <nc:is-mount-root />
-            <oc:tags />
-            <oc:favorite />
-            <oc:comments-href />
-            <oc:comments-count />
-            <oc:comments-unread />
-            <oc:owner-id />
-            <oc:owner-display-name />
-            <oc:checksums />
-            <nc:has-preview />
-            <nc:hidden />
-            <nc:upload_time />
-            <nc:group-folder-id />
-            <nc:lock />
-            <nc:lock-owner-type />
-            <nc:lock-owner />
-            <nc:lock-owner-displayname />
-            <nc:lock-owner-editor />
-            <nc:lock-time />
-            <nc:lock-timeout />
-            <nc:lock-token />
-            <nc:version-label />
-            <nc:version-author />
-        </d:prop>
-    </d:propfind>'
 
     fetch_response "$REMOTE_PATH" "$TARGET_FILE" "$REQUEST_BODY"
 }
@@ -88,46 +89,25 @@ fetch_response_ListingTests_listDocumentsFolderContent() {
     echo "Fetching response for ListingTests.listDocumentsFolderContent..."
     TARGET_FILE="Tests/RainmakerTests/Responses/${NEXTCLOUD_SERVER_VERSION}/ListingTests/listDocumentsFolderContent/1"
     REMOTE_PATH="Documents/"
-    REQUEST_BODY='<?xml version="1.0" encoding="UTF-8"?>
-    <d:propfind xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns">
-        <d:prop>
-            <d:creationdate />
-            <d:getlastmodified />
-            <d:getetag />
-            <d:getcontenttype />
-            <oc:size />
-            <d:displayname />
-            <d:resourcetype />
-            <oc:id />
-            <oc:fileid />
-            <oc:permissions />
-            <nc:is-encrypted />
-            <nc:is-mount-root />
-            <oc:tags />
-            <oc:favorite />
-            <oc:comments-href />
-            <oc:comments-count />
-            <oc:comments-unread />
-            <oc:owner-id />
-            <oc:owner-display-name />
-            <oc:checksums />
-            <nc:has-preview />
-            <nc:hidden />
-            <nc:upload_time />
-            <nc:group-folder-id />
-            <nc:lock />
-            <nc:lock-owner-type />
-            <nc:lock-owner />
-            <nc:lock-owner-displayname />
-            <nc:lock-owner-editor />
-            <nc:lock-time />
-            <nc:lock-timeout />
-            <nc:lock-token />
-            <nc:version-label />
-            <nc:version-author />
-        </d:prop>
-    </d:propfind>'
 
+    fetch_response "$REMOTE_PATH" "$TARGET_FILE" "$REQUEST_BODY"
+}
+
+fetch_response_ListingTests_listAllContentRecursivelyAndAsynchronously() {
+    REMOTE_PATH=""
+    TARGET_FILE="Tests/RainmakerTests/Responses/${NEXTCLOUD_SERVER_VERSION}/ListingTests/listAllContentRecursivelyAndAsynchronously/1"
+    fetch_response "$REMOTE_PATH" "$TARGET_FILE" "$REQUEST_BODY"
+
+    REMOTE_PATH="Documents/"
+    TARGET_FILE="Tests/RainmakerTests/Responses/${NEXTCLOUD_SERVER_VERSION}/ListingTests/listAllContentRecursivelyAndAsynchronously/2"
+    fetch_response "$REMOTE_PATH" "$TARGET_FILE" "$REQUEST_BODY"
+
+    REMOTE_PATH="Photos/"
+    TARGET_FILE="Tests/RainmakerTests/Responses/${NEXTCLOUD_SERVER_VERSION}/ListingTests/listAllContentRecursivelyAndAsynchronously/3"
+    fetch_response "$REMOTE_PATH" "$TARGET_FILE" "$REQUEST_BODY"
+
+    REMOTE_PATH="Templates/"
+    TARGET_FILE="Tests/RainmakerTests/Responses/${NEXTCLOUD_SERVER_VERSION}/ListingTests/listAllContentRecursivelyAndAsynchronously/4"
     fetch_response "$REMOTE_PATH" "$TARGET_FILE" "$REQUEST_BODY"
 }
 
@@ -167,11 +147,13 @@ done
 
 mkdir -p "Tests/RainmakerTests/Responses/${NEXTCLOUD_SERVER_VERSION}/ListingTests/listRootFolderContent"
 mkdir -p "Tests/RainmakerTests/Responses/${NEXTCLOUD_SERVER_VERSION}/ListingTests/listDocumentsFolderContent"
+mkdir -p "Tests/RainmakerTests/Responses/${NEXTCLOUD_SERVER_VERSION}/ListingTests/listAllContentRecursivelyAndAsynchronously"
 
 # MARK: - Actual Fetches
 
 fetch_response_ListingTests_listRootFolderContent
 fetch_response_ListingTests_listDocumentsFolderContent
+fetch_response_ListingTests_listAllContentRecursivelyAndAsynchronously
 
 # MARK: - Delete Docker Container
 
