@@ -86,7 +86,7 @@ jobs:
         run: |
           xcodebuild test \
             -scheme Rainmaker-Package \
-            -destination 'platform=watchOS Simulator,name=Apple Watch Ultra 2 (49mm)' \
+            -destination 'platform=watchOS Simulator,name=Apple Watch Series 11 (46mm)' \
             -enableCodeCoverage YES
 
   test-visionos:
