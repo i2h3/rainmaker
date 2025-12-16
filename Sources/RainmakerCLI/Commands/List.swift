@@ -18,7 +18,7 @@ struct List: AsyncParsableCommand {
     var path: String = "/"
 
     func run() async throws {
-        guard let address = URL(string: arguments.addressValue) else {
+        guard let address = URL(string: arguments.hostValue) else {
             throw RainmakerCommandError.invalidAddress
         }
 
