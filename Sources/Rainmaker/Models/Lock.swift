@@ -46,6 +46,6 @@ public enum Lock: Model {
     ///     - owner: A user who owns the lock.
     ///     - time: Timestamp of the log creation time.
     ///     - timeOut: Time to live of the lock in seconds staring from the creation time. a value of 0 means the timeout is infinite. Client implementations should properly handle this specific value.
-    ///     
+    ///
     case token(editor: String, owner: User, time: Date, timeOut: Date)
 }

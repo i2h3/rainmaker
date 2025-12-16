@@ -10,9 +10,9 @@ final class XMLTreeBuilder: NSObject, XMLParserDelegate {
     private var stack: [Element] = []
 
     init(data: Data) {
-        self.parser = XMLParser(data: data)
+        parser = XMLParser(data: data)
         super.init()
-        self.parser.delegate = self
+        parser.delegate = self
     }
 
     func parse() throws -> Element {
@@ -28,7 +28,7 @@ final class XMLTreeBuilder: NSObject, XMLParserDelegate {
         return root
     }
 
-    func parser(_ parser: XMLParser, didStartElement elementName: String, namespaceURI: String?, qualifiedName qName: String?, attributes: [String: String] = [:]) {
+    func parser(_: XMLParser, didStartElement elementName: String, namespaceURI _: String?, qualifiedName qName: String?, attributes _: [String: String] = [:]) {
         let name = qName ?? elementName
         let element = Element(name: name)
 
@@ -41,11 +41,11 @@ final class XMLTreeBuilder: NSObject, XMLParserDelegate {
         stack.append(element)
     }
 
-    func parser(_ parser: XMLParser, foundCharacters string: String) {
+    func parser(_: XMLParser, foundCharacters string: String) {
         stack.last?.appendText(string)
     }
 
-    func parser(_ parser: XMLParser, didEndElement elementName: String, namespaceURI: String?, qualifiedName qName: String?) {
+    func parser(_: XMLParser, didEndElement _: String, namespaceURI _: String?, qualifiedName _: String?) {
         _ = stack.popLast()
     }
 }

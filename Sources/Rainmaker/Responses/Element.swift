@@ -3,7 +3,7 @@
 
 import Foundation
 
-/// 
+///
 /// Lightweight XML node representation used by the WebDAV response parser.
 ///
 final class Element {

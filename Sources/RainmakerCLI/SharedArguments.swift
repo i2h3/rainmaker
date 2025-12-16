@@ -28,27 +28,27 @@ struct SharedArguments: ParsableArguments {
         help: "The password to authenticate with. Can also be set via RAINMAKER_PASSWORD environment variable."
     )
     var password: String?
-    
+
     mutating func validate() throws {
         try setCredentialFromEnvironment(
             keyPath: \.host,
             envVar: "RAINMAKER_HOST",
             optionName: "--host"
         )
-        
+
         try setCredentialFromEnvironment(
             keyPath: \.user,
             envVar: "RAINMAKER_USER",
             optionName: "--user"
         )
-        
+
         try setCredentialFromEnvironment(
             keyPath: \.password,
             envVar: "RAINMAKER_PASSWORD",
             optionName: "--password"
         )
     }
-    
+
     /// Helper method to set a credential from environment variable if not provided via option
     private mutating func setCredentialFromEnvironment(
         keyPath: WritableKeyPath<SharedArguments, String?>,
@@ -62,19 +62,19 @@ struct SharedArguments: ParsableArguments {
             self[keyPath: keyPath] = envValue
         }
     }
-    
+
     /// Get the host value, guaranteed to be non-nil after validation
     var hostValue: String {
         precondition(host != nil, "hostValue accessed before validation")
         return host!
     }
-    
+
     /// Get the user value, guaranteed to be non-nil after validation
     var userValue: String {
         precondition(user != nil, "userValue accessed before validation")
         return user!
     }
-    
+
     /// Get the password value, guaranteed to be non-nil after validation
     var passwordValue: String {
         precondition(password != nil, "passwordValue accessed before validation")

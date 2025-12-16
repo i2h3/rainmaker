@@ -19,13 +19,13 @@ public enum ServerVersion: String, CaseIterable, Sendable, CustomStringConvertib
     /// Returns the raw value.
     ///
     public var description: String {
-        self.rawValue
+        rawValue
     }
 
     ///
     /// Returns the raw value.
     ///
     public var debugDescription: String {
-        self.rawValue
+        rawValue
     }
 }

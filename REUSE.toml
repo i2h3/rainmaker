@@ -4,11 +4,16 @@
 version = 1
 
 [[annotations]]
-path = ["**/*.xml", "**/*.png", "**/*.pxd", "Package.resolved", ".gitignore", "README.md"]
-SPDX-FileCopyrightText = "2025 Iva Horn"
-SPDX-License-Identifier = "MIT"
-
-[[annotations]]
-path = ["Tests/RainmakerTests/Responses/**"]
+path = [
+    "**/*.xml", 
+    "**/*.png", 
+    "**/*.pxd", 
+    "Package.resolved", 
+    ".gitignore", 
+    ".swiftformat", 
+    ".swift-version", 
+    "README.md",
+    "Tests/RainmakerTests/Responses/**"
+]
 SPDX-FileCopyrightText = "2025 Iva Horn"
 SPDX-License-Identifier = "MIT"
