@@ -18,11 +18,11 @@ struct List: AsyncParsableCommand {
     var path: String = "/"
 
     func run() async throws {
-        guard let address = URL(string: arguments.address) else {
+        guard let address = URL(string: arguments.addressValue) else {
             throw RainmakerCommandError.invalidAddress
         }
 
-        let server = Server(address: address, password: arguments.password, user: arguments.user)
+        let server = Server(address: address, password: arguments.passwordValue, user: arguments.userValue)
         let items = try await server.content(at: "/")
 
         switch arguments.outputFormat {
