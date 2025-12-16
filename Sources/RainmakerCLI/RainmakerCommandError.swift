@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2025 Iva Horn
+// SPDX-License-Identifier: MIT
+
 ///
 /// Errors specific to the Rainmaker CLI.
 ///

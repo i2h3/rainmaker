@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2025 Iva Horn
+// SPDX-License-Identifier: MIT
+
 import Foundation
 
 /// Builds an in-memory element tree from XML data using Foundation's XMLParser.

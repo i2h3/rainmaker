@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: 2025 Iva Horn
+# SPDX-License-Identifier: MIT
+
+version = 1
+
+[[annotations]]
+path = ["**/*.xml", "**/*.png", "**/*.pxd", "Package.resolved", ".gitignore", "README.md"]
+SPDX-FileCopyrightText = "2025 Iva Horn"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = ["Tests/RainmakerTests/Responses/**"]
+SPDX-FileCopyrightText = "2025 Iva Horn"
+SPDX-License-Identifier = "MIT"
