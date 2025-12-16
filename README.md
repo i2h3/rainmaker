@@ -28,6 +28,28 @@ You can clone this repository and run the following command in a Terminal to get
 $ swift run rainmaker help
 ```
 
+### Using Command-Line Options
+
+You can provide credentials directly as command-line options:
+
+```bash
+$ swift run RainmakerCLI list --address "https://cloud.example.com" --user "myuser" --password "mypassword"
+```
+
+### Using Environment Variables
+
+To avoid password leakage and enable a default account pattern, you can set credentials via environment variables:
+
+```bash
+export RAINMAKER_ADDRESS="https://cloud.example.com"
+export RAINMAKER_USER="myuser"
+export RAINMAKER_PASSWORD="mypassword"
+
+$ swift run RainmakerCLI list
+```
+
+Environment variables can be mixed with command-line options. Command-line options take precedence over environment variables.
+
 ## Swift Library Example
 
 Running the following code against [a local Nextcloud Docker container](https://hub.docker.com/_/nextcloud) with the default files in the user's root directory:
