@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: 2025 Iva Horn
 // SPDX-License-Identifier: MIT
 
-@testable import Rainmaker
 import Foundation
 import os
+@testable import Rainmaker
 
 ///
 /// A mock implementation of `URLSession` to return static responses from the test bundle resources.
@@ -14,7 +14,7 @@ public final class URLTestSession: Requesting {
     let testName: String
 
     public init(serverVersion: ServerVersion, testSourceCodeFile: String = #filePath, testName: String = #function) throws {
-        self.logger = Logger(OSLog(subsystem: "RainmakerTests", category: "URLTestSession"))
+        logger = Logger(OSLog(subsystem: "RainmakerTests", category: "URLTestSession"))
 
         guard let resources = Bundle.module.resourceURL else {
             throw URLTestSessionError.resourcesNotFound
@@ -43,9 +43,10 @@ public final class URLTestSession: Requesting {
             throw URLTestSessionError.testNotFound
         }
 
-        self.resourcePath = testResources
+        resourcePath = testResources
         self.testName = testName
 
+        // swiftformat:disable:next redundantSelf
         logger.debug("Initialized for suite name \"\(suiteName)\" and test name \"\(testName)\", derived resource path \"\(self.resourcePath.path())\".")
     }
 

@@ -14,7 +14,7 @@ enum RainmakerError: Error, CustomStringConvertible {
 
     var description: String {
         switch self {
-            case .responseDecodingFailed(let reason):
+            case let .responseDecodingFailed(reason):
                 reason
         }
     }

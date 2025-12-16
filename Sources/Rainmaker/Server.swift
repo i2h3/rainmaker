@@ -5,7 +5,7 @@ import Foundation
 
 ///
 /// Default implementation of ``Serving``.
-/// 
+///
 public final class Server: Serving {
     static let resourceURL = Bundle.module.resourceURL!
 
@@ -57,9 +57,9 @@ public final class Server: Serving {
         request.httpBody = try? Data(contentsOf: Self.resourceURL.appending(component: "Bodies").appending(component: "Listing.xml"))
 
         let (data, _) = try await session.data(for: request)
-        
+
         let items = try ResponseParser.items(from: data).filter {
-            $0.href.path() != url.path()  // Filter out metadata about the listed directory itself.
+            $0.href.path() != url.path() // Filter out metadata about the listed directory itself.
         }
 
         return items

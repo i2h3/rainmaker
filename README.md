@@ -88,3 +88,17 @@ This is the only method currently supported.
 
 - `import Rainmaker` to make use of the library in your Swift code.
 - `import RainmakerMocks` to make use of the library mocks in your Swift tests.
+
+## Contributing
+
+### Code Style
+
+[SwiftFormat](https://github.com/nicklockwood/SwiftFormat) was introduced into this project.
+Before submitting a pull request, please ensure that your code changes comply with the currently configured code style.
+You can run the following command in the root of the package repository clone:
+
+```bash
+swift package plugin --allow-writing-to-package-directory swiftformat --verbose --cache ignore
+```
+
+Also, there is a GitHub action run automatically which lints code changes in pull requests.

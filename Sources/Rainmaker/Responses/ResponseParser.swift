@@ -6,7 +6,7 @@ import Foundation
 ///
 /// Parse WebDAV XML responses to own types.
 ///
-final class ResponseParser {
+enum ResponseParser {
     static func items(from data: Data) throws -> [Item] {
         let root = try XMLTreeBuilder(data: data).parse()
         let responses = root.elements(forName: "d:response")
