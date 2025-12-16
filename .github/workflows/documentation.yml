@@ -36,7 +36,7 @@ jobs:
             --output-path ./docs \
             --hosting-base-path /rainmaker-cli
           $(xcrun --find docc) process-archive \
-            transform-for-static-hosting ./DerivedData/Build/Products/Debug/RainmakeMocks.doccarchive \
+            transform-for-static-hosting ./DerivedData/Build/Products/Debug/RainmakerMocks.doccarchive \
             --output-path ./docs \
             --hosting-base-path /rainmaker-mocks
       - name: Create root redirect
