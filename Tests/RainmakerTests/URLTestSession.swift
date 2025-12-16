@@ -4,11 +4,12 @@
 import Foundation
 import os
 @testable import Rainmaker
+import Synchronization
 
 ///
 /// A mock implementation of `URLSession` to return static responses from the test bundle resources.
 ///
-public final class URLTestSession: Requesting {
+public actor URLTestSession: Requesting {
     let logger: Logger
     let resourcePath: URL
     let testName: String
@@ -51,10 +52,29 @@ public final class URLTestSession: Requesting {
     }
 
     public func data(for request: URLRequest) async throws -> (Data, URLResponse) {
-        let resource = resourcePath.appending(component: "1.xml")
-        logger.debug("Reading content of \(resource.path())")
+        logger.debug("Data request for: \(request.httpMethod ?? "GET") \(request.url?.absoluteString ?? "nil")")
+
+        guard let method = request.httpMethod else {
+            throw URLTestSessionError.missingValue
+        }
+
+        guard let url = request.url else {
+            throw URLTestSessionError.missingValue
+        }
+
+        let resource = resourcePath
+            .appending(component: method)
+            .appending(path: url.path())
+            .appending(component: "Response.xml")
+            .standardized
+
+        if FileManager.default.fileExists(atPath: resource.path(percentEncoded: false)) == false {
+            throw URLTestSessionError.resourceNotFound(resource)
+        }
+
         let data = try Data(contentsOf: resource)
         let httpResponse = HTTPURLResponse(url: request.url ?? resource, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: nil)!
+        logger.debug("Returning content of \(resource.path())")
 
         return (data, httpResponse)
     }

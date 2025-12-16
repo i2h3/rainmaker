@@ -5,14 +5,14 @@
     <d:propstat>
       <d:prop>
         <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
-        <d:getlastmodified>Mon, 15 Dec 2025 09:13:55 GMT</d:getlastmodified>
-        <d:getetag>"693fd1539e873"</d:getetag>
+        <d:getlastmodified>Fri, 19 Dec 2025 14:18:04 GMT</d:getlastmodified>
+        <d:getetag>"69455e9c4ce80"</d:getetag>
         <oc:size>57430013</oc:size>
         <d:displayname>admin</d:displayname>
         <d:resourcetype>
           <d:collection/>
         </d:resourcetype>
-        <oc:id>00000002octon6xokfj9</oc:id>
+        <oc:id>00000002oc1nfr9t3i5z</oc:id>
         <oc:fileid>2</oc:fileid>
         <oc:permissions>RGDNVCK</oc:permissions>
         <nc:is-mount-root>false</nc:is-mount-root>
@@ -54,14 +54,14 @@
     <d:propstat>
       <d:prop>
         <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
-        <d:getlastmodified>Mon, 15 Dec 2025 09:13:55 GMT</d:getlastmodified>
-        <d:getetag>"693fd15395f9c"</d:getetag>
+        <d:getlastmodified>Fri, 19 Dec 2025 14:18:04 GMT</d:getlastmodified>
+        <d:getetag>"69455e9c4539f"</d:getetag>
         <oc:size>1108446</oc:size>
         <d:displayname>Documents</d:displayname>
         <d:resourcetype>
           <d:collection/>
         </d:resourcetype>
-        <oc:id>00000061octon6xokfj9</oc:id>
+        <oc:id>00000061oc1nfr9t3i5z</oc:id>
         <oc:fileid>61</oc:fileid>
         <oc:permissions>RGDNVCK</oc:permissions>
         <nc:is-mount-root>false</nc:is-mount-root>
@@ -103,13 +103,13 @@
     <d:propstat>
       <d:prop>
         <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
-        <d:getlastmodified>Mon, 15 Dec 2025 09:13:55 GMT</d:getlastmodified>
-        <d:getetag>"f220efb8dbe48721b75df94cae40322f"</d:getetag>
+        <d:getlastmodified>Fri, 19 Dec 2025 14:18:04 GMT</d:getlastmodified>
+        <d:getetag>"2da658347418ea07b147286af2973e3e"</d:getetag>
         <d:getcontenttype>application/pdf</d:getcontenttype>
         <oc:size>22195408</oc:size>
         <d:displayname>Nextcloud Manual.pdf</d:displayname>
         <d:resourcetype/>
-        <oc:id>00000068octon6xokfj9</oc:id>
+        <oc:id>00000068oc1nfr9t3i5z</oc:id>
         <oc:fileid>68</oc:fileid>
         <oc:permissions>RGDNVW</oc:permissions>
         <nc:is-mount-root>false</nc:is-mount-root>
@@ -150,13 +150,13 @@
     <d:propstat>
       <d:prop>
         <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
-        <d:getlastmodified>Mon, 15 Dec 2025 09:13:55 GMT</d:getlastmodified>
-        <d:getetag>"2fef1a2ac0b4ce2b175fb6f8a5e3f319"</d:getetag>
+        <d:getlastmodified>Fri, 19 Dec 2025 14:18:04 GMT</d:getlastmodified>
+        <d:getetag>"9e782e6c20a999c9c184fc1a921fe188"</d:getetag>
         <d:getcontenttype>video/mp4</d:getcontenttype>
         <oc:size>3963036</oc:size>
         <d:displayname>Nextcloud intro.mp4</d:displayname>
         <d:resourcetype/>
-        <oc:id>00000060octon6xokfj9</oc:id>
+        <oc:id>00000060oc1nfr9t3i5z</oc:id>
         <oc:fileid>60</oc:fileid>
         <oc:permissions>RGDNVW</oc:permissions>
         <nc:is-mount-root>false</nc:is-mount-root>
@@ -197,13 +197,13 @@
     <d:propstat>
       <d:prop>
         <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
-        <d:getlastmodified>Mon, 15 Dec 2025 09:13:55 GMT</d:getlastmodified>
-        <d:getetag>"a212ca884c058b7393cc0d1d3366fed3"</d:getetag>
+        <d:getlastmodified>Fri, 19 Dec 2025 14:18:04 GMT</d:getlastmodified>
+        <d:getetag>"17151802fc79f7cd0d56f77c6f643b67"</d:getetag>
         <d:getcontenttype>image/png</d:getcontenttype>
         <oc:size>50598</oc:size>
         <d:displayname>Nextcloud.png</d:displayname>
         <d:resourcetype/>
-        <oc:id>00000067octon6xokfj9</oc:id>
+        <oc:id>00000067oc1nfr9t3i5z</oc:id>
         <oc:fileid>67</oc:fileid>
         <oc:permissions>RGDNVW</oc:permissions>
         <nc:is-mount-root>false</nc:is-mount-root>
@@ -244,14 +244,14 @@
     <d:propstat>
       <d:prop>
         <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
-        <d:getlastmodified>Mon, 15 Dec 2025 09:13:55 GMT</d:getlastmodified>
-        <d:getetag>"693fd1533c30e"</d:getetag>
+        <d:getlastmodified>Fri, 19 Dec 2025 14:18:03 GMT</d:getlastmodified>
+        <d:getetag>"69455e9bdb230"</d:getetag>
         <oc:size>5656463</oc:size>
         <d:displayname>Photos</d:displayname>
         <d:resourcetype>
           <d:collection/>
         </d:resourcetype>
-        <oc:id>00000003octon6xokfj9</oc:id>
+        <oc:id>00000003oc1nfr9t3i5z</oc:id>
         <oc:fileid>3</oc:fileid>
         <oc:permissions>RGDNVCK</oc:permissions>
         <nc:is-mount-root>false</nc:is-mount-root>
@@ -293,13 +293,13 @@
     <d:propstat>
       <d:prop>
         <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
-        <d:getlastmodified>Mon, 15 Dec 2025 09:13:55 GMT</d:getlastmodified>
-        <d:getetag>"5ef5c3c0555849982cb0f0ad1611fb66"</d:getetag>
+        <d:getlastmodified>Fri, 19 Dec 2025 14:18:03 GMT</d:getlastmodified>
+        <d:getetag>"4618961b589e0ba13a66746cf6765ffe"</d:getetag>
         <d:getcontenttype>text/markdown</d:getcontenttype>
         <oc:size>197</oc:size>
         <d:displayname>Readme.md</d:displayname>
         <d:resourcetype/>
-        <oc:id>00000013octon6xokfj9</oc:id>
+        <oc:id>00000013oc1nfr9t3i5z</oc:id>
         <oc:fileid>13</oc:fileid>
         <oc:permissions>RGDNVW</oc:permissions>
         <nc:is-mount-root>false</nc:is-mount-root>
@@ -340,13 +340,13 @@
     <d:propstat>
       <d:prop>
         <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
-        <d:getlastmodified>Mon, 15 Dec 2025 09:13:55 GMT</d:getlastmodified>
-        <d:getetag>"6d5d52a7659d6c07191e9a8eb46b65ba"</d:getetag>
+        <d:getlastmodified>Fri, 19 Dec 2025 14:18:04 GMT</d:getlastmodified>
+        <d:getetag>"029ba0ef169d65215527d3c2d89a393c"</d:getetag>
         <d:getcontenttype>application/pdf</d:getcontenttype>
         <oc:size>976625</oc:size>
         <d:displayname>Reasons to use Nextcloud.pdf</d:displayname>
         <d:resourcetype/>
-        <oc:id>00000066octon6xokfj9</oc:id>
+        <oc:id>00000066oc1nfr9t3i5z</oc:id>
         <oc:fileid>66</oc:fileid>
         <oc:permissions>RGDNVW</oc:permissions>
         <nc:is-mount-root>false</nc:is-mount-root>
@@ -387,14 +387,14 @@
     <d:propstat>
       <d:prop>
         <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
-        <d:getlastmodified>Mon, 15 Dec 2025 09:13:55 GMT</d:getlastmodified>
-        <d:getetag>"693fd1538c0d0"</d:getetag>
+        <d:getlastmodified>Fri, 19 Dec 2025 14:18:04 GMT</d:getlastmodified>
+        <d:getetag>"69455e9c3ac47"</d:getetag>
         <oc:size>23476072</oc:size>
         <d:displayname>Templates</d:displayname>
         <d:resourcetype>
           <d:collection/>
         </d:resourcetype>
-        <oc:id>00000014octon6xokfj9</oc:id>
+        <oc:id>00000014oc1nfr9t3i5z</oc:id>
         <oc:fileid>14</oc:fileid>
         <oc:permissions>RGDNVCK</oc:permissions>
         <nc:is-mount-root>false</nc:is-mount-root>
@@ -436,13 +436,13 @@
     <d:propstat>
       <d:prop>
         <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
-        <d:getlastmodified>Mon, 15 Dec 2025 09:13:55 GMT</d:getlastmodified>
-        <d:getetag>"9ff41d55d33027fb380c258f514a8bfb"</d:getetag>
+        <d:getlastmodified>Fri, 19 Dec 2025 14:18:04 GMT</d:getlastmodified>
+        <d:getetag>"9e1cba5f883abc39b9e00fac90caf1c6"</d:getetag>
         <d:getcontenttype>text/markdown</d:getcontenttype>
         <oc:size>3168</oc:size>
         <d:displayname>Templates credits.md</d:displayname>
         <d:resourcetype/>
-        <oc:id>00000069octon6xokfj9</oc:id>
+        <oc:id>00000069oc1nfr9t3i5z</oc:id>
         <oc:fileid>69</oc:fileid>
         <oc:permissions>RGDNVW</oc:permissions>
         <nc:is-mount-root>false</nc:is-mount-root>

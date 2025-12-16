@@ -3,10 +3,6 @@
 
 name: SwiftFormat
 
-concurrency:
-  group: swiftformat-${{ github.head_ref || github.ref }}
-  cancel-in-progress: true
-
 on:
   pull_request:
     paths:

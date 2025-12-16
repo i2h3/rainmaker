@@ -24,7 +24,39 @@ public protocol Serving: Sendable {
     var user: String { get }
 
     ///
-    /// Returns a list of items in the folder specified by the given path.
+    /// Returns items in the given path.
     ///
-    func content(at path: String) async throws -> [Item]
+    /// The use of an asynchronous stream makes it suitable for paginated and continuous processing without waiting for all results to come in first.
+    /// This can also avoid peaks in memory usage.
+    ///
+    /// - Parameters:
+    ///     - path: The root directory to enter.
+    ///     - recursively: Whether subdirectories should be traversed, too.
+    ///
+    /// - Throws: Any error that might occur during the listing of a remote directory.
+    ///
+    /// ## Usage
+    ///
+    /// You can either process items asynchronously as they arrive:
+    ///
+    /// ```swift
+    /// let stream = try await server.enumerate(at: "/", recursively: false)
+    ///
+    /// for item in items {
+    ///     print(item)
+    /// }
+    /// ```
+    ///
+    /// Or you can collect all items in an array before processing them at once:
+    ///
+    /// ```swift
+    /// let stream = try await server.enumerate(at: "/", recursively: false)
+    /// var items = [Item]()
+    ///
+    /// for try await item in stream {
+    ///     items.append(item)
+    /// }
+    /// ```
+    ///
+    func enumerate(at path: String, recursively: Bool) async throws -> AsyncThrowingStream<Item, Error>
 }
