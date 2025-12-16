@@ -1,4 +1,7 @@
 #!/bin/zsh
+#
+# SPDX-FileCopyrightText: 2025 Iva Horn
+# SPDX-License-Identifier: MIT
 
 set -e
 

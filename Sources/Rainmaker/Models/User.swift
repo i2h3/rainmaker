@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2025 Iva Horn
+// SPDX-License-Identifier: MIT
+
 ///
 /// A simple user description as used in file system information.
 ///
