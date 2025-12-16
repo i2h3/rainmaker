@@ -30,43 +30,54 @@ struct SharedArguments: ParsableArguments {
     var password: String?
     
     mutating func validate() throws {
-        // Check if address is provided via option or environment variable
-        if address == nil {
-            guard let envAddress = ProcessInfo.processInfo.environment["RAINMAKER_ADDRESS"] else {
-                throw ValidationError("Missing required option '--address' or environment variable 'RAINMAKER_ADDRESS'")
-            }
-            address = envAddress
-        }
+        try setCredentialFromEnvironment(
+            keyPath: \.address,
+            envVar: "RAINMAKER_ADDRESS",
+            optionName: "--address"
+        )
         
-        // Check if user is provided via option or environment variable
-        if user == nil {
-            guard let envUser = ProcessInfo.processInfo.environment["RAINMAKER_USER"] else {
-                throw ValidationError("Missing required option '--user' or environment variable 'RAINMAKER_USER'")
-            }
-            user = envUser
-        }
+        try setCredentialFromEnvironment(
+            keyPath: \.user,
+            envVar: "RAINMAKER_USER",
+            optionName: "--user"
+        )
         
-        // Check if password is provided via option or environment variable
-        if password == nil {
-            guard let envPassword = ProcessInfo.processInfo.environment["RAINMAKER_PASSWORD"] else {
-                throw ValidationError("Missing required option '--password' or environment variable 'RAINMAKER_PASSWORD'")
+        try setCredentialFromEnvironment(
+            keyPath: \.password,
+            envVar: "RAINMAKER_PASSWORD",
+            optionName: "--password"
+        )
+    }
+    
+    /// Helper method to set a credential from environment variable if not provided via option
+    private mutating func setCredentialFromEnvironment(
+        keyPath: WritableKeyPath<SharedArguments, String?>,
+        envVar: String,
+        optionName: String
+    ) throws {
+        if self[keyPath: keyPath] == nil {
+            guard let envValue = ProcessInfo.processInfo.environment[envVar] else {
+                throw ValidationError("Missing required option '\(optionName)' or environment variable '\(envVar)'")
             }
-            password = envPassword
+            self[keyPath: keyPath] = envValue
         }
     }
     
     /// Get the address value, guaranteed to be non-nil after validation
     var addressValue: String {
-        address!
+        precondition(address != nil, "addressValue accessed before validation")
+        return address!
     }
     
     /// Get the user value, guaranteed to be non-nil after validation
     var userValue: String {
-        user!
+        precondition(user != nil, "userValue accessed before validation")
+        return user!
     }
     
     /// Get the password value, guaranteed to be non-nil after validation
     var passwordValue: String {
-        password!
+        precondition(password != nil, "passwordValue accessed before validation")
+        return password!
     }
 }
