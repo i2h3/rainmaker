@@ -102,5 +102,5 @@ jobs:
         run: |
           xcodebuild test \
             -scheme Rainmaker-Package \
-            -destination 'platform=visionOS Simulator,name=Apple Vision Pro' \
+            -destination 'platform=visionOS Simulator,OS=26.1,name=Apple Vision Pro' \
             -enableCodeCoverage YES
