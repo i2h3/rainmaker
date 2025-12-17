@@ -12,8 +12,7 @@ path = [
     "Package.resolved",
     ".gitignore", 
     ".swiftformat", 
-    ".swift-version", 
-    "README.md",
+    ".swift-version",
     "Tests/RainmakerTests/Responses/**"
 ]
 SPDX-FileCopyrightText = "2025 Iva Horn"
