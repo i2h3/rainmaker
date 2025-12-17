@@ -6,8 +6,12 @@ name: Tests
 on:
   push:
     branches: [ main ]
+    paths-ignore:
+      - '**/Documentation.docc/**'
   pull_request:
     branches: [ main ]
+    paths-ignore:
+      - '**/Documentation.docc/**'
   workflow_dispatch:
 
 jobs:
