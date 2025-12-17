@@ -1,8 +1,3 @@
-<!--
-SPDX-FileCopyrightText: 2025 Iva Horn
-SPDX-License-Identifier: MIT
--->
-
 # ``Rainmaker``
 
 A simple Swift library to interact with Nextcloud programmatically.

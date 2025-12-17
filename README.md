@@ -1,8 +1,3 @@
-<!--
-SPDX-FileCopyrightText: 2025 Iva Horn
-SPDX-License-Identifier: MIT
--->
-
 <div align="center">
     <img src="Rainmaker.png" alt="Logo of Rainmaker" width="256" height="256" />
 </div>
