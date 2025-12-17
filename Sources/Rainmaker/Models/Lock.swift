@@ -4,7 +4,7 @@
 import Foundation
 
 ///
-/// Represents different kinds of item locks.
+/// Represents different kinds of locks on an ``Item``.
 ///
 /// See the [files_lock](https://github.com/nextcloud/files_lock) server app for further information.
 ///

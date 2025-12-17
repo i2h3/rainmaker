@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 ///
-/// Different kinds of permissions associated with items.
+/// Different kinds of permissions associated with an ``Item``.
 ///
 /// See [Nextcloud server documentation for developers](https://docs.nextcloud.com/server/latest/developer_manual/client_apis/WebDAV/properties.html#permissions) for further details and reference.
 ///

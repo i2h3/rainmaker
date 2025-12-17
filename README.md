@@ -52,32 +52,7 @@ Environment variables can be mixed with command-line options. Command-line optio
 
 ## Swift Library Example
 
-Running the following code against [a local Nextcloud Docker container](https://hub.docker.com/_/nextcloud) with the default files in the user's root directory:
-
-```swift
-import Rainmaker
-
-let server = Server(address: URL(string: "http://localhost:8081")!, password: "admin", user: "admin")
-let items = try await server.content(at: "/")
-
-for item in items {
-    print(item.name)
-}
-```
-
-Will print this output:
-
-```plaintext
-Documents
-Nextcloud Manual.pdf
-Nextcloud intro.mp4
-Nextcloud.png
-Photos
-Readme.md
-Reasons to use Nextcloud.pdf
-Templates
-Templates credits.md
-```
+See [the documentation which is built from the source code and deployed to GitHub pages](https://i2h3.github.io/rainmaker/). 
 
 ## Installation
 

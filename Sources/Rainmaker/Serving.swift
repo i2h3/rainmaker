@@ -5,6 +5,7 @@ import Foundation
 
 ///
 /// Represents a Nextcloud instance to interact with.
+/// See ``Server`` for a implementation which is ready for use.
 ///
 public protocol Serving: Sendable {
     ///
