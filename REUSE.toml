@@ -7,8 +7,9 @@ version = 1
 path = [
     "**/*.xml", 
     "**/*.png", 
-    "**/*.pxd", 
-    "Package.resolved", 
+    "**/*.pxd",
+    "**/*.json",
+    "Package.resolved",
     ".gitignore", 
     ".swiftformat", 
     ".swift-version", 
