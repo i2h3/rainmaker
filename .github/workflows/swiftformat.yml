@@ -2,7 +2,10 @@
 # SPDX-License-Identifier: MIT
 
 name: SwiftFormat
-on: pull_request
+on:
+  pull_request:
+    paths:
+      - '**/*.swift'
 
 jobs:
   Lint:
