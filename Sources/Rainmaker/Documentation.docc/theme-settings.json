@@ -1,8 +1,19 @@
 {
     "theme": {
         "color": {
+            "documentation-intro-eyebrow": "rgba(255, 255, 255, 0.6)",
+            "documentation-intro-figure": "white",
             "documentation-intro-fill": "#7954A7",
-            "link": "#7954A7"
+            "documentation-intro-title": "white",
+            "fill": {
+                "dark": "#181818",
+                "light": "white"
+            },
+            "link": "#7954A7",
+            "text": {
+                "dark": "#D8D8D8",
+                "light": "#222222"
+            }
         }
     }
 }
