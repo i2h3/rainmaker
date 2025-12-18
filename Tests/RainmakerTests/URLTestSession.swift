@@ -3,13 +3,14 @@
 
 import Foundation
 import os
+import Synchronization
 @testable import Rainmaker
 
 ///
 /// A mock implementation of `URLSession` to return static responses from the test bundle resources.
 ///
-public final class URLTestSession: Requesting, @unchecked Sendable {
-    private var requestNumber = 0
+public final class URLTestSession: Requesting, Sendable {
+    private let requestNumber = OSAllocatedUnfairLock(initialState: 0)
 
     let logger: Logger
     let resourcePath: URL
@@ -53,8 +54,11 @@ public final class URLTestSession: Requesting, @unchecked Sendable {
     }
 
     public func data(for request: URLRequest) async throws -> (Data, URLResponse) {
-        requestNumber += 1
-        let resource = resourcePath.appending(component: "\(requestNumber).xml")
+        let currentRequestNumber = requestNumber.withLock { value in
+            value += 1
+            return value
+        }
+        let resource = resourcePath.appending(component: "\(currentRequestNumber).xml")
         logger.debug("Reading content of \(resource.path())")
         let data = try Data(contentsOf: resource)
         let httpResponse = HTTPURLResponse(url: request.url ?? resource, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: nil)!
