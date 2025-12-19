@@ -70,7 +70,19 @@ public final class Server: Serving {
 
     // MARK: - Public
 
-    public init(address: URL, password: String, user: String, session: any Requesting = URLSession(configuration: .ephemeral)) {
+    ///
+    /// Create a new server object.
+    ///
+    /// - Parameters:
+    ///     - address: HTTP address of the Nextcloud host.
+    ///     - password: In most cases, this is the app password and not the account password.
+    ///     - user: The Nextcloud user name used to log in with.
+    ///
+    public convenience init(address: URL, password: String, user: String) {
+        self.init(address: address, password: password, user: user, session: URLSession(configuration: .ephemeral))
+    }
+
+    init(address: URL, password: String, user: String, session: any Requesting) {
         self.address = address
         self.password = password
         self.session = session
