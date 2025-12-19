@@ -5,7 +5,7 @@ import Foundation
 import os
 
 ///
-/// Default implementation of ``Serving``.
+/// Main type to interact with an account on a Nextcloud server.
 ///
 public final class Server: Serving {
     static let resourceURL = Bundle.module.resourceURL!

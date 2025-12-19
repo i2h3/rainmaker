@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 import Foundation
-import Rainmaker
+@testable import Rainmaker
 
 ///
 /// A hand-written mock implementation of ``Serving`` for use in tests.
