@@ -17,8 +17,7 @@ let package = Package(
     ],
     products: [
         .library(name: "Rainmaker", targets: ["Rainmaker"]),
-        .executable(name: "RainmakerCLI", targets: ["RainmakerCLI"]),
-        .library(name: "RainmakerMocks", targets: ["RainmakerMocks"]),
+        .executable(name: "rainmaker-cli", targets: ["RainmakerCLI"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.6.2"),
@@ -30,7 +29,6 @@ let package = Package(
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
             "Rainmaker",
         ]),
-        .target(name: "RainmakerMocks", dependencies: ["Rainmaker"]),
         .testTarget(name: "RainmakerTests", dependencies: ["Rainmaker"], resources: [.copy("Responses")]),
     ]
 )

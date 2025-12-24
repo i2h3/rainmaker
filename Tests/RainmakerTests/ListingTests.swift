@@ -8,15 +8,19 @@ import Testing
 ///
 /// About folder content listing.
 ///
-@Suite("Listing Tests") struct ListingTests {
-    private static let serverAddress = URL(string: "http://localhost/")!
-    private static let password = "admin"
-    private static let user = "admin"
+@Suite("Listing Tests") struct ListingTests: ServerTesting {
+    @Test("Require Credentials", arguments: ServerVersion.allCases)
+    func requireCredentials(_ serverVersion: ServerVersion) async throws {
+        let server = try makeServer(user: nil, password: nil, serverVersion: serverVersion)
+
+        await #expect(throws: RainmakerError.credentialsRequired) {
+            _ = try await server.enumerate(at: "/", recursively: false)
+        }
+    }
 
     @Test("List Root Folder Content", arguments: ServerVersion.allCases)
     func listRootFolderContent(_ serverVersion: ServerVersion) async throws {
-        let session = try URLTestSession(serverVersion: serverVersion)
-        let server = Server(address: Self.serverAddress, password: Self.password, user: Self.user, session: session)
+        let server = try makeServer(serverVersion: serverVersion)
         let stream = try await server.enumerate(at: "/", recursively: false)
         var items = [Item]()
 
@@ -29,8 +33,7 @@ import Testing
 
     @Test("List Documents Folder Content", arguments: ServerVersion.allCases)
     func listDocumentsFolderContent(_ serverVersion: ServerVersion) async throws {
-        let session = try URLTestSession(serverVersion: serverVersion)
-        let server = Server(address: Self.serverAddress, password: Self.password, user: Self.user, session: session)
+        let server = try makeServer(serverVersion: serverVersion)
         let stream = try await server.enumerate(at: "/Documents", recursively: false)
         var items = [Item]()
 
@@ -43,8 +46,7 @@ import Testing
 
     @Test("List All Content Recursively and Asynchronously", arguments: ServerVersion.allCases)
     func listAllContentRecursivelyAndAsynchronously(_ serverVersion: ServerVersion) async throws {
-        let session = try URLTestSession(serverVersion: serverVersion)
-        let server = Server(address: Self.serverAddress, password: Self.password, user: Self.user, session: session)
+        let server = try makeServer(serverVersion: serverVersion)
         var items = [Item]()
         let stream: AsyncThrowingStream<Item, Error> = try await server.enumerate(at: "/", recursively: true)
 

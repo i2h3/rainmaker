@@ -6,13 +6,17 @@ A simple Swift library to interact with Nextcloud programmatically.
 
 ### Services
 
-- ``Requesting``
 - ``Server``
-- ``Serving``
 
 ### Data Models
 
 - ``Item``
 - ``Lock``
+- ``LoginFlow``
+- ``LoginResult``
 - ``Permission``
 - ``User``
+
+### Command Line Interface
+
+- <doc:CommandLineInterface>

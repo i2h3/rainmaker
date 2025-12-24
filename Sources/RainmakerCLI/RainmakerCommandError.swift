@@ -14,4 +14,9 @@ enum RainmakerCommandError: Error {
     /// The provided server address could not be parsed.
     ///
     case invalidAddress
+
+    ///
+    /// The task reached the limit of its tries for completion.
+    ///
+    case maximumTriesExhausted
 }

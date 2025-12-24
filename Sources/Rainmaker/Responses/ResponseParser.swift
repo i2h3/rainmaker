@@ -22,11 +22,11 @@ enum ResponseParser {
 
     private static func parseItem(from response: Element, webDAVPathPrefix: String) throws -> Item {
         guard let hrefString = response.firstElement(forName: "d:href")?.stringValue, let href = URL(string: hrefString) else {
-            throw RainmakerError.responseDecodingFailed("Failed to get href.")
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to get href.")
         }
 
         guard href.path().hasPrefix(webDAVPathPrefix) else {
-            throw RainmakerError.responseDecodingFailed("href does not have expected prefix!")
+            throw RainmakerError.responseDecodingFailed(reason: "href does not have expected prefix!")
         }
 
         let path = String(href.path(percentEncoded: false).dropFirst(webDAVPathPrefix.count))
@@ -36,23 +36,23 @@ enum ResponseParser {
         guard let propstat = propstats.first(where: { candidate in
             candidate.firstElement(forName: "d:status")?.stringValue == "HTTP/1.1 200 OK"
         }) else {
-            throw RainmakerError.responseDecodingFailed("Failed to find propstat element with status code 200 for: \(href.absoluteString)")
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to find propstat element with status code 200 for: \(href.absoluteString)")
         }
 
         guard let prop = propstat.firstElement(forName: "d:prop") else {
-            throw RainmakerError.responseDecodingFailed("Failed to find prop element for: \(href.absoluteString)")
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to find prop element for: \(href.absoluteString)")
         }
 
         // MARK: creation
 
         guard let creationString = prop.firstElement(forName: "d:creationdate")?.stringValue, let creationDate = ISO8601DateFormatter().date(from: creationString) else {
-            throw RainmakerError.responseDecodingFailed("Failed to get creation date for: \(href.absoluteString)")
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to get creation date for: \(href.absoluteString)")
         }
 
         // MARK: modification
 
         guard let lastModifiedString = prop.firstElement(forName: "d:getlastmodified")?.stringValue else {
-            throw RainmakerError.responseDecodingFailed("Failed to get last modified date for: \(href.absoluteString)")
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to get last modified date for: \(href.absoluteString)")
         }
 
         let formatter = DateFormatter()
@@ -60,25 +60,25 @@ enum ResponseParser {
         formatter.dateFormat = "E, dd MMM yyyy HH:mm:ss Z"
 
         guard let modification = formatter.date(from: lastModifiedString) else {
-            throw RainmakerError.responseDecodingFailed("Failed to parse last modified date: \(lastModifiedString)")
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to parse last modified date: \(lastModifiedString)")
         }
 
         // MARK: entityTag
 
         guard let entityTag = prop.firstElement(forName: "d:getetag")?.stringValue else {
-            throw RainmakerError.responseDecodingFailed("Failed to get entity tag for: \(href.absoluteString)")
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to get entity tag for: \(href.absoluteString)")
         }
 
         // MARK: size
 
         guard let sizeString = prop.firstElement(forName: "oc:size")?.stringValue, let sizeValue = UInt64(sizeString) else {
-            throw RainmakerError.responseDecodingFailed("Failed to get size for: \(href.absoluteString)")
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to get size for: \(href.absoluteString)")
         }
 
         // MARK: displayName
 
         guard let displayName = prop.firstElement(forName: "d:displayname")?.stringValue else {
-            throw RainmakerError.responseDecodingFailed("Failed to get display name for: \(href.absoluteString)")
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to get display name for: \(href.absoluteString)")
         }
 
         // MARK: isDirectory
@@ -93,7 +93,7 @@ enum ResponseParser {
             contentType = nil
         } else {
             guard let type = prop.firstElement(forName: "d:getcontenttype")?.stringValue else {
-                throw RainmakerError.responseDecodingFailed("Failed to get content type name for: \(href.absoluteString)")
+                throw RainmakerError.responseDecodingFailed(reason: "Failed to get content type name for: \(href.absoluteString)")
             }
 
             contentType = type
@@ -102,19 +102,19 @@ enum ResponseParser {
         // MARK: id
 
         guard let id = prop.firstElement(forName: "oc:id")?.stringValue else {
-            throw RainmakerError.responseDecodingFailed("Failed to get id for: \(href.absoluteString)")
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to get id for: \(href.absoluteString)")
         }
 
         // MARK: instanceId
 
         guard let instanceId = prop.firstElement(forName: "oc:fileid")?.stringValue else {
-            throw RainmakerError.responseDecodingFailed("Failed to get instance id for: \(href.absoluteString)")
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to get instance id for: \(href.absoluteString)")
         }
 
         // MARK: permissions
 
         guard let permissionsString = prop.firstElement(forName: "oc:permissions")?.stringValue else {
-            throw RainmakerError.responseDecodingFailed("Failed to get permissions for: \(href.absoluteString)")
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to get permissions for: \(href.absoluteString)")
         }
 
         let permissions = try Permission.parse(permissionsString)
@@ -143,11 +143,11 @@ enum ResponseParser {
         // MARK: owner
 
         guard let ownerId = prop.firstElement(forName: "oc:owner-id")?.stringValue else {
-            throw RainmakerError.responseDecodingFailed("Failed to get owner id for: \(href.absoluteString)")
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to get owner id for: \(href.absoluteString)")
         }
 
         guard let ownerDisplayName = prop.firstElement(forName: "oc:owner-display-name")?.stringValue else {
-            throw RainmakerError.responseDecodingFailed("Failed to get owner display name for: \(href.absoluteString)")
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to get owner display name for: \(href.absoluteString)")
         }
 
         let owner = User(id: ownerId, displayName: ownerDisplayName)
@@ -168,7 +168,7 @@ enum ResponseParser {
             upload = nil
         } else {
             guard let uploadString = prop.firstElement(forName: "nc:upload_time")?.stringValue else {
-                throw RainmakerError.responseDecodingFailed("Failed to get upload time for: \(href.absoluteString)")
+                throw RainmakerError.responseDecodingFailed(reason: "Failed to get upload time for: \(href.absoluteString)")
             }
 
             upload = Date(timeIntervalSince1970: TimeInterval(uploadString) ?? 0)
@@ -196,13 +196,13 @@ enum ResponseParser {
                     lock = .user(owner: user, time: time, timeOut: timeOut)
                 case "1":
                     guard let lockOwnerEditor else {
-                        throw RainmakerError.responseDecodingFailed("Failed to get lock editor for: \(href.absoluteString)")
+                        throw RainmakerError.responseDecodingFailed(reason: "Failed to get lock editor for: \(href.absoluteString)")
                     }
 
                     lock = .app(editor: lockOwnerEditor, owner: user, time: time, timeOut: timeOut)
                 case "2":
                     guard let lockOwnerEditor else {
-                        throw RainmakerError.responseDecodingFailed("Failed to get lock editor for: \(href.absoluteString)")
+                        throw RainmakerError.responseDecodingFailed(reason: "Failed to get lock editor for: \(href.absoluteString)")
                     }
 
                     lock = .token(editor: lockOwnerEditor, owner: user, time: time, timeOut: timeOut)

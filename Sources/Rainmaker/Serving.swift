@@ -9,21 +9,6 @@ import Foundation
 ///
 protocol Serving: Sendable {
     ///
-    /// The base address of the Nextcloud instance.
-    ///
-    var address: URL { get }
-
-    ///
-    /// The app password to use for authentication.
-    ///
-    var password: String { get }
-
-    ///
-    /// The user to authenticate as.
-    ///
-    var user: String { get }
-
-    ///
     /// Returns items in the given path.
     ///
     /// The use of an asynchronous stream makes it suitable for paginated and continuous processing without waiting for all results to come in first.
@@ -59,4 +44,18 @@ protocol Serving: Sendable {
     /// ```
     ///
     func enumerate(at path: String, recursively: Bool) async throws -> AsyncThrowingStream<Item, Error>
+
+    ///
+    /// Look up the login flow information.
+    ///
+    func login() async throws -> LoginFlow
+
+    ///
+    /// Poll the status of a login flow.
+    ///
+    /// - Parameters:
+    ///     - endpoint: The URL to poll on.
+    ///     - token: The unique token of the login flow to check the status of.
+    ///
+    func poll(_ endpoint: URL, token: String) async throws -> LoginResult
 }

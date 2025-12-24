@@ -12,7 +12,13 @@ struct List: AsyncParsableCommand {
     static let configuration = CommandConfiguration(abstract: "List the content of a directory on the server by the given path.")
 
     @OptionGroup
-    var arguments: SharedArguments
+    var authenticatedArguments: AuthenticatedArguments
+
+    @OptionGroup
+    var formatArguments: FormatArguments
+
+    @OptionGroup
+    var unauthenticatedArguments: UnauthenticatedArguments
 
     @Option(help: "Path to list the content of as in the account.")
     var path: String = "/"
@@ -21,11 +27,11 @@ struct List: AsyncParsableCommand {
     var recursive: Bool = false
 
     func run() async throws {
-        guard let address = URL(string: arguments.hostValue) else {
+        guard let address = URL(string: unauthenticatedArguments.hostValue) else {
             throw RainmakerCommandError.invalidAddress
         }
 
-        let server = Server(address: address, password: arguments.passwordValue, user: arguments.userValue)
+        let server = Server(address: address, password: authenticatedArguments.passwordValue, user: authenticatedArguments.userValue)
         let stream = try await server.enumerate(at: path, recursively: recursive)
         var items = [Item]()
 
@@ -33,7 +39,7 @@ struct List: AsyncParsableCommand {
             items.append(item)
         }
 
-        switch arguments.outputFormat {
+        switch formatArguments.outputFormat {
             case .json:
                 let encoder = JSONEncoder()
                 encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
