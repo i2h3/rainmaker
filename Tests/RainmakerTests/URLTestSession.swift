@@ -11,7 +11,7 @@ import Synchronization
 ///
 public actor URLTestSession: Requesting {
     let logger: Logger
-    let resourcePath: URL
+    let resourcePath: URL?
     let testName: String
 
     public init(serverVersion: ServerVersion, testSourceCodeFile: String = #filePath, testName: String = #function) throws {
@@ -38,21 +38,25 @@ public actor URLTestSession: Requesting {
 
         let sanitizedTestName = testName.prefix(upTo: testName.firstIndex(of: "(") ?? testName.endIndex)
         let testResources = suiteResources.appending(component: sanitizedTestName)
-
-        guard FileManager.default.fileExists(atPath: testResources.path()) else {
-            logger.fault("Not found: \(testResources.path())")
-            throw URLTestSessionError.testNotFound
-        }
-
-        resourcePath = testResources
         self.testName = testName
 
+        if FileManager.default.fileExists(atPath: testResources.path()) {
+            resourcePath = testResources
+        } else {
+            resourcePath = nil
+            logger.debug("Not found: \(testResources.path())")
+        }
+
         // swiftformat:disable:next redundantSelf
-        logger.debug("Initialized for suite name \"\(suiteName)\" and test name \"\(testName)\", derived resource path \"\(self.resourcePath.path())\".")
+        logger.debug("Initialized for suite name \"\(suiteName)\" and test name \"\(testName)\", derived resource path \"\(self.resourcePath?.path() ?? "nil")\".")
     }
 
     public func data(for request: URLRequest) async throws -> (Data, URLResponse) {
         logger.debug("Data request for: \(request.httpMethod ?? "GET") \(request.url?.absoluteString ?? "nil")")
+
+        guard let resourcePath else {
+            throw URLTestSessionError.testNotFound
+        }
 
         guard let method = request.httpMethod else {
             throw URLTestSessionError.missingValue
@@ -62,10 +66,24 @@ public actor URLTestSession: Requesting {
             throw URLTestSessionError.missingValue
         }
 
+        guard let acceptedType = request.allHTTPHeaderFields?["Accept"] else {
+            throw URLTestSessionError.missingAcceptHeader
+        }
+
+        let pathExtension = switch acceptedType {
+            case "application/json":
+                "json"
+            case "application/xml":
+                "xml"
+            default:
+                throw URLTestSessionError.unsupportedResponseType
+        }
+
         let resource = resourcePath
             .appending(component: method)
             .appending(path: url.path())
-            .appending(component: "Response.xml")
+            .appending(component: "Response")
+            .appendingPathExtension(pathExtension)
             .standardized
 
         if FileManager.default.fileExists(atPath: resource.path(percentEncoded: false)) == false {

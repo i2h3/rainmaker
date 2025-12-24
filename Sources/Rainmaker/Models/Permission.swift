@@ -59,7 +59,7 @@ public enum Permission: Character, Model {
 
         for character in compound {
             guard let permission = Self(rawValue: character) else {
-                throw RainmakerError.responseDecodingFailed("Unknown permission character: \(character)")
+                throw RainmakerError.responseDecodingFailed(reason: "Unknown permission character: \(character)")
             }
 
             permissions.insert(permission)

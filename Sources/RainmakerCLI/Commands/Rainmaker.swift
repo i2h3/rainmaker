@@ -9,5 +9,5 @@ import Foundation
 ///
 @main
 struct Rainmaker: AsyncParsableCommand {
-    static let configuration = CommandConfiguration(subcommands: [List.self])
+    static let configuration = CommandConfiguration(subcommands: [List.self, Login.self, Poll.self])
 }

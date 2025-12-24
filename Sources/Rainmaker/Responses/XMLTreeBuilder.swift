@@ -18,11 +18,11 @@ final class XMLTreeBuilder: NSObject, XMLParserDelegate {
     func parse() throws -> Element {
         guard parser.parse() else {
             let reason = parser.parserError?.localizedDescription ?? "Failed to parse XML."
-            throw RainmakerError.responseDecodingFailed(reason)
+            throw RainmakerError.responseDecodingFailed(reason: reason)
         }
 
         guard let root else {
-            throw RainmakerError.responseDecodingFailed("Failed to get root element of document.")
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to get root element of document.")
         }
 
         return root

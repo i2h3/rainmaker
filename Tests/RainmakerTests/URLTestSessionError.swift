@@ -8,6 +8,11 @@ import Foundation
 ///
 enum URLTestSessionError: Error {
     ///
+    /// The URL request is missing the "Accept" HTTP header.
+    ///
+    case missingAcceptHeader
+
+    ///
     /// A generic error that some expected information is not available.
     ///
     case missingValue
@@ -36,11 +41,18 @@ enum URLTestSessionError: Error {
     /// There is no resource folder for the specific test being run.
     ///
     case testNotFound
+
+    ///
+    /// The requested MIME type is not supported as a response.
+    ///
+    case unsupportedResponseType
 }
 
 extension URLTestSessionError: CustomStringConvertible {
     var description: String {
         switch self {
+            case .missingAcceptHeader:
+                "The URL request is missing the \"Accept\" HTTP header."
             case .missingValue:
                 "An expected information is not available at this time."
             case let .resourceNotFound(url):
@@ -53,6 +65,8 @@ extension URLTestSessionError: CustomStringConvertible {
                 "The dedicated folder for the test suite was not found."
             case .testNotFound:
                 "There is no resource folder for the specific test being run."
+            case .unsupportedResponseType:
+                "The requested MIME type is not supported as a response."
         }
     }
 }
