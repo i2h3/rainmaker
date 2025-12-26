@@ -9,6 +9,7 @@ path = [
     "**/*.png", 
     "**/*.pxd",
     "**/*.json",
+    "AGENTS.md",
     "Package.resolved",
     ".gitignore", 
     ".swiftformat", 
