@@ -21,6 +21,11 @@ public enum RainmakerError: Error, Equatable, CustomStringConvertible {
     case responseDecodingFailed(reason: String)
 
     ///
+    /// The HTTP response was delivered with the given status code which was unexpected in the throwing code.
+    ///
+    case unexpectedStatus(code: Int)
+
+    ///
     /// For conformance to `CustomStringConvertible` to render an error as a human readable error description.
     ///
     public var description: String {
@@ -29,6 +34,8 @@ public enum RainmakerError: Error, Equatable, CustomStringConvertible {
                 "Credentials required"
             case let .responseDecodingFailed(reason: reason):
                 reason
+            case let .unexpectedStatus(code: code):
+                "Unexpected status: \(code) \(HTTPStatus(rawValue: code)?.description ?? "")"
         }
     }
 }

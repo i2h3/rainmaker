@@ -111,6 +111,11 @@ public struct Item: Model, Identifiable, CustomStringConvertible, CustomDebugStr
     public let name: String
 
     ///
+    /// Directories come with quota usage information whereas this property is `nil` for files.
+    ///
+    public let quota: Quota?
+
+    ///
     /// The owner of this item.
     ///
     public let owner: User
@@ -141,12 +146,18 @@ public struct Item: Model, Identifiable, CustomStringConvertible, CustomDebugStr
 
     // MARK: - CustomStringConvertible
 
+    ///
+    /// Implementation for `CustomStringConvertible` conformance to have a concise and human-readable textual representation of an item.
+    ///
     public var description: String {
         name
     }
 
     // MARK: - CustomDebugStringConvertible
 
+    ///
+    /// Implementation for `CustomDebugStringConvertible` conformance to have a concise and human-readable textual representation of an item.
+    ///
     public var debugDescription: String {
         path
     }
@@ -170,6 +181,7 @@ public struct Item: Model, Identifiable, CustomStringConvertible, CustomDebugStr
         case lock
         case modification
         case name
+        case quota
         case owner
         case path
         case permissions
@@ -198,6 +210,7 @@ public struct Item: Model, Identifiable, CustomStringConvertible, CustomDebugStr
         try container.encodeIfPresent(lock, forKey: .lock)
         try container.encode(modification, forKey: .modification)
         try container.encode(name, forKey: .name)
+        try container.encode(quota, forKey: .quota)
         try container.encode(owner, forKey: .owner)
         try container.encode(path, forKey: .path)
 

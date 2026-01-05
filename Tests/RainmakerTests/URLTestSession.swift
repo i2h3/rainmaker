@@ -11,7 +11,11 @@ import Synchronization
 ///
 public actor URLTestSession: Requesting {
     let logger: Logger
-    let resourcePath: URL?
+
+    ///
+    /// The root location of all resources related ot the test this instance is initialized for.
+    ///
+    let testResources: URL?
     let testName: String
 
     public init(serverVersion: ServerVersion, testSourceCodeFile: String = #filePath, testName: String = #function) throws {
@@ -41,20 +45,20 @@ public actor URLTestSession: Requesting {
         self.testName = testName
 
         if FileManager.default.fileExists(atPath: testResources.path()) {
-            resourcePath = testResources
+            self.testResources = testResources
         } else {
-            resourcePath = nil
+            self.testResources = nil
             logger.debug("Not found: \(testResources.path())")
         }
 
         // swiftformat:disable:next redundantSelf
-        logger.debug("Initialized for suite name \"\(suiteName)\" and test name \"\(testName)\", derived resource path \"\(self.resourcePath?.path() ?? "nil")\".")
+        logger.debug("Initialized for suite name \"\(suiteName)\" and test name \"\(testName)\", derived resource path \"\(self.testResources?.path() ?? "nil")\".")
     }
 
     public func data(for request: URLRequest) async throws -> (Data, URLResponse) {
         logger.debug("Data request for: \(request.httpMethod ?? "GET") \(request.url?.absoluteString ?? "nil")")
 
-        guard let resourcePath else {
+        guard let testResources else {
             throw URLTestSessionError.testNotFound
         }
 
@@ -70,7 +74,14 @@ public actor URLTestSession: Requesting {
             throw URLTestSessionError.missingAcceptHeader
         }
 
-        let pathExtension = switch acceptedType {
+        let headersFile = testResources
+            .appending(component: method)
+            .appending(path: url.path())
+            .appending(component: "Headers")
+            .appendingPathExtension("txt")
+            .standardized
+
+        let bodyFileExtension = switch acceptedType {
             case "application/json":
                 "json"
             case "application/xml":
@@ -79,20 +90,24 @@ public actor URLTestSession: Requesting {
                 throw URLTestSessionError.unsupportedResponseType
         }
 
-        let resource = resourcePath
+        let bodyFile = testResources
             .appending(component: method)
             .appending(path: url.path())
-            .appending(component: "Response")
-            .appendingPathExtension(pathExtension)
+            .appending(component: "Body")
+            .appendingPathExtension(bodyFileExtension)
             .standardized
 
-        if FileManager.default.fileExists(atPath: resource.path(percentEncoded: false)) == false {
-            throw URLTestSessionError.resourceNotFound(resource)
+        if FileManager.default.fileExists(atPath: bodyFile.path(percentEncoded: false)) == false {
+            throw URLTestSessionError.resourceNotFound(bodyFile)
         }
 
-        let data = try Data(contentsOf: resource)
-        let httpResponse = HTTPURLResponse(url: request.url ?? resource, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: nil)!
-        logger.debug("Returning content of \(resource.path())")
+        let data = try Data(contentsOf: bodyFile)
+
+        guard let httpResponse = try HTTPURLResponse(from: headersFile, for: request.url ?? bodyFile) else {
+            throw URLTestSessionError.missingValue
+        }
+
+        logger.debug("Returning content of \(bodyFile.path())")
 
         return (data, httpResponse)
     }

@@ -140,6 +140,19 @@ enum ResponseParser {
 
         let comments = Item.Comments(path: commentsPath, count: commentCount, unread: unreadCommentCount)
 
+        // MARK: quota
+
+        var quota: Quota?
+
+        if let usedBytesString = prop.firstElement(forName: "d:quota-used-bytes")?.stringValue,
+           let availableBytesString = prop.firstElement(forName: "d:quota-available-bytes")?.stringValue
+        {
+            if let usedBytes = Int64(usedBytesString), let availableBytes = Int64(availableBytesString) {
+                let available = AvailableQuota(availableBytes)
+                quota = Quota(available: available, used: usedBytes)
+            }
+        }
+
         // MARK: owner
 
         guard let ownerId = prop.firstElement(forName: "oc:owner-id")?.stringValue else {
@@ -228,6 +241,7 @@ enum ResponseParser {
             lock: lock,
             modification: modification,
             name: displayName,
+            quota: quota,
             owner: owner,
             path: path,
             permissions: permissions,
