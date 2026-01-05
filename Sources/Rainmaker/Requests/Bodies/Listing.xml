@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<d:propfind xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns">
+    <d:prop>
+        <d:creationdate />
+        <d:displayname />
+        <d:getcontenttype />
+        <d:getetag />
+        <d:getlastmodified />
+        <d:quota-available-bytes />
+        <d:quota-used-bytes />
+        <d:resourcetype />
+        <nc:has-preview />
+        <nc:hidden />
+        <nc:is-encrypted />
+        <nc:is-mount-root />
+        <nc:lock />
+        <nc:lock-owner />
+        <nc:lock-owner-displayname />
+        <nc:lock-owner-editor />
+        <nc:lock-owner-type />
+        <nc:lock-time />
+        <nc:lock-timeout />
+        <nc:lock-token />
+        <nc:upload_time />
+        <oc:comments-count />
+        <oc:comments-href />
+        <oc:comments-unread />
+        <oc:favorite />
+        <oc:fileid />
+        <oc:id />
+        <oc:owner-display-name />
+        <oc:owner-id />
+        <oc:permissions />
+        <oc:size />
+    </d:prop>
+</d:propfind>
