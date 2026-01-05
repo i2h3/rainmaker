@@ -90,7 +90,15 @@ public final class Server {
         var request = try makeWebDAVRequest(for: url, method: .propfind)
         request.httpBody = try? Data(contentsOf: Self.resourceURL.appending(component: "Bodies").appending(component: "Listing.xml"))
 
-        let (data, _) = try await session.data(for: request)
+        let (data, urlResponse) = try await session.data(for: request)
+
+        guard let response = urlResponse as? HTTPURLResponse else {
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to cast URLResponse to HTTPURLResponse.")
+        }
+
+        guard response.status == .multiStatus else {
+            throw RainmakerError.unexpectedStatus(code: response.statusCode)
+        }
 
         // Filter out metadata about the listed directory itself.
         let items = try ResponseParser.items(from: data, webDAVPathPrefix: webDAVPathPrefix).filter { item in

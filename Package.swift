@@ -24,7 +24,7 @@ let package = Package(
         .package(url: "https://github.com/nicklockwood/SwiftFormat", from: "0.55.0"),
     ],
     targets: [
-        .target(name: "Rainmaker", resources: [.copy("Bodies")]),
+        .target(name: "Rainmaker", resources: [.copy("Requests/Bodies")]),
         .executableTarget(name: "RainmakerCLI", dependencies: [
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
             "Rainmaker",
