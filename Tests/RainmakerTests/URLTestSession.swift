@@ -13,7 +13,7 @@ public actor URLTestSession: Requesting {
     let logger: Logger
 
     ///
-    /// The root location of all resources related ot the test this instance is initialized for.
+    /// The root location of all resources related to the test this instance is initialized for.
     ///
     let testResources: URL?
     let testName: String
