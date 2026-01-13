@@ -20,3 +20,23 @@ SUBCOMMANDS:
 
   See 'rainmaker help <subcommand>' for detailed help.
 ```
+
+## Authentication
+
+You can provide credentials directly as command-line options:
+
+```bash
+$ swift run rainmaker-cli list --host "http://localhost:8080" --user "myuser" --password "mypassword"
+```
+
+To avoid password leakage and enable a default account pattern, you can also set credentials via environment variables:
+
+```bash
+export RAINMAKER_HOST="http://localhost:8080"
+export RAINMAKER_USER="myuser"
+export RAINMAKER_PASSWORD="mypassword"
+
+$ swift run rainmaker-cli list
+```
+
+Environment variables can be mixed with command-line options. Command-line options take precedence over environment variables.
