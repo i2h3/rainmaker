@@ -46,40 +46,17 @@ public final class Server {
     ///
     public let webDAVAddress: URL
 
+    // MARK: - Helpers
+
+    ///
+    /// Helper method which ensures this object was setup up with a user name and password.
+    ///
+    /// - Throws: If this is called and the ``user`` or ``password`` are not defined.
+    ///
     private func requireCredentials() throws {
         guard user != nil, password != nil else {
             throw RainmakerError.credentialsRequired
         }
-    }
-
-    ///
-    /// Create a new URL request object with some basics configured consistently.
-    ///
-    private func makeRequest(for url: URL, method: Method) -> URLRequest {
-        var request = URLRequest(url: url)
-        request.httpMethod = method.rawValue
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
-
-        return request
-    }
-
-    ///
-    /// Set up a URL request specifically for WebDAV interaction.
-    ///
-    private func makeWebDAVRequest(for url: URL, method: Method) throws -> URLRequest {
-        guard let user, let password else {
-            throw RainmakerError.credentialsRequired
-        }
-
-        let encodedCredentials = Data("\(user):\(password)".utf8).base64EncodedString()
-
-        var request = makeRequest(for: url, method: method)
-        request.setValue("application/xml", forHTTPHeaderField: "Accept")
-        request.setValue("application/xml", forHTTPHeaderField: "Content-Type")
-        request.setValue("Basic \(encodedCredentials)", forHTTPHeaderField: "Authorization")
-
-        return request
     }
 
     ///
@@ -111,6 +88,40 @@ public final class Server {
 
         return items
     }
+
+    // MARK: - Factory Methods
+
+    ///
+    /// Create a new URL request object with some basics configured consistently.
+    ///
+    private func makeRequest(for url: URL, method: Method) -> URLRequest {
+        var request = URLRequest(url: url)
+        request.httpMethod = method.rawValue
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+
+        return request
+    }
+
+    ///
+    /// Set up a URL request specifically for WebDAV interaction.
+    ///
+    private func makeWebDAVRequest(for url: URL, method: Method) throws -> URLRequest {
+        guard let user, let password else {
+            throw RainmakerError.credentialsRequired
+        }
+
+        let encodedCredentials = Data("\(user):\(password)".utf8).base64EncodedString()
+
+        var request = makeRequest(for: url, method: method)
+        request.setValue("application/xml", forHTTPHeaderField: "Accept")
+        request.setValue("application/xml", forHTTPHeaderField: "Content-Type")
+        request.setValue("Basic \(encodedCredentials)", forHTTPHeaderField: "Authorization")
+
+        return request
+    }
+
+    // MARK: - Initializers
 
     ///
     /// Create a new server object.
