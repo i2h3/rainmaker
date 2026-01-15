@@ -185,6 +185,17 @@ extension Server: Serving {
         }
     }
 
+    public func enumerate(at path: String, recursively: Bool) async throws -> [Item] {
+        var items = [Item]()
+        let stream: AsyncThrowingStream<Item, Error> = try await enumerate(at: path, recursively: recursively)
+
+        for try await item in stream {
+            items.append(item)
+        }
+
+        return items
+    }
+
     public func login() async throws -> LoginFlow {
         logger.debug("Fetching login information...")
 

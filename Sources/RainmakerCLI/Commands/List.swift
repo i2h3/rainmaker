@@ -32,12 +32,7 @@ struct List: AsyncParsableCommand {
         }
 
         let server = Server(address: address, password: authenticatedArguments.passwordValue, user: authenticatedArguments.userValue)
-        let stream = try await server.enumerate(at: path, recursively: recursive)
-        var items = [Item]()
-
-        for try await item in stream {
-            items.append(item)
-        }
+        let items: [Item] = try await server.enumerate(at: path, recursively: recursive)
 
         switch formatArguments.outputFormat {
             case .json:
