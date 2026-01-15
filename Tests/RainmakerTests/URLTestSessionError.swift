@@ -18,9 +18,9 @@ enum URLTestSessionError: Error {
     case missingValue
 
     ///
-    /// The test module bundle lacks the given resource.
+    /// The test module bundle lacks the resource at the given path.
     ///
-    case resourceNotFound(URL)
+    case resourceNotFound(String)
 
     ///
     /// The test module bundle apparently does not have any resources.
@@ -55,8 +55,8 @@ extension URLTestSessionError: CustomStringConvertible {
                 "The URL request is missing the \"Accept\" HTTP header."
             case .missingValue:
                 "An expected information is not available at this time."
-            case let .resourceNotFound(url):
-                "Expected resource not found: \(url.path(percentEncoded: false))"
+            case let .resourceNotFound(path):
+                "Expected resource not found: \(path)"
             case .resourcesNotFound:
                 "The test module bundle apparently does not have any resources."
             case .serverVersionNotFound:

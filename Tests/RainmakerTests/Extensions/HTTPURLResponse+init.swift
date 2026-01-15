@@ -11,29 +11,24 @@ extension HTTPURLResponse {
     /// More comprehensive and robust implementations by others have been left out intentionally for now.
     ///
     /// - Parameters:
-    ///     - file: The fixture to parse for the values.
+    ///     - data: The raw HTTP response header data to parse.
+    ///     - request: The original URL request this information is supposed to be initialized for.
     ///
-    convenience init?(from file: URL, for request: URL) throws {
-        guard FileManager.default.fileExists(atPath: file.path()) else {
-            throw RainmakerTestsError.missingFixture(file)
-        }
-
-        let data = try Data(contentsOf: file)
-
+    convenience init?(from data: Data, for request: URL) throws {
         guard let text = String(data: data, encoding: .utf8) else {
-            throw RainmakerTestsError.decodingError(file)
+            throw RainmakerTestsError.decodingError(request)
         }
 
         let lines = text.split(separator: "\n")
 
         guard let status = lines.first?.split(separator: " ") else {
-            throw RainmakerTestsError.decodingError(file)
+            throw RainmakerTestsError.decodingError(request)
         }
 
         let httpVersion = String(status[0])
 
         guard let statusCode = Int(status[1]) else {
-            throw RainmakerTestsError.decodingError(file)
+            throw RainmakerTestsError.decodingError(request)
         }
 
         var headerFields = [String: String]()

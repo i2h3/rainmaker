@@ -16,6 +16,10 @@ public actor URLTestSession: Requesting {
     /// The root location of all resources related to the test this instance is initialized for.
     ///
     let testResources: URL?
+
+    ///
+    /// The test case name, usually derived automatically from the calling test method.
+    ///
     let testName: String
 
     public init(serverVersion: ServerVersion, testSourceCodeFile: String = #filePath, testName: String = #function) throws {
@@ -56,8 +60,6 @@ public actor URLTestSession: Requesting {
     }
 
     public func data(for request: URLRequest) async throws -> (Data, URLResponse) {
-        logger.debug("Data request for: \(request.httpMethod ?? "GET") \(request.url?.absoluteString ?? "nil")")
-
         guard let testResources else {
             throw URLTestSessionError.testNotFound
         }
@@ -70,16 +72,22 @@ public actor URLTestSession: Requesting {
             throw URLTestSessionError.missingValue
         }
 
+        let requestPath = url.path(percentEncoded: false)
+
+        let requestResources = testResources
+            .appending(component: method)
+            .appending(path: requestPath)
+
+        let headersFile = requestResources
+            .appending(component: "Headers")
+            .appendingPathExtension("txt")
+
+        logger.debug("Assuming headers file: \(headersFile.percentEncodedPath)")
+        let headersData = try readDataFromPercentEncodedPath(at: headersFile)
+
         guard let acceptedType = request.allHTTPHeaderFields?["Accept"] else {
             throw URLTestSessionError.missingAcceptHeader
         }
-
-        let headersFile = testResources
-            .appending(component: method)
-            .appending(path: url.path())
-            .appending(component: "Headers")
-            .appendingPathExtension("txt")
-            .standardized
 
         let bodyFileExtension = switch acceptedType {
             case "application/json":
@@ -90,25 +98,36 @@ public actor URLTestSession: Requesting {
                 throw URLTestSessionError.unsupportedResponseType
         }
 
-        let bodyFile = testResources
-            .appending(component: method)
-            .appending(path: url.path())
+        let bodyFile = requestResources
             .appending(component: "Body")
             .appendingPathExtension(bodyFileExtension)
-            .standardized
 
-        if FileManager.default.fileExists(atPath: bodyFile.path(percentEncoded: false)) == false {
-            throw URLTestSessionError.resourceNotFound(bodyFile)
-        }
+        logger.debug("Assuming body file: \(bodyFile.percentEncodedPath)")
+        let bodyData = try readDataFromPercentEncodedPath(at: bodyFile)
 
-        let data = try Data(contentsOf: bodyFile)
-
-        guard let httpResponse = try HTTPURLResponse(from: headersFile, for: request.url ?? bodyFile) else {
+        guard let httpResponse = try HTTPURLResponse(from: headersData, for: url) else {
             throw URLTestSessionError.missingValue
         }
 
-        logger.debug("Returning content of \(bodyFile.path())")
+        return (bodyData, httpResponse)
+    }
 
-        return (data, httpResponse)
+    ///
+    /// To have a safe and consistent path conversion for fixture files based on request paths, this is required to avoid double encoding as it may happen when loading `Data` directly from a `URL` with the designated initializer.
+    ///
+    private func readDataFromPercentEncodedPath(at location: URL) throws -> Data {
+        let path = location.percentEncodedPath
+
+        guard let handle = FileHandle(forReadingAtPath: path) else {
+            throw URLTestSessionError.resourceNotFound(path)
+        }
+
+        defer {
+            try? handle.close()
+        }
+
+        let data = try handle.readToEnd() ?? Data()
+
+        return data
     }
 }

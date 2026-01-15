@@ -46,6 +46,22 @@ protocol Serving: Sendable {
     func enumerate(at path: String, recursively: Bool) async throws -> AsyncThrowingStream<Item, Error>
 
     ///
+    /// A convenience wrapper that aggregates all items first before returning.
+    ///
+    /// > Warning: It is recommended to use the equally named streaming alternative which returns an `AsyncThrowingStream` whenever possible.
+    /// Using this method may result in high memory peaks in case of large hierarchies in recursive enumeration.
+    ///
+    /// - Parameters:
+    ///     - path: The root directory to enter.
+    ///     - recursively: Whether subdirectories should be traversed, too.
+    ///
+    /// - Returns: All items found at the given path (and, optionally, in its subdirectories) collected in an array.
+    ///
+    /// - Throws: Any error that might occur during the listing of a remote directory.
+    ///
+    func enumerate(at path: String, recursively: Bool) async throws -> [Item]
+
+    ///
     /// Look up the login flow information.
     ///
     func login() async throws -> LoginFlow
