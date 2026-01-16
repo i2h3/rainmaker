@@ -8,7 +8,7 @@ import Testing
 ///
 /// About folder content listing.
 ///
-@Suite("Listing Tests") struct ListingTests: ServerTesting {
+@Suite("Listings") struct ListingTests: ServerTesting {
     @Test("Require Credentials", arguments: ServerVersion.allCases)
     func requireCredentials(_ serverVersion: ServerVersion) async throws {
         let server = try makeServer(user: nil, password: nil, serverVersion: serverVersion)
@@ -18,7 +18,7 @@ import Testing
         }
     }
 
-    @Test("List Root Folder Content", arguments: ServerVersion.allCases)
+    @Test("Root Folder", arguments: ServerVersion.allCases)
     func listRootFolderContent(_ serverVersion: ServerVersion) async throws {
         let server = try makeServer(serverVersion: serverVersion)
         let items: [Item] = try await server.enumerate(at: "/", recursively: false)
@@ -27,7 +27,7 @@ import Testing
         #expect(readme.href.path() == "/remote.php/dav/files/admin/Readme.md")
     }
 
-    @Test("List Documents Folder Content", arguments: ServerVersion.allCases)
+    @Test("Documents Folder", arguments: ServerVersion.allCases)
     func listDocumentsFolderContent(_ serverVersion: ServerVersion) async throws {
         let server = try makeServer(serverVersion: serverVersion)
         let items: [Item] = try await server.enumerate(at: "/Documents", recursively: false)
@@ -36,7 +36,7 @@ import Testing
         #expect(example.href.path() == "/remote.php/dav/files/admin/Documents/Example.md")
     }
 
-    @Test("List All Content Recursively and Asynchronously", arguments: ServerVersion.allCases)
+    @Test("All Content Recursively and Asynchronously", arguments: ServerVersion.allCases)
     func listAllContentRecursivelyAndAsynchronously(_ serverVersion: ServerVersion) async throws {
         let server = try makeServer(serverVersion: serverVersion)
         let items: [Item] = try await server.enumerate(at: "/", recursively: true)
@@ -46,7 +46,7 @@ import Testing
         #expect(items.contains { $0.href.path() == "/remote.php/dav/files/admin/Templates/Brainstorming.whiteboard" })
     }
 
-    @Test("List Whitespace Folder Content", arguments: ServerVersion.allCases)
+    @Test("Whitespace Folder", arguments: ServerVersion.allCases)
     func listWhitespaceFolderContent(_ serverVersion: ServerVersion) async throws {
         let server = try makeServer(serverVersion: serverVersion)
         let items: [Item] = try await server.enumerate(at: "/Special Characters", recursively: false)
@@ -57,7 +57,7 @@ import Testing
         #expect(items.contains { $0.name == "%" })
     }
 
-    @Test("List Percent-encoded Folder Content", arguments: ServerVersion.allCases)
+    @Test("Percent-encoded Folder", arguments: ServerVersion.allCases)
     func listPercentEncodedFolderContent(_ serverVersion: ServerVersion) async throws {
         let server = try makeServer(serverVersion: serverVersion)
         let items: [Item] = try await server.enumerate(at: "/Special%20Characters", recursively: false)
@@ -68,7 +68,7 @@ import Testing
         #expect(items.contains { $0.name == "%" })
     }
 
-    @Test("List : Folder Content", arguments: ServerVersion.allCases)
+    @Test(": Folder", arguments: ServerVersion.allCases)
     func listColonFolderContent(_ serverVersion: ServerVersion) async throws {
         let server = try makeServer(serverVersion: serverVersion)
         let items: [Item] = try await server.enumerate(at: "/Special Characters/:", recursively: false)
@@ -77,7 +77,7 @@ import Testing
         #expect(readme.path == "/Special Characters/:/Readme.md")
     }
 
-    @Test("List ? Folder Content", arguments: ServerVersion.allCases)
+    @Test("? Folder", arguments: ServerVersion.allCases)
     func listQuestionMarkFolderContent(_ serverVersion: ServerVersion) async throws {
         let server = try makeServer(serverVersion: serverVersion)
         let items: [Item] = try await server.enumerate(at: "/Special Characters/?", recursively: false)
@@ -86,7 +86,7 @@ import Testing
         #expect(readme.path == "/Special Characters/?/Readme.md")
     }
 
-    @Test("List & Folder Content", arguments: ServerVersion.allCases)
+    @Test("& Folder", arguments: ServerVersion.allCases)
     func listAmpersandFolderContent(_ serverVersion: ServerVersion) async throws {
         let server = try makeServer(serverVersion: serverVersion)
         let items: [Item] = try await server.enumerate(at: "/Special Characters/&", recursively: false)
@@ -95,7 +95,7 @@ import Testing
         #expect(readme.path == "/Special Characters/&/Readme.md")
     }
 
-    @Test("List # Folder Content", arguments: ServerVersion.allCases)
+    @Test("# Folder", arguments: ServerVersion.allCases)
     func listHashFolderContent(_ serverVersion: ServerVersion) async throws {
         let server = try makeServer(serverVersion: serverVersion)
         let items: [Item] = try await server.enumerate(at: "/Special Characters/#", recursively: false)
@@ -104,7 +104,7 @@ import Testing
         #expect(readme.path == "/Special Characters/#/Readme.md")
     }
 
-    @Test("List % Folder Content", arguments: ServerVersion.allCases)
+    @Test("% Folder", arguments: ServerVersion.allCases)
     func listPercentFolderContent(_ serverVersion: ServerVersion) async throws {
         let server = try makeServer(serverVersion: serverVersion)
         let items: [Item] = try await server.enumerate(at: "/Special Characters/%", recursively: false)

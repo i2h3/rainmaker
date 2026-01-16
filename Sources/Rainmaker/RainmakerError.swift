@@ -13,6 +13,26 @@ public enum RainmakerError: Error, Equatable, CustomStringConvertible {
     case credentialsRequired
 
     ///
+    /// The destination location is not an empty directory.
+    ///
+    case directoryNotEmpty
+
+    ///
+    /// During a local directory enumeration, the given error occurred for the item at the provided location.
+    ///
+    case enumeration(URL, String)
+
+    ///
+    /// A file transfer was attempted but the destination already exists and was not requested to be overwritten.
+    ///
+    case fileAlreadyExists(URL)
+
+    ///
+    /// Whatever you were looking for is not there.
+    ///
+    case notFound
+
+    ///
     /// The response most likely was not in the expected format or structure.
     ///
     /// - Parameters:
@@ -32,6 +52,14 @@ public enum RainmakerError: Error, Equatable, CustomStringConvertible {
         switch self {
             case .credentialsRequired:
                 "Credentials required"
+            case .directoryNotEmpty:
+                "The destination location is not an empty directory."
+            case let .enumeration(url, error):
+                "The item at \(url.path()) could not be enumerated: \(error)"
+            case let .fileAlreadyExists(url):
+                "A file already exists at: \(url.path())"
+            case .notFound:
+                "Not found."
             case let .responseDecodingFailed(reason: reason):
                 reason
             case let .unexpectedStatus(code: code):

@@ -13,6 +13,7 @@ path = [
     "Package.resolved",
     ".gitignore", 
     ".swiftformat", 
+    ".swiftpm/xcode/xcshareddata/xcschemes/**/*",
     ".swift-version", 
     "README.md",
     "Sources/Rainmaker/Documentation.docc/**/*",

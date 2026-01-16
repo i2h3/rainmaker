@@ -8,7 +8,7 @@ import Testing
 ///
 /// Login flow related tests.
 ///
-@Suite("Login Tests") struct LoginTests: ServerTesting {
+@Suite("Login") struct LoginTests: ServerTesting {
     @Test("Fetch Login Information", arguments: ServerVersion.allCases)
     func fetchLoginInformation(_ serverVersion: ServerVersion) async throws {
         let server = try makeServer(serverVersion: serverVersion)

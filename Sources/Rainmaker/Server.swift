@@ -10,6 +10,7 @@ import os
 public final class Server {
     static let resourceURL = Bundle.module.resourceURL!
 
+    nonisolated(unsafe) let fileManager = FileManager.default
     let logger = Logger(category: "Server")
     let jsonDecoder: JSONDecoder
     let session: any Requesting
@@ -62,10 +63,11 @@ public final class Server {
     ///
     /// List the content of the remote directory.
     ///
-    private func content(at path: String) async throws -> [Item] {
-        let url = webDAVAddress.appending(path: path, directoryHint: .isDirectory)
+    private func content(at path: String, depth: UInt = 1) async throws -> [Item] {
+        let url = webDAVAddress.appending(path: path, directoryHint: .inferFromPath)
         var request = try makeWebDAVRequest(for: url, method: .propfind)
         request.httpBody = try? Data(contentsOf: Self.resourceURL.appending(component: "Bodies").appending(component: "Listing.xml"))
+        request.setValue("\(depth)", forHTTPHeaderField: "Depth")
 
         let (data, urlResponse) = try await session.data(for: request)
 
@@ -73,18 +75,218 @@ public final class Server {
             throw RainmakerError.responseDecodingFailed(reason: "Failed to cast URLResponse to HTTPURLResponse.")
         }
 
+        if response.status == .notFound {
+            throw RainmakerError.notFound
+        }
+
         guard response.status == .multiStatus else {
             throw RainmakerError.unexpectedStatus(code: response.statusCode)
         }
 
-        // Filter out metadata about the listed directory itself.
-        return try ResponseParser.items(from: data, webDAVPathPrefix: webDAVPathPrefix).filter { item in
-            if path == item.path {
-                return false
-            }
+        let allItems = try ResponseParser.items(from: data, webDAVPathPrefix: webDAVPathPrefix)
 
-            return true
+        // When fetching metadata about a specific item (depth 0), return the item itself.
+        // When listing directory contents (depth > 0), filter out the listed directory itself.
+        if depth == 0 {
+            return allItems
         }
+
+        let normalizedPath = path.hasSuffix("/") ? String(path.dropLast()) : path
+
+        return allItems.filter { item in
+            let normalizedItemPath = item.path.hasSuffix("/") ? String(item.path.dropLast()) : item.path
+            return normalizedPath != normalizedItemPath
+        }
+    }
+
+    ///
+    /// Normalize a path so that it can be used as a key for matching local and remote items.
+    ///
+    /// Strips surrounding slashes so that `"/Foo/"`, `"Foo/"`, `"/Foo"`, and `"Foo"` all collapse to `"Foo"`.
+    ///
+    private func normalizeKey(_ path: String) -> String {
+        var slice = Substring(path)
+
+        while slice.hasPrefix("/") {
+            slice = slice.dropFirst()
+        }
+
+        while slice.hasSuffix("/") {
+            slice = slice.dropLast()
+        }
+
+        return String(slice)
+    }
+
+    ///
+    /// Enumerate local files recursively and return a dictionary mapping normalized relative paths to their URLs.
+    ///
+    private func enumerateLocalFiles(at destination: URL) throws -> [String: URL] {
+        logger.debug("Enumerating local files at \"\(destination.path(percentEncoded: false))\"...")
+
+        var enumerationErrorItem: URL?
+        var enumerationError: (any Error)?
+
+        let localEnumerator = fileManager.enumerator(at: destination, includingPropertiesForKeys: [.contentModificationDateKey, .isDirectoryKey]) { url, error in
+            enumerationErrorItem = url
+            enumerationError = error
+            return false
+        }
+
+        var result = [String: URL]()
+        // Use path components rather than string-prefix arithmetic so that resolving symlinks (e.g. macOS' `/var` → `/private/var`)
+        // or other inconsistencies between the supplied destination URL and the URLs yielded by the enumerator do not skew the relative path.
+        let destinationComponents = destination.resolvingSymlinksInPath().pathComponents
+
+        if let localEnumerator {
+            for case let fileURL as URL in localEnumerator {
+                let fileComponents = fileURL.resolvingSymlinksInPath().pathComponents
+
+                guard fileComponents.count > destinationComponents.count else {
+                    continue
+                }
+
+                let relativeComponents = fileComponents.dropFirst(destinationComponents.count)
+                let relativePath = relativeComponents.joined(separator: "/")
+                let normalizedKey = normalizeKey(relativePath)
+                result[normalizedKey] = fileURL
+                logger.debug("Found \"\(normalizedKey)\"")
+            }
+        }
+
+        // The error handler closure is invoked during iteration, so the check must come after the loop.
+        if let enumerationErrorItem, let enumerationError {
+            throw RainmakerError.enumeration(enumerationErrorItem, enumerationError.localizedDescription)
+        }
+
+        return result
+    }
+
+    private func downloadDirectory(_ source: String, to destination: URL, force: Bool) async throws {
+        logger.debug("Downloading directory from \"\(source)\" to \"\(destination.path(percentEncoded: false))\" \(force ? "with" : "without") force...")
+
+        if fileManager.fileExists(atPath: destination.path(percentEncoded: false)) == false {
+            try fileManager.createDirectory(at: destination, withIntermediateDirectories: true)
+        }
+
+        let destinationDirectoryContents = try fileManager.contentsOfDirectory(at: destination, includingPropertiesForKeys: nil)
+
+        if force == false, destinationDirectoryContents.isEmpty == false {
+            throw RainmakerError.directoryNotEmpty
+        }
+
+        // Enumerate local state recursively.
+
+        let localItemsByRelativePath = try enumerateLocalFiles(at: destination)
+
+        // Enumerate remote state recursively.
+
+        let normalizedSource = normalizeKey(source)
+        let remoteItems: [Item] = try await enumerate(at: source, recursively: true)
+        var remoteItemsByRelativePath = [String: Item]()
+
+        for item in remoteItems {
+            let normalizedItemPath = normalizeKey(item.path)
+            let relativePath = normalizeKey(String(normalizedItemPath.dropFirst(normalizedSource.count)))
+            remoteItemsByRelativePath[relativePath] = item
+        }
+
+        // Compare and derive actions.
+        // Create remote directories locally, shallowest first.
+
+        let remoteDirectories = remoteItems
+            .filter(\.isDirectory)
+            .sorted { $0.path.components(separatedBy: "/").count < $1.path.components(separatedBy: "/").count }
+
+        for directory in remoteDirectories {
+            let normalizedDirectoryPath = normalizeKey(directory.path)
+            let relativePath = normalizeKey(String(normalizedDirectoryPath.dropFirst(normalizedSource.count)))
+            let localURL = destination.appending(path: relativePath)
+
+            if fileManager.fileExists(atPath: localURL.path(percentEncoded: false)) == false {
+                try fileManager.createDirectory(at: localURL, withIntermediateDirectories: true)
+            }
+        }
+
+        // Download new and changed files.
+
+        let remoteFiles = remoteItems.filter { $0.isDirectory == false }
+
+        for file in remoteFiles {
+            let normalizedFilePath = normalizeKey(file.path)
+            let relativePath = normalizeKey(String(normalizedFilePath.dropFirst(normalizedSource.count)))
+            let localURL = destination.appending(path: relativePath)
+
+            try await downloadFile(file.path, to: localURL, force: force, remoteItem: file)
+        }
+
+        // Delete local items not present in the remote state, deepest first so a directory is never removed before its still-pending child entries (`removeItem` on a directory removes recursively, which would invalidate the URLs captured for those children and surface as a confusing failure).
+
+        if force {
+            let remoteRelativePaths = Set(remoteItemsByRelativePath.keys)
+            let orphanedPaths = localItemsByRelativePath.keys
+                .filter { remoteRelativePaths.contains($0) == false }
+                .sorted { $0.components(separatedBy: "/").count > $1.components(separatedBy: "/").count }
+
+            for path in orphanedPaths {
+                guard let url = localItemsByRelativePath[path] else {
+                    continue
+                }
+
+                if fileManager.fileExists(atPath: url.path(percentEncoded: false)) {
+                    try fileManager.removeItem(at: url)
+                }
+            }
+        }
+    }
+
+    ///
+    /// Download implementation specifically for files.
+    ///
+    private func downloadFile(_ source: String, to destination: URL, force: Bool, remoteItem: Item) async throws {
+        logger.debug("Downloading file from \"\(source)\" to \"\(destination.path(percentEncoded: false))\" \(force ? "with" : "without") force...")
+
+        if force == false {
+            // Check for the destination file to not exist before starting a potentially long running download.
+            try fileManager.assertFileDoesNotExist(at: destination)
+        } else if fileManager.fileExists(atPath: destination.path(percentEncoded: false)) {
+            // Skip download if the local file is not older than the remote file.
+            let attributes = try fileManager.attributesOfItem(atPath: destination.path(percentEncoded: false))
+
+            if let localModification = attributes[.modificationDate] as? Date, localModification >= remoteItem.modification {
+                return
+            }
+        }
+
+        let url = webDAVAddress.appending(path: source)
+        let request = try makeWebDAVRequest(for: url, method: .get)
+        let (data, urlResponse) = try await session.download(for: request, delegate: nil)
+
+        guard let response = urlResponse as? HTTPURLResponse else {
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to cast URLResponse to HTTPURLResponse.")
+        }
+
+        if response.status == .notFound {
+            throw RainmakerError.notFound
+        }
+
+        guard response.status == .ok else {
+            throw RainmakerError.unexpectedStatus(code: response.statusCode)
+        }
+
+        // Check for the destination file to still not exist after a potentially long running download.
+        if force == false {
+            try fileManager.assertFileDoesNotExist(at: destination)
+        }
+
+        if fileManager.fileExists(atPath: destination.path(percentEncoded: false)) {
+            try fileManager.removeItem(at: destination)
+        }
+
+        try fileManager.moveItem(at: data, to: destination)
+
+        // Align the local modification date with the remote state for future change detection.
+        try fileManager.setAttributes([.modificationDate: remoteItem.modification], ofItemAtPath: destination.path(percentEncoded: false))
     }
 
     // MARK: - Factory Methods
@@ -150,6 +352,19 @@ public final class Server {
 // MARK: - Serving
 
 extension Server: Serving {
+    public func download(_ source: String, to destination: URL, force: Bool) async throws {
+        try requireCredentials()
+        logger.debug("Downloading \"\(source)\" to \"\(destination.path)\"...")
+        let item = try await info(source)
+
+        if item.isDirectory {
+            try await downloadDirectory(source, to: destination, force: force)
+        } else {
+            let destinationFile = destination.appending(component: item.name)
+            try await downloadFile(source, to: destinationFile, force: force, remoteItem: item)
+        }
+    }
+
     public func enumerate(at path: String, recursively: Bool) async throws -> AsyncThrowingStream<Item, Error> {
         try requireCredentials()
 
@@ -192,6 +407,18 @@ extension Server: Serving {
         }
 
         return items
+    }
+
+    public func info(_ path: String) async throws -> Item {
+        try requireCredentials()
+        logger.debug("Fetching information about \(path)")
+        let items = try await content(at: path, depth: 0)
+
+        guard let item = items.first else {
+            throw RainmakerError.responseDecodingFailed(reason: "Expected at least one item to be found but there was none.")
+        }
+
+        return item
     }
 
     public func login() async throws -> LoginFlow {

@@ -8,7 +8,7 @@ import Testing
 ///
 /// Login flow related tests.
 ///
-@Suite("Poll Tests") struct PollTests: ServerTesting {
+@Suite("Polling") struct PollTests: ServerTesting {
     let token = "some-token"
 
     @Test("Polling Failure", arguments: ServerVersion.allCases)
