@@ -84,7 +84,7 @@
             isEnabled = "YES">
          </CommandLineArgument>
          <CommandLineArgument
-            argument = "--destination=&quot;/Users/iva/Downloads/Rainmaker&quot;"
+            argument = "--destination=&quot;~/Downloads/Rainmaker&quot;"
             isEnabled = "YES">
          </CommandLineArgument>
       </CommandLineArguments>
