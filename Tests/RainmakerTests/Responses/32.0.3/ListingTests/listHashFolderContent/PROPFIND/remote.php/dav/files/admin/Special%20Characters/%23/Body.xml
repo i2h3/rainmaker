@@ -3,7 +3,7 @@
     <d:href>/remote.php/dav/files/admin/Special%20Characters/%23/</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:displayname>#</d:displayname>
         <d:getetag>"6966649889053"</d:getetag>
         <d:getlastmodified>Tue, 13 Jan 2026 15:28:24 GMT</d:getlastmodified>
@@ -49,7 +49,7 @@
     <d:href>/remote.php/dav/files/admin/Special%20Characters/%23/Readme.md</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:displayname>Readme.md</d:displayname>
         <d:getcontenttype>text/markdown</d:getcontenttype>
         <d:getetag>"56cbcc428c00216774f530085dedf152"</d:getetag>

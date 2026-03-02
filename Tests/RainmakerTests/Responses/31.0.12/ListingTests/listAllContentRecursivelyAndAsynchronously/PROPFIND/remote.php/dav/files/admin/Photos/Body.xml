@@ -4,7 +4,7 @@
     <d:href>/remote.php/dav/files/admin/Photos/</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:32 GMT</d:getlastmodified>
         <d:getetag>"69455eb8c69dc"</d:getetag>
         <oc:size>5656463</oc:size>
@@ -53,7 +53,7 @@
     <d:href>/remote.php/dav/files/admin/Photos/Birdie.jpg</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:32 GMT</d:getlastmodified>
         <d:getetag>"bd0d618a6cf79b575ac9d843869a8bf1"</d:getetag>
         <d:getcontenttype>image/jpeg</d:getcontenttype>
@@ -100,7 +100,7 @@
     <d:href>/remote.php/dav/files/admin/Photos/Frog.jpg</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:32 GMT</d:getlastmodified>
         <d:getetag>"07d247f18355546389551181e7af4993"</d:getetag>
         <d:getcontenttype>image/jpeg</d:getcontenttype>
@@ -147,7 +147,7 @@
     <d:href>/remote.php/dav/files/admin/Photos/Gorilla.jpg</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:32 GMT</d:getlastmodified>
         <d:getetag>"78e9f9929ebdcbda7d1dc11face3c642"</d:getetag>
         <d:getcontenttype>image/jpeg</d:getcontenttype>
@@ -194,7 +194,7 @@
     <d:href>/remote.php/dav/files/admin/Photos/Library.jpg</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:32 GMT</d:getlastmodified>
         <d:getetag>"6fd370608413adcdfed3f86df714b9e8"</d:getetag>
         <d:getcontenttype>image/jpeg</d:getcontenttype>
@@ -241,7 +241,7 @@
     <d:href>/remote.php/dav/files/admin/Photos/Nextcloud%20community.jpg</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:32 GMT</d:getlastmodified>
         <d:getetag>"007e4e75221849ff86148692f9846571"</d:getetag>
         <d:getcontenttype>image/jpeg</d:getcontenttype>
@@ -288,7 +288,7 @@
     <d:href>/remote.php/dav/files/admin/Photos/Readme.md</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:32 GMT</d:getlastmodified>
         <d:getetag>"17b7103c849d58339d4b791ee491adfc"</d:getetag>
         <d:getcontenttype>text/markdown</d:getcontenttype>
@@ -335,7 +335,7 @@
     <d:href>/remote.php/dav/files/admin/Photos/Steps.jpg</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:32 GMT</d:getlastmodified>
         <d:getetag>"dbf250ff121c2589a10d933910a9f6a6"</d:getetag>
         <d:getcontenttype>image/jpeg</d:getcontenttype>
@@ -382,7 +382,7 @@
     <d:href>/remote.php/dav/files/admin/Photos/Toucan.jpg</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:32 GMT</d:getlastmodified>
         <d:getetag>"6508e2ef364a6e2b3391b0e55803d194"</d:getetag>
         <d:getcontenttype>image/jpeg</d:getcontenttype>
@@ -429,7 +429,7 @@
     <d:href>/remote.php/dav/files/admin/Photos/Vineyard.jpg</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:32 GMT</d:getlastmodified>
         <d:getetag>"d4b0b081ba91b6e019e4e2daed810cea"</d:getetag>
         <d:getcontenttype>image/jpeg</d:getcontenttype>

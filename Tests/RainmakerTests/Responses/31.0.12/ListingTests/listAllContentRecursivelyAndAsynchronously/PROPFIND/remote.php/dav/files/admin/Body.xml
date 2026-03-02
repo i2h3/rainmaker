@@ -4,7 +4,7 @@
     <d:href>/remote.php/dav/files/admin/</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:33 GMT</d:getlastmodified>
         <d:getetag>"69455eb955bf5"</d:getetag>
         <oc:size>38527284</oc:size>
@@ -53,7 +53,7 @@
     <d:href>/remote.php/dav/files/admin/Documents/</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:33 GMT</d:getlastmodified>
         <d:getetag>"69455eb947440"</d:getetag>
         <oc:size>1108446</oc:size>
@@ -102,7 +102,7 @@
     <d:href>/remote.php/dav/files/admin/Nextcloud%20Manual.pdf</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:33 GMT</d:getlastmodified>
         <d:getetag>"22e62639b79656f9f57cd80e1409d543"</d:getetag>
         <d:getcontenttype>application/pdf</d:getcontenttype>
@@ -149,7 +149,7 @@
     <d:href>/remote.php/dav/files/admin/Nextcloud%20intro.mp4</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:33 GMT</d:getlastmodified>
         <d:getetag>"2bd88379d121933943f9b547d8a8d6e2"</d:getetag>
         <d:getcontenttype>video/mp4</d:getcontenttype>
@@ -196,7 +196,7 @@
     <d:href>/remote.php/dav/files/admin/Nextcloud.png</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:33 GMT</d:getlastmodified>
         <d:getetag>"b0da728fcb8ef825937fb8b9a89ce893"</d:getetag>
         <d:getcontenttype>image/png</d:getcontenttype>
@@ -243,7 +243,7 @@
     <d:href>/remote.php/dav/files/admin/Photos/</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:32 GMT</d:getlastmodified>
         <d:getetag>"69455eb8c69dc"</d:getetag>
         <oc:size>5656463</oc:size>
@@ -292,7 +292,7 @@
     <d:href>/remote.php/dav/files/admin/Readme.md</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:32 GMT</d:getlastmodified>
         <d:getetag>"d0650fb5ff2a2e4e2344e02361799a5e"</d:getetag>
         <d:getcontenttype>text/markdown</d:getcontenttype>
@@ -339,7 +339,7 @@
     <d:href>/remote.php/dav/files/admin/Reasons%20to%20use%20Nextcloud.pdf</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:33 GMT</d:getlastmodified>
         <d:getetag>"c462bf7fd3974943e5a37dbb3433b952"</d:getetag>
         <d:getcontenttype>application/pdf</d:getcontenttype>
@@ -386,7 +386,7 @@
     <d:href>/remote.php/dav/files/admin/Templates/</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:33 GMT</d:getlastmodified>
         <d:getetag>"69455eb9362f8"</d:getetag>
         <oc:size>10942115</oc:size>
@@ -435,7 +435,7 @@
     <d:href>/remote.php/dav/files/admin/Templates%20credits.md</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:33 GMT</d:getlastmodified>
         <d:getetag>"47e858c19641ca5f2f81b50d6f73dd0e"</d:getetag>
         <d:getcontenttype>text/markdown</d:getcontenttype>

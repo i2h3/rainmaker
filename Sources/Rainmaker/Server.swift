@@ -78,15 +78,13 @@ public final class Server {
         }
 
         // Filter out metadata about the listed directory itself.
-        let items = try ResponseParser.items(from: data, webDAVPathPrefix: webDAVPathPrefix).filter { item in
+        return try ResponseParser.items(from: data, webDAVPathPrefix: webDAVPathPrefix).filter { item in
             if path == item.path {
                 return false
             }
 
             return true
         }
-
-        return items
     }
 
     // MARK: - Factory Methods
