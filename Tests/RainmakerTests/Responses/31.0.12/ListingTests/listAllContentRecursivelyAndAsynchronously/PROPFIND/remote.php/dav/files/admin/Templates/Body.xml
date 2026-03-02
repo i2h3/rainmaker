@@ -4,7 +4,7 @@
     <d:href>/remote.php/dav/files/admin/Templates/</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:33 GMT</d:getlastmodified>
         <d:getetag>"69455eb9362f8"</d:getetag>
         <oc:size>10942115</oc:size>
@@ -53,7 +53,7 @@
     <d:href>/remote.php/dav/files/admin/Templates/Brainstorming.whiteboard</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:33 GMT</d:getlastmodified>
         <d:getetag>"80396a879447d8f0550753ac4c4c0f66"</d:getetag>
         <d:getcontenttype>application/vnd.excalidraw+json</d:getcontenttype>
@@ -100,7 +100,7 @@
     <d:href>/remote.php/dav/files/admin/Templates/Business%20model%20canvas.odg</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:33 GMT</d:getlastmodified>
         <d:getetag>"a135d533e13e75d1a3e1910f014dfb59"</d:getetag>
         <d:getcontenttype>application/vnd.oasis.opendocument.graphics</d:getcontenttype>
@@ -147,7 +147,7 @@
     <d:href>/remote.php/dav/files/admin/Templates/Business%20model%20canvas.ods</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:32 GMT</d:getlastmodified>
         <d:getetag>"33e274084ff31942cbd463e8c0a78473"</d:getetag>
         <d:getcontenttype>application/vnd.oasis.opendocument.spreadsheet</d:getcontenttype>
@@ -194,7 +194,7 @@
     <d:href>/remote.php/dav/files/admin/Templates/Business%20model%20canvas.whiteboard</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:33 GMT</d:getlastmodified>
         <d:getetag>"6f171b398238b8ae72d009698ef0a553"</d:getetag>
         <d:getcontenttype>application/vnd.excalidraw+json</d:getcontenttype>
@@ -241,7 +241,7 @@
     <d:href>/remote.php/dav/files/admin/Templates/Diagram%20%26%20table.ods</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:33 GMT</d:getlastmodified>
         <d:getetag>"6a392b80c8110e3c5586a63ced5ba4c1"</d:getetag>
         <d:getcontenttype>application/vnd.oasis.opendocument.spreadsheet</d:getcontenttype>
@@ -288,7 +288,7 @@
     <d:href>/remote.php/dav/files/admin/Templates/Elegant.odp</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:32 GMT</d:getlastmodified>
         <d:getetag>"1078b8ec8d31f2a9697ee32aadf3ce69"</d:getetag>
         <d:getcontenttype>application/vnd.oasis.opendocument.presentation</d:getcontenttype>
@@ -335,7 +335,7 @@
     <d:href>/remote.php/dav/files/admin/Templates/Expense%20report.ods</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:32 GMT</d:getlastmodified>
         <d:getetag>"ec125b92e78657b041013a26379032b9"</d:getetag>
         <d:getcontenttype>application/vnd.oasis.opendocument.spreadsheet</d:getcontenttype>
@@ -382,7 +382,7 @@
     <d:href>/remote.php/dav/files/admin/Templates/Flowchart.odg</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:33 GMT</d:getlastmodified>
         <d:getetag>"eec20fe8ce0e20e613c94312e7ce44c5"</d:getetag>
         <d:getcontenttype>application/vnd.oasis.opendocument.graphics</d:getcontenttype>
@@ -429,7 +429,7 @@
     <d:href>/remote.php/dav/files/admin/Templates/Flowchart.whiteboard</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:33 GMT</d:getlastmodified>
         <d:getetag>"7bfb0021d8f44b3fd220a9afb3c17766"</d:getetag>
         <d:getcontenttype>application/vnd.excalidraw+json</d:getcontenttype>
@@ -476,7 +476,7 @@
     <d:href>/remote.php/dav/files/admin/Templates/Gotong%20royong.odp</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:32 GMT</d:getlastmodified>
         <d:getetag>"7e24094747b447be6120b923ed708b60"</d:getetag>
         <d:getcontenttype>application/vnd.oasis.opendocument.presentation</d:getcontenttype>
@@ -523,7 +523,7 @@
     <d:href>/remote.php/dav/files/admin/Templates/Impact%20effort.whiteboard</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:32 GMT</d:getlastmodified>
         <d:getetag>"4ff74cefb7d22978322b3176fa46038e"</d:getetag>
         <d:getcontenttype>application/vnd.excalidraw+json</d:getcontenttype>
@@ -570,7 +570,7 @@
     <d:href>/remote.php/dav/files/admin/Templates/Invoice.odt</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:33 GMT</d:getlastmodified>
         <d:getetag>"ccef57021c9789b57a43a3118d215051"</d:getetag>
         <d:getcontenttype>application/vnd.oasis.opendocument.text</d:getcontenttype>
@@ -617,7 +617,7 @@
     <d:href>/remote.php/dav/files/admin/Templates/Kanban%20board.whiteboard</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:33 GMT</d:getlastmodified>
         <d:getetag>"ecdb2e821d6c495d49900a4888e742d5"</d:getetag>
         <d:getcontenttype>application/vnd.excalidraw+json</d:getcontenttype>
@@ -664,7 +664,7 @@
     <d:href>/remote.php/dav/files/admin/Templates/Letter.odt</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:33 GMT</d:getlastmodified>
         <d:getetag>"cf37ed1c2ff9180c33827cb42e7b44f9"</d:getetag>
         <d:getcontenttype>application/vnd.oasis.opendocument.text</d:getcontenttype>
@@ -711,7 +711,7 @@
     <d:href>/remote.php/dav/files/admin/Templates/Meeting%20agenda.whiteboard</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:33 GMT</d:getlastmodified>
         <d:getetag>"2d8d3fdc87d0d99af8006fbe6f70ec22"</d:getetag>
         <d:getcontenttype>application/vnd.excalidraw+json</d:getcontenttype>
@@ -758,7 +758,7 @@
     <d:href>/remote.php/dav/files/admin/Templates/Meeting%20notes.md</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:33 GMT</d:getlastmodified>
         <d:getetag>"5c90ccac9a8fe563d9cae37bf41a98c7"</d:getetag>
         <d:getcontenttype>text/markdown</d:getcontenttype>
@@ -805,7 +805,7 @@
     <d:href>/remote.php/dav/files/admin/Templates/Mind%20map.whiteboard</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:33 GMT</d:getlastmodified>
         <d:getetag>"7e3a14d8eca7aa5ce20b127681f45d34"</d:getetag>
         <d:getcontenttype>application/vnd.excalidraw+json</d:getcontenttype>
@@ -852,7 +852,7 @@
     <d:href>/remote.php/dav/files/admin/Templates/Mindmap.odg</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:32 GMT</d:getlastmodified>
         <d:getetag>"980d4b9671bdc785e8e51c322f2acab6"</d:getetag>
         <d:getcontenttype>application/vnd.oasis.opendocument.graphics</d:getcontenttype>
@@ -899,7 +899,7 @@
     <d:href>/remote.php/dav/files/admin/Templates/Modern%20company.odp</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:33 GMT</d:getlastmodified>
         <d:getetag>"117e9674fb2b497c3f9f28c6f94f187c"</d:getetag>
         <d:getcontenttype>application/vnd.oasis.opendocument.presentation</d:getcontenttype>
@@ -946,7 +946,7 @@
     <d:href>/remote.php/dav/files/admin/Templates/Mother%27s%20day.odt</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:32 GMT</d:getlastmodified>
         <d:getetag>"0cc36d8ae49cda491c553b4836610c09"</d:getetag>
         <d:getcontenttype>application/vnd.oasis.opendocument.text</d:getcontenttype>
@@ -993,7 +993,7 @@
     <d:href>/remote.php/dav/files/admin/Templates/Org%20chart.odg</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:32 GMT</d:getlastmodified>
         <d:getetag>"da7e70a23a72ae91dfd04e0c3832dbeb"</d:getetag>
         <d:getcontenttype>application/vnd.oasis.opendocument.graphics</d:getcontenttype>
@@ -1040,7 +1040,7 @@
     <d:href>/remote.php/dav/files/admin/Templates/Party%20invitation.odt</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:32 GMT</d:getlastmodified>
         <d:getetag>"3fef1bab0983bf32e283ab1a256bf49a"</d:getetag>
         <d:getcontenttype>application/vnd.oasis.opendocument.text</d:getcontenttype>
@@ -1087,7 +1087,7 @@
     <d:href>/remote.php/dav/files/admin/Templates/Photo%20book.odt</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:33 GMT</d:getlastmodified>
         <d:getetag>"11e5e0949c22a7271176fdcb91e672a2"</d:getetag>
         <d:getcontenttype>application/vnd.oasis.opendocument.text</d:getcontenttype>
@@ -1134,7 +1134,7 @@
     <d:href>/remote.php/dav/files/admin/Templates/Product%20plan.md</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:33 GMT</d:getlastmodified>
         <d:getetag>"a197c54c0577bfd4e327512d7b626c8d"</d:getetag>
         <d:getcontenttype>text/markdown</d:getcontenttype>
@@ -1181,7 +1181,7 @@
     <d:href>/remote.php/dav/files/admin/Templates/Readme.md</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:32 GMT</d:getlastmodified>
         <d:getetag>"7b2edc43701ec877ee72d8d4c8354f07"</d:getetag>
         <d:getcontenttype>text/markdown</d:getcontenttype>
@@ -1228,7 +1228,7 @@
     <d:href>/remote.php/dav/files/admin/Templates/Resume.odt</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:32 GMT</d:getlastmodified>
         <d:getetag>"e14c566897e4e1870ae5dd8a65ef8023"</d:getetag>
         <d:getcontenttype>application/vnd.oasis.opendocument.text</d:getcontenttype>
@@ -1275,7 +1275,7 @@
     <d:href>/remote.php/dav/files/admin/Templates/Simple.odp</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:32 GMT</d:getlastmodified>
         <d:getetag>"a0d3990a398c499ef219daae253133aa"</d:getetag>
         <d:getcontenttype>application/vnd.oasis.opendocument.presentation</d:getcontenttype>
@@ -1322,7 +1322,7 @@
     <d:href>/remote.php/dav/files/admin/Templates/Sticky%20notes.whiteboard</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:33 GMT</d:getlastmodified>
         <d:getetag>"5625fcf68e9a51ebfeaabf8c89cc09d9"</d:getetag>
         <d:getcontenttype>application/vnd.excalidraw+json</d:getcontenttype>
@@ -1369,7 +1369,7 @@
     <d:href>/remote.php/dav/files/admin/Templates/Syllabus.odt</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:33 GMT</d:getlastmodified>
         <d:getetag>"b6ed513dc334abf0738ae3eaf1b13cf9"</d:getetag>
         <d:getcontenttype>application/vnd.oasis.opendocument.text</d:getcontenttype>
@@ -1416,7 +1416,7 @@
     <d:href>/remote.php/dav/files/admin/Templates/Timeline.whiteboard</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:32 GMT</d:getlastmodified>
         <d:getetag>"0efb4bde6082942da39c2acf48701364"</d:getetag>
         <d:getcontenttype>application/vnd.excalidraw+json</d:getcontenttype>
@@ -1463,7 +1463,7 @@
     <d:href>/remote.php/dav/files/admin/Templates/Timesheet.ods</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:32 GMT</d:getlastmodified>
         <d:getetag>"82236e373e28ac98bb293a674b17f3be"</d:getetag>
         <d:getcontenttype>application/vnd.oasis.opendocument.spreadsheet</d:getcontenttype>
@@ -1510,7 +1510,7 @@
     <d:href>/remote.php/dav/files/admin/Templates/Venn%20diagram.whiteboard</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:33 GMT</d:getlastmodified>
         <d:getetag>"ea231b2218ac0fe4024be03c025838a1"</d:getetag>
         <d:getcontenttype>application/vnd.excalidraw+json</d:getcontenttype>
@@ -1557,7 +1557,7 @@
     <d:href>/remote.php/dav/files/admin/Templates/Yellow%20idea.odp</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:33 GMT</d:getlastmodified>
         <d:getetag>"51af259486a488165b74dd97deeeeffd"</d:getetag>
         <d:getcontenttype>application/vnd.oasis.opendocument.presentation</d:getcontenttype>

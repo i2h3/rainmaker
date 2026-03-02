@@ -26,8 +26,6 @@ extension ServerTesting {
 
     func makeServer(user: String? = "admin", password: String? = "admin", serverVersion: ServerVersion, testSourceCodeFile: String = #filePath, testName: String = #function) throws -> any Serving {
         let session = try URLTestSession(serverVersion: serverVersion, testSourceCodeFile: testSourceCodeFile, testName: testName)
-        let server = Server(address: serverAddress, password: password, user: user, session: session, userAgent: "RainmakerTests")
-
-        return server
+        return Server(address: serverAddress, password: password, user: user, session: session, userAgent: "RainmakerTests")
     }
 }

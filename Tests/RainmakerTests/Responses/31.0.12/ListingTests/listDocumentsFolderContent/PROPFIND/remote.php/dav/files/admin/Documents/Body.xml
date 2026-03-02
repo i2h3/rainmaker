@@ -4,7 +4,7 @@
     <d:href>/remote.php/dav/files/admin/Documents/</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:33 GMT</d:getlastmodified>
         <d:getetag>"69455eb947440"</d:getetag>
         <oc:size>1108446</oc:size>
@@ -53,7 +53,7 @@
     <d:href>/remote.php/dav/files/admin/Documents/Example.md</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:33 GMT</d:getlastmodified>
         <d:getetag>"dde75aa4303f49d782121cb875b012a1"</d:getetag>
         <d:getcontenttype>text/markdown</d:getcontenttype>
@@ -100,7 +100,7 @@
     <d:href>/remote.php/dav/files/admin/Documents/Nextcloud%20flyer.pdf</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:33 GMT</d:getlastmodified>
         <d:getetag>"1ff8bddb8539547fd9bc244f28d8062c"</d:getetag>
         <d:getcontenttype>application/pdf</d:getcontenttype>
@@ -147,7 +147,7 @@
     <d:href>/remote.php/dav/files/admin/Documents/Readme.md</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:33 GMT</d:getlastmodified>
         <d:getetag>"9b75446e8ebb74b3798ede813a3033e3"</d:getetag>
         <d:getcontenttype>text/markdown</d:getcontenttype>
@@ -194,7 +194,7 @@
     <d:href>/remote.php/dav/files/admin/Documents/Welcome%20to%20Nextcloud%20Hub.docx</d:href>
     <d:propstat>
       <d:prop>
-        <d:creationdate>1970-01-01T00:00:00+00:00</d:creationdate>
+        <nc:creation_time>0</nc:creation_time>
         <d:getlastmodified>Fri, 19 Dec 2025 14:18:33 GMT</d:getlastmodified>
         <d:getetag>"c7120964edf6e96f706451e1d884c5ca"</d:getetag>
         <d:getcontenttype>application/vnd.openxmlformats-officedocument.wordprocessingml.document</d:getcontenttype>

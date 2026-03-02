@@ -11,11 +11,9 @@ enum ResponseParser {
         let root = try XMLTreeBuilder(data: data).parse()
         let responses = root.elements(forName: "d:response")
 
-        let items = try responses.map { response in
+        return try responses.map { response in
             try parseItem(from: response, webDAVPathPrefix: webDAVPathPrefix)
         }
-
-        return items
     }
 
     // MARK: - Private
@@ -45,9 +43,11 @@ enum ResponseParser {
 
         // MARK: creation
 
-        guard let creationString = prop.firstElement(forName: "d:creationdate")?.stringValue, let creationDate = ISO8601DateFormatter().date(from: creationString) else {
+        guard let creationString = prop.firstElement(forName: "nc:creation_time")?.stringValue else {
             throw RainmakerError.responseDecodingFailed(reason: "Failed to get creation date for: \(href.absoluteString)")
         }
+
+        let creationDate = Date(timeIntervalSince1970: TimeInterval(creationString) ?? 0)
 
         // MARK: modification
 

@@ -126,8 +126,6 @@ public actor URLTestSession: Requesting {
             try? handle.close()
         }
 
-        let data = try handle.readToEnd() ?? Data()
-
-        return data
+        return try handle.readToEnd() ?? Data()
     }
 }
