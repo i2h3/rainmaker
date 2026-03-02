@@ -43,11 +43,11 @@ enum ResponseParser {
 
         // MARK: creation
 
-        guard let creationString = prop.firstElement(forName: "nc:creation_time")?.stringValue else {
-            throw RainmakerError.responseDecodingFailed(reason: "Failed to get creation date for: \(href.absoluteString)")
+        guard let creationString = prop.firstElement(forName: "nc:creation_time")?.stringValue, let creationTimeInterval = TimeInterval(creationString) else {
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to get creation time for: \(href.absoluteString)")
         }
 
-        let creationDate = Date(timeIntervalSince1970: TimeInterval(creationString) ?? 0)
+        let creationDate = Date(timeIntervalSince1970: creationTimeInterval)
 
         // MARK: modification
 
