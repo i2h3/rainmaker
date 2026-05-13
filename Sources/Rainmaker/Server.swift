@@ -330,14 +330,10 @@ public final class Server {
     ///     - address: HTTP address of the Nextcloud host.
     ///     - password: In most cases, this is the app password and not the account password.
     ///     - user: The Nextcloud user name used to identify as.
+    ///     - session: A ``Requesting`` object (e.g. a `URLSession`) to use for network requests. Defaults to a new ephemeral `URLSession`.
     ///     - userAgent: The user agent to report as in HTTP request headers.
     ///
-    public convenience init(address: URL, password: String? = nil, user: String? = nil, userAgent: String = "Rainmaker") {
-        let session = URLSession(configuration: .ephemeral)
-        self.init(address: address, password: password, user: user, session: session, userAgent: userAgent)
-    }
-
-    init(address: URL, password: String? = nil, user: String? = nil, session: any Requesting, userAgent: String) {
+    public init(address: URL, password: String? = nil, user: String? = nil, session: any Requesting = URLSession(configuration: .ephemeral), userAgent: String = "Rainmaker") {
         self.address = address
         jsonDecoder = JSONDecoder()
         self.password = password
