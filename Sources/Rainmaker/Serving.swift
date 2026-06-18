@@ -108,6 +108,13 @@ protocol Serving: Sendable {
     func info(_ path: String) async throws -> Item
 
     ///
+    /// Set up a URL request specifically for Nextcloud OCS API interaction.
+    ///
+    /// Credentials are optional for this call.
+    ///
+    func makeOCSRequest(for path: String, method: Method) throws -> URLRequest
+
+    ///
     /// Look up the login flow information.
     ///
     /// - Returns: A set of properties to kick off the authentication which yields an app password.

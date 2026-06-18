@@ -47,6 +47,8 @@ public final class Server {
     ///
     public let webDAVAddress: URL
 
+    public let OCSAddress: URL
+
     // MARK: - Helpers
 
     ///
@@ -340,6 +342,7 @@ public final class Server {
         self.session = session
         self.user = user
         self.userAgent = userAgent
+        OCSAddress = address.appending(path: "/ocs/v2.php/", directoryHint: .isDirectory)
         webDAVAddress = address.appending(path: "/remote.php/dav/files/\(user ?? "")", directoryHint: .isDirectory)
         webDAVPathPrefix = "/remote.php/dav/files/\(user ?? "")"
     }
@@ -425,6 +428,19 @@ extension Server: Serving {
         let (data, _) = try await session.data(for: request)
         let dataTransferObject = try jsonDecoder.decode(LoginFlowResponse.self, from: data)
         return LoginFlow(endpoint: dataTransferObject.poll.endpoint, entry: dataTransferObject.login, token: dataTransferObject.poll.token)
+    }
+
+    public func makeOCSRequest(for path: String, method: Method) throws -> URLRequest {
+        let url = OCSAddress.appending(path: path, directoryHint: .inferFromPath)
+        var request = makeRequest(for: url, method: method)
+        request.setValue("true", forHTTPHeaderField: "OCS-APIRequest")
+
+        if let user, let password {
+            let encodedCredentials = Data("\(user):\(password)".utf8).base64EncodedString()
+            request.setValue("Basic \(encodedCredentials)", forHTTPHeaderField: "Authorization")
+        }
+
+        return request
     }
 
     public func poll(_ endpoint: URL, token: String) async throws -> LoginResult {

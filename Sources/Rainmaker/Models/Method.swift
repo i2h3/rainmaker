@@ -4,7 +4,7 @@
 ///
 /// HTTP request methods.
 ///
-enum Method: String, RawRepresentable {
+public enum Method: String, RawRepresentable {
     ///
     /// Fetching a resource.
     ///
