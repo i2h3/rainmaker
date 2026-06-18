@@ -14,6 +14,7 @@ OPTIONS:
   -h, --help              Show help information.
 
 SUBCOMMANDS:
+  capabilities            Fetch the capabilities advertised by a server. Authentication is optional.
   list                    List the content of a directory on the server by the given path.
   login                   Fetch the login flow information from a server.
   poll                    Poll the status of a previously initiated login flow.

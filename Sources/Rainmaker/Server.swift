@@ -430,6 +430,46 @@ extension Server: Serving {
         return LoginFlow(endpoint: dataTransferObject.poll.endpoint, entry: dataTransferObject.login, token: dataTransferObject.poll.token)
     }
 
+    public func capabilities() async throws -> CapabilitySet {
+        logger.debug("Fetching server capabilities...")
+
+        let request = try makeOCSRequest(for: "cloud/capabilities", method: .get)
+        let (data, urlResponse) = try await session.data(for: request)
+
+        guard let response = urlResponse as? HTTPURLResponse else {
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to cast URLResponse to HTTPURLResponse.")
+        }
+
+        if response.status == .notFound {
+            throw RainmakerError.notFound
+        }
+
+        guard response.status == .ok else {
+            throw RainmakerError.unexpectedStatus(code: response.statusCode)
+        }
+
+        // Decode the parts of the OCS envelope with a known, stable shape: the status and the version.
+        let envelope = try jsonDecoder.decode(CapabilitiesResponse.self, from: data)
+
+        guard envelope.ocs.meta.status == "ok" else {
+            throw RainmakerError.responseDecodingFailed(reason: "OCS request failed (\(envelope.ocs.meta.statuscode)): \(envelope.ocs.meta.message ?? "No message.")")
+        }
+
+        // The capabilities object itself is open-ended, so keep its raw bytes for on-demand parsing.
+        guard
+            let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let ocs = root["ocs"] as? [String: Any],
+            let payload = ocs["data"] as? [String: Any],
+            let capabilities = payload["capabilities"]
+        else {
+            throw RainmakerError.responseDecodingFailed(reason: "Missing capabilities in OCS response.")
+        }
+
+        let raw = try JSONSerialization.data(withJSONObject: capabilities)
+
+        return CapabilitySet(version: envelope.ocs.data.version, raw: raw)
+    }
+
     public func makeOCSRequest(for path: String, method: Method) throws -> URLRequest {
         let url = OCSAddress.appending(path: path, directoryHint: .inferFromPath)
         var request = makeRequest(for: url, method: method)
