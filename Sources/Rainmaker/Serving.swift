@@ -115,6 +115,16 @@ protocol Serving: Sendable {
     func makeOCSRequest(for path: String, method: Method) throws -> URLRequest
 
     ///
+    /// Fetch the capabilities advertised by the server.
+    ///
+    /// Works with or without credentials: when this ``Serving`` was created without a user name and password the capabilities are fetched anonymously, which returns the subset of capabilities the server exposes to unauthenticated clients.
+    /// When credentials are present the full, account-scoped set is returned.
+    ///
+    /// - Returns: A ``CapabilitySet`` exposing the server ``Version`` and the advertised capabilities, queryable via ``CapabilitySet/get(_:)``.
+    ///
+    func capabilities() async throws -> CapabilitySet
+
+    ///
     /// Look up the login flow information.
     ///
     /// - Returns: A set of properties to kick off the authentication which yields an app password.

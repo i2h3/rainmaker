@@ -42,6 +42,13 @@ This is the only method currently supported.
 - ``Permission``
 - ``User``
 
+### Capabilities
+
+- ``CapabilitySet``
+- ``Capability``
+- ``Theming``
+- ``Version``
+
 ### Handling Errors
 
 - ``RainmakerError``

@@ -1,0 +1,46 @@
+{
+  "ocs": {
+    "meta": {
+      "status": "ok",
+      "statuscode": 200,
+      "message": "OK"
+    },
+    "data": {
+      "version": {
+        "major": 32,
+        "minor": 0,
+        "micro": 3,
+        "string": "32.0.3",
+        "edition": "",
+        "extendedSupport": false
+      },
+      "capabilities": {
+        "bruteforce": {
+          "delay": 0,
+          "allow-listed": false
+        },
+        "app_api": {
+          "version": "33.0.0"
+        },
+        "theming": {
+          "name": "Nextcloud",
+          "productName": "Nextcloud",
+          "url": "https://nextcloud.com",
+          "slogan": "a safe home for all your data",
+          "color": "#00679e",
+          "color-text": "#ffffff",
+          "color-element": "#00679e",
+          "color-element-bright": "#00679e",
+          "color-element-dark": "#00679e",
+          "logo": "http://localhost:53371/core/img/logo/logo.svg?v=0",
+          "background": "http://localhost:53371/apps/theming/img/background/jo-myoung-hee-fluid.webp",
+          "background-text": "#ffffff",
+          "background-plain": false,
+          "background-default": true,
+          "logoheader": "http://localhost:53371/core/img/logo/logo.svg?v=0",
+          "favicon": "http://localhost:53371/core/img/logo/logo.svg?v=0"
+        }
+      }
+    }
+  }
+}
