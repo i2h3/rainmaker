@@ -125,6 +125,18 @@ protocol Serving: Sendable {
     func capabilities() async throws -> CapabilitySet
 
     ///
+    /// Fetch the apps navigation entries the server advertises for the authenticated user.
+    ///
+    /// These are the server apps (e.g. Files, Photos, Activity) which a client can surface in its own navigation.
+    /// Credentials are required: the underlying OCS endpoint rejects unauthenticated requests.
+    ///
+    /// - Returns: The navigation items in the order returned by the server.
+    ///
+    /// - Throws: ``RainmakerError/credentialsRequired`` when no credentials are set, or any error that might occur during retrieval.
+    ///
+    func navigation() async throws -> [NavigationItem]
+
+    ///
     /// Look up the login flow information.
     ///
     /// - Returns: A set of properties to kick off the authentication which yields an app password.
