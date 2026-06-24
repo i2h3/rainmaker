@@ -52,7 +52,7 @@ jobs:
         run: |
           xcodebuild test \
             -scheme Rainmaker-Package \
-            -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+            -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
             -enableCodeCoverage YES
 
   test-tvos:
@@ -109,5 +109,5 @@ jobs:
         run: |
           xcodebuild test \
             -scheme Rainmaker-Package \
-            -destination 'platform=visionOS Simulator,OS=26.1,name=Apple Vision Pro' \
+            -destination 'platform=visionOS Simulator,OS=26.5,name=Apple Vision Pro' \
             -enableCodeCoverage YES
