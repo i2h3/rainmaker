@@ -4,6 +4,8 @@
 
 # Rainmaker
 
+[![](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fi2h3%2Frainmaker%2Fbadge%3Ftype%3Dswift-versions)](https://swiftpackageindex.com/i2h3/rainmaker)
+[![](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fi2h3%2Frainmaker%2Fbadge%3Ftype%3Dplatforms)](https://swiftpackageindex.com/i2h3/rainmaker)
 [![Tests](https://github.com/i2h3/rainmaker/actions/workflows/test.yml/badge.svg)](https://github.com/i2h3/rainmaker/actions/workflows/test.yml)
 [![REUSE](https://api.reuse.software/badge/github.com/i2h3/rainmaker)](https://api.reuse.software/info/github.com/i2h3/rainmaker)
 
