@@ -12,6 +12,10 @@
 A simple Swift library and CLI to access [Nextcloud](https://www.nextcloud.com) files programmatically.
 For further information, see [the documentation which is built from the source code and deployed to GitHub pages](https://i2h3.github.io/rainmaker/). 
 
+## License
+
+See [LICENSE](LICENSE).
+
 ## Contributing
 
 [SwiftFormat](https://github.com/nicklockwood/SwiftFormat) was introduced into this project.

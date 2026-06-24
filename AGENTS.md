@@ -4,7 +4,6 @@ The human readable introduction of this Swift Package is in [README.md](README.m
 
 ## Repository Structure
 
-- `LICENSES/` contains plain text license documents under which this project is released.
 - `Sources/` contains the Swift source code per target.
 - `Sources/Rainmaker/` contains the Swift source code for the main static library provided by this package.
 - `Sources/Rainmaker/Bodies` contains static HTTP bodies for requests sent to a Nextcloud server. For example the uniform XML document when retrieving information about a WebDAV resource from the server. The reasoning is simplicity by having a plain file, ease of maintenance by making it editable like a standard XML document and performance by not always assembling it programmatically.
