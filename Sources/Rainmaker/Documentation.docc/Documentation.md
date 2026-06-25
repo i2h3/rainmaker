@@ -31,11 +31,6 @@ This is the only method currently supported.
 
 - ``Server``
 
-### Building Requests
-
-- ``Server/makeOCSRequest(for:method:)``
-- ``Server/makeWebDAVRequest(for:method:)``
-
 ### Data Models
 
 - ``AvailableQuota``
@@ -57,3 +52,12 @@ This is the only method currently supported.
 ### Handling Errors
 
 - ``RainmakerError``
+
+### Building Custom Requests
+
+If the built in features of Rainmaker do not suffice for your use case, you can use the following methods to build your own on top.
+This is useful for API endpoints not covered by Rainmaker.
+In example a third-party Nextcloud server app.
+
+- ``Server/makeOCSRequest(for:method:)``
+- ``Server/makeWebDAVRequest(for:method:)``
