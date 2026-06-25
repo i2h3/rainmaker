@@ -16,9 +16,14 @@ OPTIONS:
 SUBCOMMANDS:
   capabilities            Fetch the capabilities advertised by a server. Authentication is optional.
   create-directory        Create a directory on the server.
+  delete                  Delete a file or directory from the server.
+  download                Download a file or directory from the server.
+  info                    Show information about a remote file or directory.
   list                    List the content of a directory on the server by the given path.
   login                   Fetch the login flow information from a server.
+  navigation              List the apps navigation entries advertised by a server. Requires authentication.
   poll                    Poll the status of a previously initiated login flow.
+  upload                  Upload a file or directory to a folder on the server.
 
   See 'rainmaker help <subcommand>' for detailed help.
 ```

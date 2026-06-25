@@ -16,6 +16,11 @@ public enum Method: String, RawRepresentable {
     case post = "POST"
 
     ///
+    /// Upload or replace a resource with the request body.
+    ///
+    case put = "PUT"
+
+    ///
     /// Fetch properties of remote items.
     ///
     case propfind = "PROPFIND"

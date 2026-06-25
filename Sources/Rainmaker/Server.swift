@@ -289,6 +289,145 @@ public final class Server {
         try fileManager.setAttributes([.modificationDate: remoteItem.modification], ofItemAtPath: destination.path(percentEncoded: false))
     }
 
+    ///
+    /// Returns whether the item at the given local URL is a directory.
+    ///
+    /// This is used to classify the entries returned by ``enumerateLocalFiles(at:)`` which mixes files and directories.
+    ///
+    private func isDirectory(at url: URL) -> Bool {
+        (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+    }
+
+    ///
+    /// Upload implementation specifically for files.
+    ///
+    /// This is the counterpart of ``downloadFile(_:to:force:remoteItem:)``.
+    ///
+    private func uploadFile(_ source: URL, to remoteFilePath: String, force: Bool) async throws {
+        logger.debug("Uploading file from \"\(source.path(percentEncoded: false))\" to \"\(remoteFilePath)\" \(force ? "with" : "without") force...")
+
+        let attributes = try fileManager.attributesOfItem(atPath: source.path(percentEncoded: false))
+        let localModification = attributes[.modificationDate] as? Date
+
+        // Determine the current remote state to decide on conflicts and skipping.
+        let remoteItem: Item?
+
+        do {
+            remoteItem = try await info(remoteFilePath)
+        } catch RainmakerError.notFound {
+            remoteItem = nil
+        }
+
+        if let remoteItem {
+            if force == false {
+                throw RainmakerError.fileAlreadyExists(webDAVAddress.appending(path: remoteFilePath))
+            }
+
+            // Skip upload if the remote file is not older than the local file.
+            if let localModification, remoteItem.modification >= localModification {
+                return
+            }
+        }
+
+        var request = try makeWebDAVRequest(for: remoteFilePath, method: .put)
+        request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
+
+        // Preserve the local modification date on the server for future change detection.
+        if let localModification {
+            request.setValue("\(Int(localModification.timeIntervalSince1970))", forHTTPHeaderField: "X-OC-Mtime")
+        }
+
+        let (_, urlResponse) = try await session.upload(for: request, fromFile: source, delegate: nil)
+
+        guard let response = urlResponse as? HTTPURLResponse else {
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to cast URLResponse to HTTPURLResponse.")
+        }
+
+        // A missing parent collection makes the server respond with a conflict.
+        if response.status == .conflict {
+            throw RainmakerError.notFound
+        }
+
+        guard response.status == .created || response.status == .noContent else {
+            throw RainmakerError.unexpectedStatus(code: response.statusCode)
+        }
+    }
+
+    ///
+    /// Upload implementation specifically for directories.
+    ///
+    /// This is the counterpart of ``downloadDirectory(_:to:force:)``.
+    ///
+    private func uploadDirectory(_ source: URL, to destination: String, force: Bool) async throws {
+        logger.debug("Uploading directory from \"\(source.path(percentEncoded: false))\" to \"\(destination)\" \(force ? "with" : "without") force...")
+
+        let normalizedDestination = normalizeKey(destination)
+
+        // Ensure the remote destination directory exists, tolerating the case where it already does.
+        if normalizedDestination.isEmpty == false {
+            do {
+                try await createDirectory(destination)
+            } catch RainmakerError.fileAlreadyExists {
+                // The destination directory already exists which is acceptable.
+            }
+        }
+
+        // Cancel on a non-empty remote destination unless overwriting is forced.
+        if force == false {
+            let existingRemoteItems: [Item] = try await enumerate(at: destination, recursively: false)
+
+            if existingRemoteItems.isEmpty == false {
+                throw RainmakerError.directoryNotEmpty
+            }
+        }
+
+        // Enumerate the remote state recursively for later orphan detection.
+        let remoteItems: [Item] = try await enumerate(at: destination, recursively: true)
+
+        // Enumerate the local state recursively. This dictionary contains both files and directories which are classified individually below.
+        let localItemsByRelativePath = try enumerateLocalFiles(at: source)
+
+        // Create local directories on the remote, shallowest first so a parent always precedes its children.
+        let localDirectories = localItemsByRelativePath
+            .filter { isDirectory(at: $0.value) }
+            .sorted { $0.key.components(separatedBy: "/").count < $1.key.components(separatedBy: "/").count }
+
+        for (relativePath, _) in localDirectories {
+            let remotePath = normalizedDestination.isEmpty ? "/\(relativePath)" : "/\(normalizedDestination)/\(relativePath)"
+
+            do {
+                try await createDirectory(remotePath)
+            } catch RainmakerError.fileAlreadyExists {
+                // The remote directory already exists which is acceptable.
+            }
+        }
+
+        // Upload new and changed files.
+        let localFiles = localItemsByRelativePath.filter { isDirectory(at: $0.value) == false }
+
+        for (relativePath, localURL) in localFiles {
+            let remotePath = normalizedDestination.isEmpty ? "/\(relativePath)" : "/\(normalizedDestination)/\(relativePath)"
+            try await uploadFile(localURL, to: remotePath, force: force)
+        }
+
+        // Delete remote items not present in the local state, deepest first so a directory is never removed before its still-pending child entries (deleting a directory removes its contents recursively, which would invalidate the paths captured for those children).
+        if force {
+            let localRelativePaths = Set(localItemsByRelativePath.keys)
+
+            let orphanedItems = remoteItems
+                .filter { localRelativePaths.contains(normalizeKey(String(normalizeKey($0.path).dropFirst(normalizedDestination.count)))) == false }
+                .sorted { $0.path.components(separatedBy: "/").count > $1.path.components(separatedBy: "/").count }
+
+            for item in orphanedItems {
+                do {
+                    try await delete(item.path)
+                } catch RainmakerError.notFound {
+                    // The remote item was already removed together with a parent directory.
+                }
+            }
+        }
+    }
+
     // MARK: - Factory Methods
 
     ///
@@ -341,6 +480,25 @@ extension Server: Serving {
         } else {
             let destinationFile = destination.appending(component: item.name)
             try await downloadFile(source, to: destinationFile, force: force, remoteItem: item)
+        }
+    }
+
+    public func upload(_ source: URL, to destination: String, force: Bool) async throws {
+        try requireCredentials()
+        logger.debug("Uploading \"\(source.path(percentEncoded: false))\" to \"\(destination)\"...")
+
+        var isDirectory: ObjCBool = false
+
+        guard fileManager.fileExists(atPath: source.path(percentEncoded: false), isDirectory: &isDirectory) else {
+            throw RainmakerError.notFound
+        }
+
+        if isDirectory.boolValue {
+            try await uploadDirectory(source, to: destination, force: force)
+        } else {
+            let folder = normalizeKey(destination)
+            let remoteFilePath = folder.isEmpty ? "/\(source.lastPathComponent)" : "/\(folder)/\(source.lastPathComponent)"
+            try await uploadFile(source, to: remoteFilePath, force: force)
         }
     }
 
