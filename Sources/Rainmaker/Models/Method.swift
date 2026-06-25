@@ -24,4 +24,9 @@ public enum Method: String, RawRepresentable {
     /// Create a new collection (directory) on a WebDAV server.
     ///
     case mkcol = "MKCOL"
+
+    ///
+    /// Delete a remote item.
+    ///
+    case delete = "DELETE"
 }
