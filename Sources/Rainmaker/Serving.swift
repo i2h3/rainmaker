@@ -125,6 +125,22 @@ protocol Serving: Sendable {
     func createDirectory(_ path: String) async throws
 
     ///
+    /// Delete a remote item.
+    ///
+    /// Deleting a directory removes it together with all of its contents recursively.
+    /// On Nextcloud, deleted items are moved to the server-side trash bin and can be restored there.
+    ///
+    /// - Parameters:
+    ///     - path: The remote path of the file or directory to delete.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
+    ///     - ``RainmakerError/notFound`` when no item exists at the given path.
+    ///     - ``RainmakerError/unexpectedStatus(code:)`` for any other non-success response.
+    ///
+    func delete(_ path: String) async throws
+
+    ///
     /// Set up a URL request specifically for Nextcloud OCS API interaction.
     ///
     /// Credentials are optional for this call.

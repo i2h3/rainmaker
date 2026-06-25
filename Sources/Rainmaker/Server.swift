@@ -445,6 +445,27 @@ extension Server: Serving {
         }
     }
 
+    public func delete(_ path: String) async throws {
+        try requireCredentials()
+        logger.debug("Deleting \(path)")
+
+        let url = webDAVAddress.appending(path: path, directoryHint: .inferFromPath)
+        let request = try makeWebDAVRequest(for: url, method: .delete)
+        let (_, urlResponse) = try await session.data(for: request)
+
+        guard let response = urlResponse as? HTTPURLResponse else {
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to cast URLResponse to HTTPURLResponse.")
+        }
+
+        if response.status == .notFound {
+            throw RainmakerError.notFound
+        }
+
+        guard response.status == .noContent else {
+            throw RainmakerError.unexpectedStatus(code: response.statusCode)
+        }
+    }
+
     public func login() async throws -> LoginFlow {
         logger.debug("Fetching login information...")
 
