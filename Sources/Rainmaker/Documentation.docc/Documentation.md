@@ -40,6 +40,7 @@ This is the only method currently supported.
 - ``LoginResult``
 - ``Quota``
 - ``Permission``
+- ``TrashItem``
 - ``User``
 
 ### Capabilities
@@ -47,6 +48,7 @@ This is the only method currently supported.
 - ``CapabilitySet``
 - ``Capability``
 - ``Theming``
+- ``Trashing``
 - ``Version``
 
 ### Handling Errors

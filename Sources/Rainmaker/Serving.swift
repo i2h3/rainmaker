@@ -205,6 +205,57 @@ protocol Serving: Sendable {
     func move(_ source: String, to destination: String, overwrite: Bool) async throws
 
     ///
+    /// List the items currently in the user's trash bin.
+    ///
+    /// On Nextcloud, deleting an item moves it to the trash bin from where it can be restored or permanently removed.
+    /// Whether the trash bin is available can be checked in advance via the ``Trashing`` capability, e.g. `try await capabilities().get(Trashing.self)?.undelete`.
+    ///
+    /// - Returns: The trashed items in the order returned by the server.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
+    ///     - ``RainmakerError/notFound`` when the trash bin is unavailable.
+    ///     - Any other error that might occur during retrieval.
+    ///
+    func trash() async throws -> [TrashItem]
+
+    ///
+    /// Restore a trashed item back to its original location.
+    ///
+    /// The server always restores the item to its original location (``TrashItem/originalLocation``) regardless of the identifier passed.
+    ///
+    /// - Parameters:
+    ///     - id: The identifier of the trashed item to restore, as exposed by ``TrashItem/id``.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
+    ///     - ``RainmakerError/notFound`` when no such trashed item exists or the trash bin is unavailable.
+    ///     - ``RainmakerError/unexpectedStatus(code:)`` for any other non-success response.
+    ///
+    func restore(_ id: String) async throws
+
+    ///
+    /// Restore a trashed item back to its original location.
+    ///
+    /// This is a convenience wrapper around ``restore(_:)-(String)`` using the item's ``TrashItem/id``.
+    ///
+    /// - Parameters:
+    ///     - item: The trashed item to restore.
+    ///
+    func restore(_ item: TrashItem) async throws
+
+    ///
+    /// Permanently empty the entire trash bin.
+    ///
+    /// This removes every trashed item and cannot be undone.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
+    ///     - ``RainmakerError/unexpectedStatus(code:)`` for any non-success response.
+    ///
+    func emptyTrash() async throws
+
+    ///
     /// Set up a URL request specifically for Nextcloud OCS API interaction.
     ///
     /// Credentials are optional for this call.

@@ -1,0 +1,61 @@
+<?xml version="1.0"?>
+<d:multistatus xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns">
+  <d:response>
+    <d:href>/remote.php/dav/trashbin/admin/trash/</d:href>
+    <d:propstat>
+      <d:prop>
+        <d:resourcetype><d:collection/></d:resourcetype>
+      </d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+    <d:propstat>
+      <d:prop>
+        <d:getcontentlength/>
+        <d:getlastmodified/>
+        <nc:trashbin-filename/>
+        <nc:trashbin-original-location/>
+        <nc:trashbin-deletion-time/>
+        <oc:fileid/>
+        <oc:size/>
+      </d:prop>
+      <d:status>HTTP/1.1 404 Not Found</d:status>
+    </d:propstat>
+  </d:response>
+  <d:response>
+    <d:href>/remote.php/dav/trashbin/admin/trash/Note.txt.d1700000000</d:href>
+    <d:propstat>
+      <d:prop>
+        <d:getcontentlength>29</d:getcontentlength>
+        <d:getlastmodified>Tue, 14 Nov 2023 22:13:20 GMT</d:getlastmodified>
+        <d:resourcetype/>
+        <nc:trashbin-filename>Note.txt</nc:trashbin-filename>
+        <nc:trashbin-original-location>Note.txt</nc:trashbin-original-location>
+        <nc:trashbin-deletion-time>1700000000</nc:trashbin-deletion-time>
+        <oc:fileid>107</oc:fileid>
+        <oc:size>29</oc:size>
+      </d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+  </d:response>
+  <d:response>
+    <d:href>/remote.php/dav/trashbin/admin/trash/Photos.d1699990000/</d:href>
+    <d:propstat>
+      <d:prop>
+        <d:getlastmodified>Tue, 14 Nov 2023 19:00:00 GMT</d:getlastmodified>
+        <d:resourcetype><d:collection/></d:resourcetype>
+        <nc:trashbin-filename>Photos</nc:trashbin-filename>
+        <nc:trashbin-original-location>Photos</nc:trashbin-original-location>
+        <nc:trashbin-deletion-time>1699990000</nc:trashbin-deletion-time>
+        <oc:fileid>108</oc:fileid>
+        <oc:size>4096</oc:size>
+      </d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+    <d:propstat>
+      <d:prop>
+        <d:getcontentlength/>
+      </d:prop>
+      <d:status>HTTP/1.1 404 Not Found</d:status>
+    </d:propstat>
+  </d:response>
+</d:multistatus>
