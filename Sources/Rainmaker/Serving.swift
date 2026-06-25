@@ -108,6 +108,23 @@ protocol Serving: Sendable {
     func info(_ path: String) async throws -> Item
 
     ///
+    /// Create a new directory at the given remote path.
+    ///
+    /// Only a single directory level is created, so the parent directory must already exist.
+    /// This maps to a WebDAV `MKCOL` request against the target path.
+    ///
+    /// - Parameters:
+    ///     - path: The remote path of the directory to create.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
+    ///     - ``RainmakerError/fileAlreadyExists(_:)`` when a file or directory already exists at the given path.
+    ///     - ``RainmakerError/notFound`` when the parent directory does not exist.
+    ///     - ``RainmakerError/unexpectedStatus(code:)`` for any other unexpected server response.
+    ///
+    func createDirectory(_ path: String) async throws
+
+    ///
     /// Set up a URL request specifically for Nextcloud OCS API interaction.
     ///
     /// Credentials are optional for this call.

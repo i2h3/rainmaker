@@ -19,4 +19,9 @@ public enum Method: String, RawRepresentable {
     /// Fetch properties of remote items.
     ///
     case propfind = "PROPFIND"
+
+    ///
+    /// Create a new collection (directory) on a WebDAV server.
+    ///
+    case mkcol = "MKCOL"
 }
