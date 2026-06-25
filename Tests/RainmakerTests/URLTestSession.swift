@@ -156,6 +156,40 @@ public actor URLTestSession: Requesting {
         return (temporaryFile, httpResponse)
     }
 
+    public func upload(for request: URLRequest, fromFile _: URL, delegate _: (any URLSessionTaskDelegate)?) async throws -> (Data, URLResponse) {
+        guard let testResources else {
+            throw URLTestSessionError.testNotFound
+        }
+
+        guard let method = request.httpMethod else {
+            throw URLTestSessionError.missingValue
+        }
+
+        guard let url = request.url else {
+            throw URLTestSessionError.missingValue
+        }
+
+        let requestPath = url.path(percentEncoded: false)
+
+        let requestResources = testResources
+            .appending(component: method)
+            .appending(path: requestPath)
+
+        let headersFile = requestResources
+            .appending(component: "Headers")
+            .appendingPathExtension("txt")
+
+        logger.debug("Assuming headers file: \(headersFile.percentEncodedPath)")
+        let headersData = try readDataFromPercentEncodedPath(at: headersFile)
+
+        guard let httpResponse = try HTTPURLResponse(from: headersData, for: url) else {
+            throw URLTestSessionError.missingValue
+        }
+
+        // The server response body to an upload carries no payload relevant to the client, so only the status from the headers file is replayed.
+        return (Data(), httpResponse)
+    }
+
     ///
     /// To have a safe and consistent path conversion for fixture files based on request paths, this is required to avoid double encoding as it may happen when loading `Data` directly from a `URL` with the designated initializer.
     ///

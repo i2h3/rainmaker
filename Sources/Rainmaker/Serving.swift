@@ -41,6 +41,40 @@ protocol Serving: Sendable {
     func download(_ source: String, to destination: URL, force: Bool) async throws
 
     ///
+    /// Upload a file or a directory including its contents from the local file system to the server.
+    ///
+    /// This is the counterpart of ``download(_:to:force:)`` and can be used as a one-way synchronization mechanism to replicate local content remotely.
+    ///
+    /// This method behaves differently given its arguments:
+    ///
+    /// | Type | Source | Destination | Force | Behavior |
+    /// | - | - | - | - | - |
+    /// | File | Exists | No equally named remote item | `false` | Upload into the destination directory |
+    /// | File | Exists | Contains item with same name | `false` | Cancel with conflict error |
+    /// | File | Exists | Contains item with same name | `true` | Skip if the remote file is not older than the local file, overwrite otherwise |
+    /// | File | Changed | Contains item with same name | `true` | Overwrite remote file |
+    /// | Directory | Exists | Empty or absent | `false` | Upload content of source directory into destination directory |
+    /// | Directory | Exists | Not empty | `false` | Cancel with conflict error |
+    /// | Directory | Exists | Not empty | `true` | Delete remote items which are not present in the local state, replace remote files with the state of their local counterparts, upload remotely missing files which exist in the local state |
+    ///
+    /// The local modification date of an uploaded file is preserved on the server via the `X-OC-Mtime` header so that future synchronization runs can detect unchanged files.
+    ///
+    /// - Parameters:
+    ///     - source: The file or root directory in the local file system to upload.
+    ///       This can be either a file or a directory.
+    ///     - destination: The remote directory to upload into.
+    ///       For directory uploads, this directory is created automatically when it does not yet exist.
+    ///       The content of the source is placed directly into that directory.
+    ///     - force: Whether the remote state should be overwritten with the local state or not. This is `false` by default.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/notFound`` when the local source does not exist.
+    ///     - ``RainmakerError/fileAlreadyExists(_:)`` when a file is uploaded and an equally named remote item already exists while `force` is `false`.
+    ///     - ``RainmakerError/directoryNotEmpty`` when a directory is uploaded into a non-empty remote directory while `force` is `false`.
+    ///
+    func upload(_ source: URL, to destination: String, force: Bool) async throws
+
+    ///
     /// Returns items in the given path.
     ///
     /// The use of an asynchronous stream makes it suitable for paginated and continuous processing without waiting for all results to come in first.
