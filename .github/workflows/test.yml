@@ -14,10 +14,18 @@ on:
       - '**/Documentation.docc/**'
   workflow_dispatch:
 
+# Pinned to macos-26 instead of macos-latest on purpose: the macos-latest
+# label is mid-migration to macOS 26 (rolling out from 2026-06-15), so runs
+# randomly land on either macos-15-arm64 or macos-26-arm64. On the macos-15
+# image, `latest-stable` selects Xcode 26.3 while its bundled simulator
+# runtimes only go up to 26.2, so `OS:latest` destinations (watchOS/visionOS)
+# fail to resolve. macos-26-arm64 ships Xcode 26.5 with matching 26.5 runtimes
+# for every platform, so the destinations below resolve deterministically.
+# Revisit (back to macos-latest) once the migration completes.
 jobs:
   test-macos:
     name: macOS
-    runs-on: macos-latest
+    runs-on: macos-26
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -35,7 +43,7 @@ jobs:
 
   test-ios:
     name: iOS
-    runs-on: macos-latest
+    runs-on: macos-26
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -57,7 +65,7 @@ jobs:
 
   test-tvos:
     name: tvOS
-    runs-on: macos-latest
+    runs-on: macos-26
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -76,7 +84,7 @@ jobs:
 
   test-watchos:
     name: watchOS
-    runs-on: macos-latest
+    runs-on: macos-26
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -95,7 +103,7 @@ jobs:
 
   test-visionos:
     name: visionOS
-    runs-on: macos-latest
+    runs-on: macos-26
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
