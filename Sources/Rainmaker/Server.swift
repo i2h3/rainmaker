@@ -420,6 +420,31 @@ extension Server: Serving {
         return item
     }
 
+    public func createDirectory(_ path: String) async throws {
+        try requireCredentials()
+        logger.debug("Creating directory at \(path)")
+
+        let url = webDAVAddress.appending(path: path)
+        let request = try makeWebDAVRequest(for: url, method: .mkcol)
+        let (_, urlResponse) = try await session.data(for: request)
+
+        guard let response = urlResponse as? HTTPURLResponse else {
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to cast URLResponse to HTTPURLResponse.")
+        }
+
+        if response.status == .methodNotAllowed {
+            throw RainmakerError.fileAlreadyExists(url)
+        }
+
+        if response.status == .conflict {
+            throw RainmakerError.notFound
+        }
+
+        guard response.status == .created else {
+            throw RainmakerError.unexpectedStatus(code: response.statusCode)
+        }
+    }
+
     public func login() async throws -> LoginFlow {
         logger.debug("Fetching login information...")
 
