@@ -66,8 +66,7 @@ public final class Server {
     /// List the content of the remote directory.
     ///
     private func content(at path: String, depth: UInt = 1) async throws -> [Item] {
-        let url = webDAVAddress.appending(path: path, directoryHint: .inferFromPath)
-        var request = try makeWebDAVRequest(for: url, method: .propfind)
+        var request = try makeWebDAVRequest(for: path, method: .propfind)
         request.httpBody = try? Data(contentsOf: Self.resourceURL.appending(component: "Bodies").appending(component: "Listing.xml"))
         request.setValue("\(depth)", forHTTPHeaderField: "Depth")
 
@@ -260,8 +259,7 @@ public final class Server {
             }
         }
 
-        let url = webDAVAddress.appending(path: source)
-        let request = try makeWebDAVRequest(for: url, method: .get)
+        let request = try makeWebDAVRequest(for: source, method: .get)
         let (data, urlResponse) = try await session.download(for: request, delegate: nil)
 
         guard let response = urlResponse as? HTTPURLResponse else {
@@ -301,24 +299,6 @@ public final class Server {
         request.httpMethod = method.rawValue
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
-
-        return request
-    }
-
-    ///
-    /// Set up a URL request specifically for WebDAV interaction.
-    ///
-    private func makeWebDAVRequest(for url: URL, method: Method) throws -> URLRequest {
-        guard let user, let password else {
-            throw RainmakerError.credentialsRequired
-        }
-
-        let encodedCredentials = Data("\(user):\(password)".utf8).base64EncodedString()
-
-        var request = makeRequest(for: url, method: method)
-        request.setValue("application/xml", forHTTPHeaderField: "Accept")
-        request.setValue("application/xml", forHTTPHeaderField: "Content-Type")
-        request.setValue("Basic \(encodedCredentials)", forHTTPHeaderField: "Authorization")
 
         return request
     }
@@ -425,7 +405,7 @@ extension Server: Serving {
         logger.debug("Creating directory at \(path)")
 
         let url = webDAVAddress.appending(path: path)
-        let request = try makeWebDAVRequest(for: url, method: .mkcol)
+        let request = try makeWebDAVRequest(for: path, method: .mkcol)
         let (_, urlResponse) = try await session.data(for: request)
 
         guard let response = urlResponse as? HTTPURLResponse else {
@@ -449,8 +429,7 @@ extension Server: Serving {
         try requireCredentials()
         logger.debug("Deleting \(path)")
 
-        let url = webDAVAddress.appending(path: path, directoryHint: .inferFromPath)
-        let request = try makeWebDAVRequest(for: url, method: .delete)
+        let request = try makeWebDAVRequest(for: path, method: .delete)
         let (_, urlResponse) = try await session.data(for: request)
 
         guard let response = urlResponse as? HTTPURLResponse else {
@@ -553,6 +532,22 @@ extension Server: Serving {
             let encodedCredentials = Data("\(user):\(password)".utf8).base64EncodedString()
             request.setValue("Basic \(encodedCredentials)", forHTTPHeaderField: "Authorization")
         }
+
+        return request
+    }
+
+    public func makeWebDAVRequest(for path: String, method: Method) throws -> URLRequest {
+        guard let user, let password else {
+            throw RainmakerError.credentialsRequired
+        }
+
+        let url = webDAVAddress.appending(path: path, directoryHint: .inferFromPath)
+        let encodedCredentials = Data("\(user):\(password)".utf8).base64EncodedString()
+
+        var request = makeRequest(for: url, method: method)
+        request.setValue("application/xml", forHTTPHeaderField: "Accept")
+        request.setValue("application/xml", forHTTPHeaderField: "Content-Type")
+        request.setValue("Basic \(encodedCredentials)", forHTTPHeaderField: "Authorization")
 
         return request
     }

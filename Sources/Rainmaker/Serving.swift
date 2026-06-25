@@ -148,6 +148,17 @@ protocol Serving: Sendable {
     func makeOCSRequest(for path: String, method: Method) throws -> URLRequest
 
     ///
+    /// Set up a URL request specifically for WebDAV interaction.
+    ///
+    /// The given `path` is resolved relative to the account's WebDAV files root (see ``Server/webDAVPathPrefix``, e.g. `"/remote.php/dav/files/<user>"`).
+    ///
+    /// Unlike ``makeOCSRequest(for:method:)``, credentials are required for this call.
+    ///
+    /// - Throws: ``RainmakerError/credentialsRequired`` when no credentials are set.
+    ///
+    func makeWebDAVRequest(for path: String, method: Method) throws -> URLRequest
+
+    ///
     /// Fetch the capabilities advertised by the server.
     ///
     /// Works with or without credentials: when this ``Serving`` was created without a user name and password the capabilities are fetched anonymously, which returns the subset of capabilities the server exposes to unauthenticated clients.
