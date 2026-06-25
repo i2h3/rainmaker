@@ -31,6 +31,11 @@ This is the only method currently supported.
 
 - ``Server``
 
+### Building Requests
+
+- ``Server/makeOCSRequest(for:method:)``
+- ``Server/makeWebDAVRequest(for:method:)``
+
 ### Data Models
 
 - ``AvailableQuota``
