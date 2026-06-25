@@ -20,7 +20,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       
       - name: Setup Xcode
         uses: maxim-lobanov/setup-xcode@v1
@@ -38,7 +38,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       
       - name: Setup Xcode
         uses: maxim-lobanov/setup-xcode@v1
@@ -60,7 +60,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       
       - name: Setup Xcode
         uses: maxim-lobanov/setup-xcode@v1
@@ -79,7 +79,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       
       - name: Setup Xcode
         uses: maxim-lobanov/setup-xcode@v1
@@ -98,16 +98,19 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       
       - name: Setup Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: latest-stable
       
+      - name: List available simulators
+        run: xcrun simctl list devices available
+
       - name: Run tests on visionOS Simulator
         run: |
           xcodebuild test \
             -scheme Rainmaker-Package \
-            -destination 'platform=visionOS Simulator,name=Any visionOS Simulator Device' \
+            -destination 'platform=visionOS Simulator,name=Apple Vision Pro' \
             -enableCodeCoverage YES
