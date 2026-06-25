@@ -34,4 +34,9 @@ public enum Method: String, RawRepresentable {
     /// Delete a remote item.
     ///
     case delete = "DELETE"
+
+    ///
+    /// Relocate (move and/or rename) a remote item.
+    ///
+    case move = "MOVE"
 }

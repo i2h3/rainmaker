@@ -175,6 +175,36 @@ protocol Serving: Sendable {
     func delete(_ path: String) async throws
 
     ///
+    /// Relocate (move and/or rename) a remote file or directory to another remote path on the server.
+    ///
+    /// Both `source` and `destination` are remote paths on the same account.
+    /// This performs a server-side WebDAV `MOVE`; nothing is downloaded locally.
+    /// It works identically for files and for directories (collections), relocating the whole subtree in a single request.
+    /// Renaming is just a move whose destination has a different last path component.
+    ///
+    /// This method behaves differently given its arguments:
+    ///
+    /// | Source | Destination | Overwrite | Behavior |
+    /// | - | - | - | - |
+    /// | Exists | Free | any | Relocate the item to the destination path |
+    /// | Exists | Occupied | `true` | Replace the existing destination with the source |
+    /// | Exists | Occupied | `false` | Cancel with conflict error |
+    /// | Missing | any | any | Cancel with not found error |
+    ///
+    /// - Parameters:
+    ///     - source: The remote path of the file or directory to relocate.
+    ///     - destination: The remote target path. A differing last path component renames the item.
+    ///     - overwrite: Whether an item already present at the destination may be replaced.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
+    ///     - ``RainmakerError/notFound`` when the source or the destination's parent directory does not exist.
+    ///     - ``RainmakerError/destinationExists(_:)`` when the destination is occupied and `overwrite` is `false`.
+    ///     - ``RainmakerError/unexpectedStatus(code:)`` for any other non-success response.
+    ///
+    func move(_ source: String, to destination: String, overwrite: Bool) async throws
+
+    ///
     /// Set up a URL request specifically for Nextcloud OCS API interaction.
     ///
     /// Credentials are optional for this call.
