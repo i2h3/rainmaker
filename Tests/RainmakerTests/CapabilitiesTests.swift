@@ -42,6 +42,10 @@ import Testing
         #expect(try capabilities.get(NeverPresent.self) == nil)
         #expect(capabilities.contains(Files.self))
 
+        let trashing = try #require(try capabilities.get(Trashing.self))
+        #expect(trashing.undelete == true)
+        #expect(trashing.deleteFromTrash == true)
+
         #expect(capabilities.version.string == serverVersion.rawValue)
         #expect(capabilities.version.major > 0)
     }
@@ -51,9 +55,10 @@ import Testing
         let server = try makeServer(user: nil, password: nil, serverVersion: serverVersion)
         let capabilities = try await server.capabilities()
 
-        // Theming is exposed to anonymous clients, the files capability is not.
+        // Theming is exposed to anonymous clients, the files capability (and therefore the trash bin support) is not.
         _ = try #require(try capabilities.get(Theming.self))
         #expect(capabilities.contains(Files.self) == false)
+        #expect(try capabilities.get(Trashing.self) == nil)
 
         #expect(capabilities.version.string == serverVersion.rawValue)
     }

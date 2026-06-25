@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<d:propfind xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns">
+    <d:prop>
+        <d:getcontentlength />
+        <d:getlastmodified />
+        <d:resourcetype />
+        <nc:trashbin-filename />
+        <nc:trashbin-original-location />
+        <nc:trashbin-deletion-time />
+        <oc:fileid />
+        <oc:size />
+    </d:prop>
+</d:propfind>

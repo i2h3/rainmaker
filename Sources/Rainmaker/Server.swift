@@ -49,6 +49,25 @@ public final class Server {
 
     public let OCSAddress: URL
 
+    ///
+    /// The path prefix appended to the base address before the actual remote subject path on every trash bin WebDAV request, including the user's name.
+    ///
+    /// Looks like `"/remote.php/dav/trashbin/<user>/trash"`.
+    ///
+    public let trashbinPathPrefix: String
+
+    ///
+    /// WebDAV address of the user's trash bin on the server.
+    ///
+    public let trashbinAddress: URL
+
+    ///
+    /// WebDAV address of the user's restore collection, used as the destination when restoring a trashed item.
+    ///
+    /// Looks like `"/remote.php/dav/trashbin/<user>/restore"`.
+    ///
+    public let trashbinRestoreAddress: URL
+
     // MARK: - Helpers
 
     ///
@@ -98,6 +117,31 @@ public final class Server {
             let normalizedItemPath = item.path.hasSuffix("/") ? String(item.path.dropLast()) : item.path
             return normalizedPath != normalizedItemPath
         }
+    }
+
+    ///
+    /// List the content of the user's trash bin.
+    ///
+    private func trashContent() async throws -> [TrashItem] {
+        var request = try makeWebDAVRequest(for: trashbinAddress, method: .propfind)
+        request.httpBody = try? Data(contentsOf: Self.resourceURL.appending(component: "Bodies").appending(component: "Trash.xml"))
+        request.setValue("1", forHTTPHeaderField: "Depth")
+
+        let (data, urlResponse) = try await session.data(for: request)
+
+        guard let response = urlResponse as? HTTPURLResponse else {
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to cast URLResponse to HTTPURLResponse.")
+        }
+
+        if response.status == .notFound {
+            throw RainmakerError.notFound
+        }
+
+        guard response.status == .multiStatus else {
+            throw RainmakerError.unexpectedStatus(code: response.statusCode)
+        }
+
+        return try ResponseParser.trashItems(from: data, trashbinPathPrefix: trashbinPathPrefix)
     }
 
     ///
@@ -442,6 +486,26 @@ public final class Server {
         return request
     }
 
+    ///
+    /// Set up a URL request specifically for WebDAV interaction with an absolute URL.
+    ///
+    /// This is the shared implementation behind ``makeWebDAVRequest(for:method:)`` and the trash bin operations, which target a different WebDAV root than the account's files.
+    ///
+    private func makeWebDAVRequest(for url: URL, method: Method) throws -> URLRequest {
+        guard let user, let password else {
+            throw RainmakerError.credentialsRequired
+        }
+
+        let encodedCredentials = Data("\(user):\(password)".utf8).base64EncodedString()
+
+        var request = makeRequest(for: url, method: method)
+        request.setValue("application/xml", forHTTPHeaderField: "Accept")
+        request.setValue("application/xml", forHTTPHeaderField: "Content-Type")
+        request.setValue("Basic \(encodedCredentials)", forHTTPHeaderField: "Authorization")
+
+        return request
+    }
+
     // MARK: - Initializers
 
     ///
@@ -464,6 +528,9 @@ public final class Server {
         OCSAddress = address.appending(path: "/ocs/v2.php/", directoryHint: .isDirectory)
         webDAVAddress = address.appending(path: "/remote.php/dav/files/\(user ?? "")", directoryHint: .isDirectory)
         webDAVPathPrefix = "/remote.php/dav/files/\(user ?? "")"
+        trashbinAddress = address.appending(path: "/remote.php/dav/trashbin/\(user ?? "")/trash", directoryHint: .isDirectory)
+        trashbinPathPrefix = "/remote.php/dav/trashbin/\(user ?? "")/trash"
+        trashbinRestoreAddress = address.appending(path: "/remote.php/dav/trashbin/\(user ?? "")/restore", directoryHint: .isDirectory)
     }
 }
 
@@ -641,6 +708,65 @@ extension Server: Serving {
         }
     }
 
+    public func trash() async throws -> [TrashItem] {
+        try requireCredentials()
+        logger.debug("Listing trash bin contents...")
+        return try await trashContent()
+    }
+
+    public func restore(_ id: String) async throws {
+        try requireCredentials()
+        logger.debug("Restoring trashed item \(id)")
+
+        // Restoring is a MOVE into the restore collection. The destination name is ignored by the server, which restores the item to its original location.
+        let source = trashbinAddress.appending(path: id, directoryHint: .notDirectory)
+        let destination = trashbinRestoreAddress.appending(path: id, directoryHint: .notDirectory)
+
+        var request = try makeWebDAVRequest(for: source, method: .move)
+        request.setValue(destination.absoluteString, forHTTPHeaderField: "Destination")
+
+        let (_, urlResponse) = try await session.data(for: request)
+
+        guard let response = urlResponse as? HTTPURLResponse else {
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to cast URLResponse to HTTPURLResponse.")
+        }
+
+        // The trashed item does not exist.
+        if response.status == .notFound {
+            throw RainmakerError.notFound
+        }
+
+        // The restore collection's parent does not exist, e.g. the trash bin is unavailable.
+        if response.status == .conflict {
+            throw RainmakerError.notFound
+        }
+
+        // A successful restore responds 201 Created or 204 No Content.
+        guard response.status == .created || response.status == .noContent else {
+            throw RainmakerError.unexpectedStatus(code: response.statusCode)
+        }
+    }
+
+    public func restore(_ item: TrashItem) async throws {
+        try await restore(item.id)
+    }
+
+    public func emptyTrash() async throws {
+        try requireCredentials()
+        logger.debug("Emptying trash bin...")
+
+        let request = try makeWebDAVRequest(for: trashbinAddress, method: .delete)
+        let (_, urlResponse) = try await session.data(for: request)
+
+        guard let response = urlResponse as? HTTPURLResponse else {
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to cast URLResponse to HTTPURLResponse.")
+        }
+
+        guard response.status == .noContent else {
+            throw RainmakerError.unexpectedStatus(code: response.statusCode)
+        }
+    }
+
     public func login() async throws -> LoginFlow {
         logger.debug("Fetching login information...")
 
@@ -733,19 +859,7 @@ extension Server: Serving {
     }
 
     public func makeWebDAVRequest(for path: String, method: Method) throws -> URLRequest {
-        guard let user, let password else {
-            throw RainmakerError.credentialsRequired
-        }
-
-        let url = webDAVAddress.appending(path: path, directoryHint: .inferFromPath)
-        let encodedCredentials = Data("\(user):\(password)".utf8).base64EncodedString()
-
-        var request = makeRequest(for: url, method: method)
-        request.setValue("application/xml", forHTTPHeaderField: "Accept")
-        request.setValue("application/xml", forHTTPHeaderField: "Content-Type")
-        request.setValue("Basic \(encodedCredentials)", forHTTPHeaderField: "Authorization")
-
-        return request
+        try makeWebDAVRequest(for: webDAVAddress.appending(path: path, directoryHint: .inferFromPath), method: method)
     }
 
     public func poll(_ endpoint: URL, token: String) async throws -> LoginResult {

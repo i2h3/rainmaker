@@ -16,6 +16,15 @@ enum ResponseParser {
         }
     }
 
+    static func trashItems(from data: Data, trashbinPathPrefix: String) throws -> [TrashItem] {
+        let root = try XMLTreeBuilder(data: data).parse()
+        let responses = root.elements(forName: "d:response")
+
+        return try responses.compactMap { response in
+            try parseTrashItem(from: response, trashbinPathPrefix: trashbinPathPrefix)
+        }
+    }
+
     // MARK: - Private
 
     private static func parseItem(from response: Element, webDAVPathPrefix: String) throws -> Item {
@@ -247,6 +256,75 @@ enum ResponseParser {
             permissions: permissions,
             size: sizeValue,
             upload: upload
+        )
+    }
+
+    private static func parseTrashItem(from response: Element, trashbinPathPrefix: String) throws -> TrashItem? {
+        guard let hrefString = response.firstElement(forName: "d:href")?.stringValue, let href = URL(string: hrefString) else {
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to get href.")
+        }
+
+        guard href.path().hasPrefix(trashbinPathPrefix) else {
+            throw RainmakerError.responseDecodingFailed(reason: "href does not have expected prefix!")
+        }
+
+        let path = String(href.path(percentEncoded: false).dropFirst(trashbinPathPrefix.count))
+
+        // The trash bin root itself is part of the listing. It carries no trash metadata and is skipped.
+        if path.trimmingCharacters(in: CharacterSet(charactersIn: "/")).isEmpty {
+            return nil
+        }
+
+        let propstats = response.elements(forName: "d:propstat")
+
+        guard let propstat = propstats.first(where: { candidate in
+            candidate.firstElement(forName: "d:status")?.stringValue == "HTTP/1.1 200 OK"
+        }) else {
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to find propstat element with status code 200 for: \(href.absoluteString)")
+        }
+
+        guard let prop = propstat.firstElement(forName: "d:prop") else {
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to find prop element for: \(href.absoluteString)")
+        }
+
+        // MARK: name
+
+        // Without a trash file name this response does not describe a trashed item (e.g. the trash bin root) and is skipped.
+        guard let name = prop.firstElement(forName: "nc:trashbin-filename")?.stringValue else {
+            return nil
+        }
+
+        // MARK: originalLocation
+
+        guard let originalLocation = prop.firstElement(forName: "nc:trashbin-original-location")?.stringValue else {
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to get original location for: \(href.absoluteString)")
+        }
+
+        // MARK: deletion
+
+        guard let deletionString = prop.firstElement(forName: "nc:trashbin-deletion-time")?.stringValue, let deletionInterval = TimeInterval(deletionString) else {
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to get deletion time for: \(href.absoluteString)")
+        }
+
+        let deletion = Date(timeIntervalSince1970: deletionInterval)
+
+        // MARK: isDirectory
+
+        let isDirectory = prop.firstElement(forName: "d:resourcetype")?.elements(forName: "d:collection").isEmpty == false
+
+        // MARK: size
+
+        let size = (prop.firstElement(forName: "oc:size")?.stringValue).flatMap { UInt64($0) } ?? (prop.firstElement(forName: "d:getcontentlength")?.stringValue).flatMap { UInt64($0) }
+
+        return TrashItem(
+            id: href.lastPathComponent,
+            path: path,
+            href: href,
+            name: name,
+            originalLocation: originalLocation,
+            deletion: deletion,
+            isDirectory: isDirectory,
+            size: size
         )
     }
 }
