@@ -13,6 +13,11 @@ public enum RainmakerError: Error, Equatable, CustomStringConvertible {
     case credentialsRequired
 
     ///
+    /// A move was attempted but the destination already exists and overwriting was not requested.
+    ///
+    case destinationExists(URL)
+
+    ///
     /// The destination location is not an empty directory.
     ///
     case directoryNotEmpty
@@ -52,6 +57,8 @@ public enum RainmakerError: Error, Equatable, CustomStringConvertible {
         switch self {
             case .credentialsRequired:
                 "Credentials required"
+            case let .destinationExists(url):
+                "A remote item already exists at: \(url.path())"
             case .directoryNotEmpty:
                 "The destination location is not an empty directory."
             case let .enumeration(url, error):

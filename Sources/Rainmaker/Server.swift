@@ -603,6 +603,44 @@ extension Server: Serving {
         }
     }
 
+    public func move(_ source: String, to destination: String, overwrite: Bool) async throws {
+        try requireCredentials()
+        logger.debug("Moving \(source) to \(destination)")
+
+        // The Destination header must carry the absolute, percent-encoded target URL.
+        let destinationURL = webDAVAddress.appending(path: destination)
+
+        var request = try makeWebDAVRequest(for: source, method: .move)
+        request.setValue(destinationURL.absoluteString, forHTTPHeaderField: "Destination")
+        request.setValue(overwrite ? "T" : "F", forHTTPHeaderField: "Overwrite")
+
+        let (_, urlResponse) = try await session.data(for: request)
+
+        guard let response = urlResponse as? HTTPURLResponse else {
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to cast URLResponse to HTTPURLResponse.")
+        }
+
+        // The source does not exist.
+        if response.status == .notFound {
+            throw RainmakerError.notFound
+        }
+
+        // The destination's parent collection does not exist.
+        if response.status == .conflict {
+            throw RainmakerError.notFound
+        }
+
+        // The destination is occupied and overwriting was not requested.
+        if response.status == .preconditionFailed {
+            throw RainmakerError.destinationExists(destinationURL)
+        }
+
+        // A successful move responds 201 Created (relocated) or 204 No Content (overwrote an existing item).
+        guard response.status == .created || response.status == .noContent else {
+            throw RainmakerError.unexpectedStatus(code: response.statusCode)
+        }
+    }
+
     public func login() async throws -> LoginFlow {
         logger.debug("Fetching login information...")
 

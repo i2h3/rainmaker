@@ -21,6 +21,7 @@ SUBCOMMANDS:
   info                    Show information about a remote file or directory.
   list                    List the content of a directory on the server by the given path.
   login                   Fetch the login flow information from a server.
+  move                    Move or rename a remote file or directory on the server.
   navigation              List the apps navigation entries advertised by a server. Requires authentication.
   poll                    Poll the status of a previously initiated login flow.
   upload                  Upload a file or directory to a folder on the server.
