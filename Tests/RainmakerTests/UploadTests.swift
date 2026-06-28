@@ -14,7 +14,7 @@ import Testing
         let server = try makeServer(user: nil, password: nil, serverVersion: serverVersion)
 
         await #expect(throws: RainmakerError.credentialsRequired) {
-            let source = FileManager.default.temporaryDirectory.appending(component: UUID().uuidString)
+            let source = FileManager.default.temporaryDirectory.appendingCompatibility(component: UUID().uuidString)
             try await server.upload(source, to: "/", force: false)
         }
     }
@@ -24,7 +24,7 @@ import Testing
         let server = try makeServer(serverVersion: serverVersion)
 
         await #expect(throws: RainmakerError.notFound) {
-            let source = FileManager.default.temporaryDirectory.appending(component: UUID().uuidString)
+            let source = FileManager.default.temporaryDirectory.appendingCompatibility(component: UUID().uuidString)
             try await server.upload(source, to: "/", force: false)
         }
     }
@@ -33,14 +33,14 @@ import Testing
     func file(_ serverVersion: ServerVersion) async throws {
         let server = try makeServer(serverVersion: serverVersion)
 
-        let source = FileManager.default.temporaryDirectory.appending(component: UUID().uuidString)
+        let source = FileManager.default.temporaryDirectory.appendingCompatibility(component: UUID().uuidString)
         try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
 
         defer {
             try? FileManager.default.removeItem(at: source)
         }
 
-        let file = source.appending(component: "Upload.md")
+        let file = source.appendingCompatibility(component: "Upload.md")
         try Data("content".utf8).write(to: file)
 
         await #expect(throws: Never.self) {
@@ -52,14 +52,14 @@ import Testing
     func conflict(_ serverVersion: ServerVersion) async throws {
         let server = try makeServer(serverVersion: serverVersion)
 
-        let source = FileManager.default.temporaryDirectory.appending(component: UUID().uuidString)
+        let source = FileManager.default.temporaryDirectory.appendingCompatibility(component: UUID().uuidString)
         try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
 
         defer {
             try? FileManager.default.removeItem(at: source)
         }
 
-        let file = source.appending(component: "Readme.md")
+        let file = source.appendingCompatibility(component: "Readme.md")
         try Data("content".utf8).write(to: file)
 
         await #expect {
@@ -77,7 +77,7 @@ import Testing
     func overwriteFile(_ serverVersion: ServerVersion) async throws {
         let server = try makeServer(serverVersion: serverVersion)
 
-        let source = FileManager.default.temporaryDirectory.appending(component: UUID().uuidString)
+        let source = FileManager.default.temporaryDirectory.appendingCompatibility(component: UUID().uuidString)
         try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
 
         defer {
@@ -85,9 +85,9 @@ import Testing
         }
 
         // Date the local file into the future so it is considered newer than the remote state and thus uploaded.
-        let file = source.appending(component: "Readme.md")
+        let file = source.appendingCompatibility(component: "Readme.md")
         try Data("content".utf8).write(to: file)
-        try FileManager.default.setAttributes([.modificationDate: Date.distantFuture], ofItemAtPath: file.path())
+        try FileManager.default.setAttributes([.modificationDate: Date.distantFuture], ofItemAtPath: file.compatibilityPath())
 
         await #expect(throws: Never.self) {
             try await server.upload(file, to: "/", force: true)
@@ -98,7 +98,7 @@ import Testing
     func overwriteUnchangedFile(_ serverVersion: ServerVersion) async throws {
         let server = try makeServer(serverVersion: serverVersion)
 
-        let source = FileManager.default.temporaryDirectory.appending(component: UUID().uuidString)
+        let source = FileManager.default.temporaryDirectory.appendingCompatibility(component: UUID().uuidString)
         try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
 
         defer {
@@ -106,9 +106,9 @@ import Testing
         }
 
         // Date the local file into the past so the remote state is considered up to date and no upload happens.
-        let file = source.appending(component: "Readme.md")
+        let file = source.appendingCompatibility(component: "Readme.md")
         try Data("content".utf8).write(to: file)
-        try FileManager.default.setAttributes([.modificationDate: Date.distantPast], ofItemAtPath: file.path())
+        try FileManager.default.setAttributes([.modificationDate: Date.distantPast], ofItemAtPath: file.compatibilityPath())
 
         await #expect(throws: Never.self) {
             try await server.upload(file, to: "/", force: true)
@@ -119,18 +119,18 @@ import Testing
     func directory(_ serverVersion: ServerVersion) async throws {
         let server = try makeServer(serverVersion: serverVersion)
 
-        let source = FileManager.default.temporaryDirectory.appending(component: UUID().uuidString)
+        let source = FileManager.default.temporaryDirectory.appendingCompatibility(component: UUID().uuidString)
         try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
 
         defer {
             try? FileManager.default.removeItem(at: source)
         }
 
-        try Data("example".utf8).write(to: source.appending(component: "Example.md"))
+        try Data("example".utf8).write(to: source.appendingCompatibility(component: "Example.md"))
 
-        let nested = source.appending(component: "Nested")
+        let nested = source.appendingCompatibility(component: "Nested")
         try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
-        try Data("deep".utf8).write(to: nested.appending(component: "Deep.md"))
+        try Data("deep".utf8).write(to: nested.appendingCompatibility(component: "Deep.md"))
 
         await #expect(throws: Never.self) {
             try await server.upload(source, to: "/Documents", force: false)
@@ -141,7 +141,7 @@ import Testing
     func overwriteDirectory(_ serverVersion: ServerVersion) async throws {
         let server = try makeServer(serverVersion: serverVersion)
 
-        let source = FileManager.default.temporaryDirectory.appending(component: UUID().uuidString)
+        let source = FileManager.default.temporaryDirectory.appendingCompatibility(component: UUID().uuidString)
         try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
 
         defer {
@@ -149,9 +149,9 @@ import Testing
         }
 
         // Date the local file into the past so the equally named remote file is skipped while the remote orphan is deleted.
-        let file = source.appending(component: "Example.md")
+        let file = source.appendingCompatibility(component: "Example.md")
         try Data("example".utf8).write(to: file)
-        try FileManager.default.setAttributes([.modificationDate: Date.distantPast], ofItemAtPath: file.path())
+        try FileManager.default.setAttributes([.modificationDate: Date.distantPast], ofItemAtPath: file.compatibilityPath())
 
         await #expect(throws: Never.self) {
             try await server.upload(source, to: "/Documents", force: true)

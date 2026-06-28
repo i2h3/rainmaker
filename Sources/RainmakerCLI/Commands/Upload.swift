@@ -55,10 +55,10 @@ struct Upload: AsyncParsableCommand {
         }
 
         let server = Server(address: address, password: authenticatedArguments.passwordValue, user: authenticatedArguments.userValue)
-        // `URL(filePath:)` does not expand `~`; do it ourselves so paths like `~/Documents/Notes.md`
+        // `URL(fileURLWithPath:)` does not expand `~`; do it ourselves so paths like `~/Documents/Notes.md`
         // resolve to the user's home directory instead of a literal `~` folder.
         let expandedSource = (source as NSString).expandingTildeInPath
-        let sourceURL = URL(filePath: expandedSource, directoryHint: .inferFromPath)
+        let sourceURL = URL(fileURLWithPath: expandedSource)
 
         try await server.upload(sourceURL, to: destination, force: force)
     }

@@ -58,13 +58,13 @@ public enum RainmakerError: Error, Equatable, CustomStringConvertible {
             case .credentialsRequired:
                 "Credentials required"
             case let .destinationExists(url):
-                "A remote item already exists at: \(url.path())"
+                "A remote item already exists at: \(url.compatibilityPath())"
             case .directoryNotEmpty:
                 "The destination location is not an empty directory."
             case let .enumeration(url, error):
-                "The item at \(url.path()) could not be enumerated: \(error)"
+                "The item at \(url.compatibilityPath()) could not be enumerated: \(error)"
             case let .fileAlreadyExists(url):
-                "A file already exists at: \(url.path())"
+                "A file already exists at: \(url.compatibilityPath())"
             case .notFound:
                 "Not found."
             case let .responseDecodingFailed(reason: reason):

@@ -32,11 +32,11 @@ enum ResponseParser {
             throw RainmakerError.responseDecodingFailed(reason: "Failed to get href.")
         }
 
-        guard href.path().hasPrefix(webDAVPathPrefix) else {
+        guard href.compatibilityPath().hasPrefix(webDAVPathPrefix) else {
             throw RainmakerError.responseDecodingFailed(reason: "href does not have expected prefix!")
         }
 
-        let path = String(href.path(percentEncoded: false).dropFirst(webDAVPathPrefix.count))
+        let path = String(href.compatibilityPath(percentEncoded: false).dropFirst(webDAVPathPrefix.count))
 
         let propstats = response.elements(forName: "d:propstat")
 
@@ -264,11 +264,11 @@ enum ResponseParser {
             throw RainmakerError.responseDecodingFailed(reason: "Failed to get href.")
         }
 
-        guard href.path().hasPrefix(trashbinPathPrefix) else {
+        guard href.compatibilityPath().hasPrefix(trashbinPathPrefix) else {
             throw RainmakerError.responseDecodingFailed(reason: "href does not have expected prefix!")
         }
 
-        let path = String(href.path(percentEncoded: false).dropFirst(trashbinPathPrefix.count))
+        let path = String(href.compatibilityPath(percentEncoded: false).dropFirst(trashbinPathPrefix.count))
 
         // The trash bin root itself is part of the listing. It carries no trash metadata and is skipped.
         if path.trimmingCharacters(in: CharacterSet(charactersIn: "/")).isEmpty {

@@ -4,7 +4,6 @@
 import Foundation
 import os
 @testable import Rainmaker
-import Synchronization
 
 ///
 /// A mock implementation of `URLSession` to return static responses from the test bundle resources.
@@ -29,34 +28,34 @@ public actor URLTestSession: Requesting {
             throw URLTestSessionError.resourcesNotFound
         }
 
-        let serverVersionResources = resources.appending(component: "Responses").appending(component: serverVersion.rawValue)
+        let serverVersionResources = resources.appendingCompatibility(component: "Responses").appendingCompatibility(component: serverVersion.rawValue)
 
-        guard FileManager.default.fileExists(atPath: serverVersionResources.path()) else {
-            logger.fault("Not found: \(serverVersionResources.path())")
+        guard FileManager.default.fileExists(atPath: serverVersionResources.compatibilityPath()) else {
+            logger.fault("Not found: \(serverVersionResources.compatibilityPath())")
             throw URLTestSessionError.serverVersionNotFound
         }
 
-        let suiteName = URL(filePath: testSourceCodeFile).deletingPathExtension().lastPathComponent
-        let suiteResources = serverVersionResources.appending(component: suiteName)
+        let suiteName = URL(fileURLWithPath: testSourceCodeFile).deletingPathExtension().lastPathComponent
+        let suiteResources = serverVersionResources.appendingCompatibility(component: suiteName)
 
-        guard FileManager.default.fileExists(atPath: suiteResources.path()) else {
-            logger.fault("Not found: \(suiteResources.path())")
+        guard FileManager.default.fileExists(atPath: suiteResources.compatibilityPath()) else {
+            logger.fault("Not found: \(suiteResources.compatibilityPath())")
             throw URLTestSessionError.suiteNotFound
         }
 
         let sanitizedTestName = testName.prefix(upTo: testName.firstIndex(of: "(") ?? testName.endIndex)
-        let testResources = suiteResources.appending(component: sanitizedTestName)
+        let testResources = suiteResources.appendingCompatibility(component: sanitizedTestName)
         self.testName = testName
 
-        if FileManager.default.fileExists(atPath: testResources.path()) {
+        if FileManager.default.fileExists(atPath: testResources.compatibilityPath()) {
             self.testResources = testResources
         } else {
             self.testResources = nil
-            logger.debug("Not found: \(testResources.path())")
+            logger.debug("Not found: \(testResources.compatibilityPath())")
         }
 
         // swiftformat:disable:next redundantSelf
-        logger.debug("Initialized for suite name \"\(suiteName)\" and test name \"\(testName)\", derived resource path \"\(self.testResources?.path() ?? "nil")\".")
+        logger.debug("Initialized for suite name \"\(suiteName)\" and test name \"\(testName)\", derived resource path \"\(self.testResources?.compatibilityPath() ?? "nil")\".")
     }
 
     public func data(for request: URLRequest) async throws -> (Data, URLResponse) {
@@ -72,14 +71,14 @@ public actor URLTestSession: Requesting {
             throw URLTestSessionError.missingValue
         }
 
-        let requestPath = url.path(percentEncoded: false)
+        let requestPath = url.compatibilityPath(percentEncoded: false)
 
         let requestResources = testResources
-            .appending(component: method)
-            .appending(path: requestPath)
+            .appendingCompatibility(component: method)
+            .appendingCompatibility(path: requestPath)
 
         let headersFile = requestResources
-            .appending(component: "Headers")
+            .appendingCompatibility(component: "Headers")
             .appendingPathExtension("txt")
 
         logger.debug("Assuming headers file: \(headersFile.percentEncodedPath)")
@@ -99,7 +98,7 @@ public actor URLTestSession: Requesting {
         }
 
         let bodyFile = requestResources
-            .appending(component: "Body")
+            .appendingCompatibility(component: "Body")
             .appendingPathExtension(bodyFileExtension)
 
         logger.debug("Assuming body file: \(bodyFile.percentEncodedPath)")
@@ -125,21 +124,21 @@ public actor URLTestSession: Requesting {
             throw URLTestSessionError.missingValue
         }
 
-        let requestPath = url.path(percentEncoded: false)
+        let requestPath = url.compatibilityPath(percentEncoded: false)
 
         let requestResources = testResources
-            .appending(component: method)
-            .appending(path: requestPath)
+            .appendingCompatibility(component: method)
+            .appendingCompatibility(path: requestPath)
 
         let headersFile = requestResources
-            .appending(component: "Headers")
+            .appendingCompatibility(component: "Headers")
             .appendingPathExtension("txt")
 
         logger.debug("Assuming headers file: \(headersFile.percentEncodedPath)")
         let headersData = try readDataFromPercentEncodedPath(at: headersFile)
 
         let bodyFile = requestResources
-            .appending(component: "Body")
+            .appendingCompatibility(component: "Body")
             .appendingPathExtension("bin")
 
         logger.debug("Assuming body file: \(bodyFile.percentEncodedPath)")
@@ -150,7 +149,7 @@ public actor URLTestSession: Requesting {
         }
 
         let temporaryFile = FileManager.default.temporaryDirectory
-            .appending(component: UUID().uuidString)
+            .appendingCompatibility(component: UUID().uuidString)
         try bodyData.write(to: temporaryFile)
 
         return (temporaryFile, httpResponse)
@@ -169,14 +168,14 @@ public actor URLTestSession: Requesting {
             throw URLTestSessionError.missingValue
         }
 
-        let requestPath = url.path(percentEncoded: false)
+        let requestPath = url.compatibilityPath(percentEncoded: false)
 
         let requestResources = testResources
-            .appending(component: method)
-            .appending(path: requestPath)
+            .appendingCompatibility(component: method)
+            .appendingCompatibility(path: requestPath)
 
         let headersFile = requestResources
-            .appending(component: "Headers")
+            .appendingCompatibility(component: "Headers")
             .appendingPathExtension("txt")
 
         logger.debug("Assuming headers file: \(headersFile.percentEncodedPath)")

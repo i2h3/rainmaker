@@ -30,7 +30,7 @@ import Testing
         let server = makeServer()
         let request = try server.makeOCSRequest(for: "cloud/capabilities", method: .get)
 
-        #expect(request.url == server.OCSAddress.appending(path: "cloud/capabilities", directoryHint: .inferFromPath))
+        #expect(request.url == server.OCSAddress.appendingCompatibility(path: "cloud/capabilities", directoryHint: .inferFromPath))
         #expect(request.httpMethod == "GET")
 
         let headers = request.allHTTPHeaderFields
@@ -55,7 +55,7 @@ import Testing
         let server = makeServer()
         let request = try server.makeWebDAVRequest(for: "Documents/Readme.md", method: .propfind)
 
-        #expect(request.url == server.webDAVAddress.appending(path: "Documents/Readme.md", directoryHint: .inferFromPath))
+        #expect(request.url == server.webDAVAddress.appendingCompatibility(path: "Documents/Readme.md", directoryHint: .inferFromPath))
         #expect(request.httpMethod == "PROPFIND")
 
         let headers = request.allHTTPHeaderFields
@@ -80,7 +80,7 @@ import Testing
         let request = try server.makeWebDAVRequest(for: "Special Characters/:/Readme.md", method: .propfind)
 
         // The path is appended (and percent-encoded) consistently, so decoding it again yields the original input.
-        let path = try #require(request.url?.path(percentEncoded: false))
+        let path = try #require(request.url?.compatibilityPath(percentEncoded: false))
         #expect(path == "/remote.php/dav/files/admin/Special Characters/:/Readme.md")
     }
 }

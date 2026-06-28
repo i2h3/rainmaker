@@ -24,7 +24,7 @@ import Testing
         let items: [Item] = try await server.enumerate(at: "/", recursively: false)
         let readme = try #require(items.first { $0.name == "Readme.md" })
         #expect(readme.path == "/Readme.md")
-        #expect(readme.href.path() == "/remote.php/dav/files/admin/Readme.md")
+        #expect(readme.href.compatibilityPath() == "/remote.php/dav/files/admin/Readme.md")
     }
 
     @Test("Documents Folder", arguments: ServerVersion.allCases)
@@ -33,17 +33,17 @@ import Testing
         let items: [Item] = try await server.enumerate(at: "/Documents", recursively: false)
         let example = try #require(items.first { $0.name == "Example.md" })
         #expect(example.path == "/Documents/Example.md")
-        #expect(example.href.path() == "/remote.php/dav/files/admin/Documents/Example.md")
+        #expect(example.href.compatibilityPath() == "/remote.php/dav/files/admin/Documents/Example.md")
     }
 
     @Test("All Content Recursively and Asynchronously", arguments: ServerVersion.allCases)
     func listAllContentRecursivelyAndAsynchronously(_ serverVersion: ServerVersion) async throws {
         let server = try makeServer(serverVersion: serverVersion)
         let items: [Item] = try await server.enumerate(at: "/", recursively: true)
-        #expect(items.contains { $0.href.path() == "/remote.php/dav/files/admin/Readme.md" })
-        #expect(items.contains { $0.href.path() == "/remote.php/dav/files/admin/Documents/Example.md" })
-        #expect(items.contains { $0.href.path() == "/remote.php/dav/files/admin/Photos/Frog.jpg" })
-        #expect(items.contains { $0.href.path() == "/remote.php/dav/files/admin/Templates/Brainstorming.whiteboard" })
+        #expect(items.contains { $0.href.compatibilityPath() == "/remote.php/dav/files/admin/Readme.md" })
+        #expect(items.contains { $0.href.compatibilityPath() == "/remote.php/dav/files/admin/Documents/Example.md" })
+        #expect(items.contains { $0.href.compatibilityPath() == "/remote.php/dav/files/admin/Photos/Frog.jpg" })
+        #expect(items.contains { $0.href.compatibilityPath() == "/remote.php/dav/files/admin/Templates/Brainstorming.whiteboard" })
     }
 
     @Test("Whitespace Folder", arguments: ServerVersion.allCases)
@@ -73,7 +73,7 @@ import Testing
         let server = try makeServer(serverVersion: serverVersion)
         let items: [Item] = try await server.enumerate(at: "/Special Characters/:", recursively: false)
         let readme = try #require(items.first { $0.name == "Readme.md" })
-        #expect(readme.href.path() == "/remote.php/dav/files/admin/Special%20Characters/:/Readme.md")
+        #expect(readme.href.compatibilityPath() == "/remote.php/dav/files/admin/Special%20Characters/:/Readme.md")
         #expect(readme.path == "/Special Characters/:/Readme.md")
     }
 
@@ -82,7 +82,7 @@ import Testing
         let server = try makeServer(serverVersion: serverVersion)
         let items: [Item] = try await server.enumerate(at: "/Special Characters/?", recursively: false)
         let readme = try #require(items.first { $0.name == "Readme.md" })
-        #expect(readme.href.path() == "/remote.php/dav/files/admin/Special%20Characters/%3f/Readme.md")
+        #expect(readme.href.compatibilityPath() == "/remote.php/dav/files/admin/Special%20Characters/%3f/Readme.md")
         #expect(readme.path == "/Special Characters/?/Readme.md")
     }
 
@@ -91,7 +91,7 @@ import Testing
         let server = try makeServer(serverVersion: serverVersion)
         let items: [Item] = try await server.enumerate(at: "/Special Characters/&", recursively: false)
         let readme = try #require(items.first { $0.name == "Readme.md" })
-        #expect(readme.href.path() == "/remote.php/dav/files/admin/Special%20Characters/%26/Readme.md")
+        #expect(readme.href.compatibilityPath() == "/remote.php/dav/files/admin/Special%20Characters/%26/Readme.md")
         #expect(readme.path == "/Special Characters/&/Readme.md")
     }
 
@@ -100,7 +100,7 @@ import Testing
         let server = try makeServer(serverVersion: serverVersion)
         let items: [Item] = try await server.enumerate(at: "/Special Characters/#", recursively: false)
         let readme = try #require(items.first { $0.name == "Readme.md" })
-        #expect(readme.href.path() == "/remote.php/dav/files/admin/Special%20Characters/%23/Readme.md")
+        #expect(readme.href.compatibilityPath() == "/remote.php/dav/files/admin/Special%20Characters/%23/Readme.md")
         #expect(readme.path == "/Special Characters/#/Readme.md")
     }
 
@@ -109,7 +109,7 @@ import Testing
         let server = try makeServer(serverVersion: serverVersion)
         let items: [Item] = try await server.enumerate(at: "/Special Characters/%", recursively: false)
         let readme = try #require(items.first { $0.name == "Readme.md" })
-        #expect(readme.href.path() == "/remote.php/dav/files/admin/Special%20Characters/%25/Readme.md")
+        #expect(readme.href.compatibilityPath() == "/remote.php/dav/files/admin/Special%20Characters/%25/Readme.md")
         #expect(readme.path == "/Special Characters/%/Readme.md")
     }
 }

@@ -29,7 +29,7 @@ import Testing
         let note = try #require(items.first { $0.name == "Note.txt" })
         #expect(note.id == "Note.txt.d1700000000")
         #expect(note.path == "/Note.txt.d1700000000")
-        #expect(note.href.path() == "/remote.php/dav/trashbin/admin/trash/Note.txt.d1700000000")
+        #expect(note.href.compatibilityPath() == "/remote.php/dav/trashbin/admin/trash/Note.txt.d1700000000")
         #expect(note.originalLocation == "Note.txt")
         #expect(note.isDirectory == false)
         #expect(note.size == 29)

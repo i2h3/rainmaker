@@ -9,11 +9,11 @@ import PackageDescription
 let package = Package(
     name: "Rainmaker",
     platforms: [
-        .iOS(.v26),
-        .macOS(.v26),
-        .tvOS(.v26),
-        .visionOS(.v26),
-        .watchOS(.v26),
+        .iOS(.v15),
+        .macOS(.v12),
+        .tvOS(.v15),
+        .visionOS(.v1),
+        .watchOS(.v8),
     ],
     products: [
         .library(name: "Rainmaker", targets: ["Rainmaker"]),

@@ -14,7 +14,7 @@ import Testing
         let server = try makeServer(user: nil, password: nil, serverVersion: serverVersion)
 
         await #expect(throws: RainmakerError.credentialsRequired) {
-            let destination = FileManager.default.temporaryDirectory.appending(component: UUID().uuidString)
+            let destination = FileManager.default.temporaryDirectory.appendingCompatibility(component: UUID().uuidString)
             try await server.download("/Readme.md", to: destination, force: false)
         }
     }
@@ -23,7 +23,7 @@ import Testing
     func file(_ serverVersion: ServerVersion) async throws {
         let server = try makeServer(serverVersion: serverVersion)
 
-        let destination = FileManager.default.temporaryDirectory.appending(component: UUID().uuidString)
+        let destination = FileManager.default.temporaryDirectory.appendingCompatibility(component: UUID().uuidString)
         try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
 
         defer {
@@ -32,8 +32,8 @@ import Testing
 
         try await server.download("/Readme.md", to: destination, force: false)
 
-        let downloadedFile = destination.appending(component: "Readme.md")
-        #expect(FileManager.default.fileExists(atPath: downloadedFile.path()))
+        let downloadedFile = destination.appendingCompatibility(component: "Readme.md")
+        #expect(FileManager.default.fileExists(atPath: downloadedFile.compatibilityPath()))
 
         let content = try Data(contentsOf: downloadedFile)
         #expect(content.isEmpty == false)
@@ -43,7 +43,7 @@ import Testing
     func directory(_ serverVersion: ServerVersion) async throws {
         let server = try makeServer(serverVersion: serverVersion)
 
-        let destination = FileManager.default.temporaryDirectory.appending(component: UUID().uuidString)
+        let destination = FileManager.default.temporaryDirectory.appendingCompatibility(component: UUID().uuidString)
         try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
 
         defer {
@@ -52,8 +52,8 @@ import Testing
 
         try await server.download("/Documents", to: destination, force: false)
 
-        let downloadedFile = destination.appending(component: "Example.md")
-        #expect(FileManager.default.fileExists(atPath: downloadedFile.path()))
+        let downloadedFile = destination.appendingCompatibility(component: "Example.md")
+        #expect(FileManager.default.fileExists(atPath: downloadedFile.compatibilityPath()))
 
         let content = try Data(contentsOf: downloadedFile)
         #expect(content.isEmpty == false)
@@ -63,7 +63,7 @@ import Testing
     func overwriteFile(_ serverVersion: ServerVersion) async throws {
         let server = try makeServer(serverVersion: serverVersion)
 
-        let destination = FileManager.default.temporaryDirectory.appending(component: UUID().uuidString)
+        let destination = FileManager.default.temporaryDirectory.appendingCompatibility(component: UUID().uuidString)
         try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
 
         defer {
@@ -71,10 +71,10 @@ import Testing
         }
 
         // Pre-create an old version of the file with a very old modification date.
-        let existingFile = destination.appending(component: "Readme.md")
+        let existingFile = destination.appendingCompatibility(component: "Readme.md")
         let oldContent = Data("old content".utf8)
         try oldContent.write(to: existingFile)
-        try FileManager.default.setAttributes([.modificationDate: Date.distantPast], ofItemAtPath: existingFile.path())
+        try FileManager.default.setAttributes([.modificationDate: Date.distantPast], ofItemAtPath: existingFile.compatibilityPath())
 
         try await server.download("/Readme.md", to: destination, force: true)
 
@@ -86,7 +86,7 @@ import Testing
     func overwriteUnchangedFile(_ serverVersion: ServerVersion) async throws {
         let server = try makeServer(serverVersion: serverVersion)
 
-        let destination = FileManager.default.temporaryDirectory.appending(component: UUID().uuidString)
+        let destination = FileManager.default.temporaryDirectory.appendingCompatibility(component: UUID().uuidString)
         try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
 
         defer {
@@ -94,10 +94,10 @@ import Testing
         }
 
         // Pre-create a file with a modification date far in the future so it is always considered up to date.
-        let existingFile = destination.appending(component: "Readme.md")
+        let existingFile = destination.appendingCompatibility(component: "Readme.md")
         let originalContent = Data("original content".utf8)
         try originalContent.write(to: existingFile)
-        try FileManager.default.setAttributes([.modificationDate: Date.distantFuture], ofItemAtPath: existingFile.path())
+        try FileManager.default.setAttributes([.modificationDate: Date.distantFuture], ofItemAtPath: existingFile.compatibilityPath())
 
         try await server.download("/Readme.md", to: destination, force: true)
 
@@ -110,7 +110,7 @@ import Testing
     func overwriteDirectory(_ serverVersion: ServerVersion) async throws {
         let server = try makeServer(serverVersion: serverVersion)
 
-        let destination = FileManager.default.temporaryDirectory.appending(component: UUID().uuidString)
+        let destination = FileManager.default.temporaryDirectory.appendingCompatibility(component: UUID().uuidString)
         try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
 
         defer {
@@ -118,17 +118,17 @@ import Testing
         }
 
         // Pre-create an orphan file that should be deleted during synchronization.
-        let orphanFile = destination.appending(component: "Orphan.txt")
+        let orphanFile = destination.appendingCompatibility(component: "Orphan.txt")
         try Data("orphan".utf8).write(to: orphanFile)
 
         try await server.download("/Documents", to: destination, force: true)
 
         // The orphan file should have been deleted.
-        #expect(FileManager.default.fileExists(atPath: orphanFile.path()) == false)
+        #expect(FileManager.default.fileExists(atPath: orphanFile.compatibilityPath()) == false)
 
         // The remote file should have been downloaded.
-        let downloadedFile = destination.appending(component: "Example.md")
-        #expect(FileManager.default.fileExists(atPath: downloadedFile.path()))
+        let downloadedFile = destination.appendingCompatibility(component: "Example.md")
+        #expect(FileManager.default.fileExists(atPath: downloadedFile.compatibilityPath()))
     }
 
     @Test("Overwrite Directory Preserves Existing Remote Items", arguments: ServerVersion.allCases)
@@ -136,9 +136,9 @@ import Testing
         let server = try makeServer(serverVersion: serverVersion)
 
         // Construct the destination URL the same way `RainmakerCLI` does, so the test exercises the
-        // production path including the trailing slash that `.isDirectory` adds to `path(...)`.
-        let destination = URL(filePath: NSTemporaryDirectory(), directoryHint: .isDirectory)
-            .appending(component: UUID().uuidString, directoryHint: .isDirectory)
+        // production path including the trailing slash that the directory disposition adds.
+        let destination = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingCompatibility(component: UUID().uuidString, directoryHint: .isDirectory)
 
         try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
 
@@ -147,12 +147,12 @@ import Testing
         }
 
         // Pre-create the file that also exists on the remote, simulating a prior successful download.
-        let existingFile = destination.appending(component: "Example.md")
+        let existingFile = destination.appendingCompatibility(component: "Example.md")
         try Data("pre-existing".utf8).write(to: existingFile)
 
         try await server.download("/Documents", to: destination, force: true)
 
         // The file should still exist after synchronization because it is present in the remote state.
-        #expect(FileManager.default.fileExists(atPath: existingFile.path(percentEncoded: false)))
+        #expect(FileManager.default.fileExists(atPath: existingFile.compatibilityPath(percentEncoded: false)))
     }
 }

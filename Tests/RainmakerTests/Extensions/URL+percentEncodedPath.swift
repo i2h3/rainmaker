@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 import Foundation
+@testable import Rainmaker
 
 extension URL {
     ///
@@ -14,6 +15,6 @@ extension URL {
         allowedCharacters.insert(charactersIn: "_")
         allowedCharacters.insert(charactersIn: "/")
 
-        return path(percentEncoded: false).addingPercentEncoding(withAllowedCharacters: allowedCharacters) ?? path(percentEncoded: false)
+        return compatibilityPath(percentEncoded: false).addingPercentEncoding(withAllowedCharacters: allowedCharacters) ?? compatibilityPath(percentEncoded: false)
     }
 }

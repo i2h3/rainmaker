@@ -53,7 +53,7 @@ struct Poll: AsyncParsableCommand {
                 // This is also expected and can be ignored to continue polling.
             }
 
-            try await Task.sleep(for: .seconds(1))
+            try await Task.sleep(nanoseconds: 1_000_000_000)
         }
 
         if let loginResult {

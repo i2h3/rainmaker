@@ -32,10 +32,10 @@ struct Download: AsyncParsableCommand {
         }
 
         let server = Server(address: address, password: authenticatedArguments.passwordValue, user: authenticatedArguments.userValue)
-        // `URL(filePath:)` does not expand `~`; do it ourselves so paths like `~/Downloads/Rainmaker`
+        // `URL(fileURLWithPath:)` does not expand `~`; do it ourselves so paths like `~/Downloads/Rainmaker`
         // resolve to the user's home directory instead of a literal `~` folder.
         let expandedDestination = (destination as NSString).expandingTildeInPath
-        let destinationURL = URL(filePath: expandedDestination, directoryHint: .isDirectory)
+        let destinationURL = URL(fileURLWithPath: expandedDestination, isDirectory: true)
 
         try await server.download(source, to: destinationURL, force: force)
     }

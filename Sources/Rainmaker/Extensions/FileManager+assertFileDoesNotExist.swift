@@ -5,7 +5,7 @@ import Foundation
 
 extension FileManager {
     func assertFileDoesNotExist(at location: URL) throws {
-        if fileExists(atPath: location.path()) {
+        if fileExists(atPath: location.compatibilityPath(percentEncoded: false)) {
             throw RainmakerError.fileAlreadyExists(location)
         }
     }

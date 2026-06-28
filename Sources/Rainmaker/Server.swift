@@ -86,7 +86,7 @@ public final class Server {
     ///
     private func content(at path: String, depth: UInt = 1) async throws -> [Item] {
         var request = try makeWebDAVRequest(for: path, method: .propfind)
-        request.httpBody = try? Data(contentsOf: Self.resourceURL.appending(component: "Bodies").appending(component: "Listing.xml"))
+        request.httpBody = try? Data(contentsOf: Self.resourceURL.appendingCompatibility(component: "Bodies").appendingCompatibility(component: "Listing.xml"))
         request.setValue("\(depth)", forHTTPHeaderField: "Depth")
 
         let (data, urlResponse) = try await session.data(for: request)
@@ -124,7 +124,7 @@ public final class Server {
     ///
     private func trashContent() async throws -> [TrashItem] {
         var request = try makeWebDAVRequest(for: trashbinAddress, method: .propfind)
-        request.httpBody = try? Data(contentsOf: Self.resourceURL.appending(component: "Bodies").appending(component: "Trash.xml"))
+        request.httpBody = try? Data(contentsOf: Self.resourceURL.appendingCompatibility(component: "Bodies").appendingCompatibility(component: "Trash.xml"))
         request.setValue("1", forHTTPHeaderField: "Depth")
 
         let (data, urlResponse) = try await session.data(for: request)
@@ -167,7 +167,7 @@ public final class Server {
     /// Enumerate local files recursively and return a dictionary mapping normalized relative paths to their URLs.
     ///
     private func enumerateLocalFiles(at destination: URL) throws -> [String: URL] {
-        logger.debug("Enumerating local files at \"\(destination.path(percentEncoded: false))\"...")
+        logger.debug("Enumerating local files at \"\(destination.compatibilityPath(percentEncoded: false))\"...")
 
         var enumerationErrorItem: URL?
         var enumerationError: (any Error)?
@@ -208,9 +208,9 @@ public final class Server {
     }
 
     private func downloadDirectory(_ source: String, to destination: URL, force: Bool) async throws {
-        logger.debug("Downloading directory from \"\(source)\" to \"\(destination.path(percentEncoded: false))\" \(force ? "with" : "without") force...")
+        logger.debug("Downloading directory from \"\(source)\" to \"\(destination.compatibilityPath(percentEncoded: false))\" \(force ? "with" : "without") force...")
 
-        if fileManager.fileExists(atPath: destination.path(percentEncoded: false)) == false {
+        if fileManager.fileExists(atPath: destination.compatibilityPath(percentEncoded: false)) == false {
             try fileManager.createDirectory(at: destination, withIntermediateDirectories: true)
         }
 
@@ -246,9 +246,9 @@ public final class Server {
         for directory in remoteDirectories {
             let normalizedDirectoryPath = normalizeKey(directory.path)
             let relativePath = normalizeKey(String(normalizedDirectoryPath.dropFirst(normalizedSource.count)))
-            let localURL = destination.appending(path: relativePath)
+            let localURL = destination.appendingCompatibility(path: relativePath)
 
-            if fileManager.fileExists(atPath: localURL.path(percentEncoded: false)) == false {
+            if fileManager.fileExists(atPath: localURL.compatibilityPath(percentEncoded: false)) == false {
                 try fileManager.createDirectory(at: localURL, withIntermediateDirectories: true)
             }
         }
@@ -260,7 +260,7 @@ public final class Server {
         for file in remoteFiles {
             let normalizedFilePath = normalizeKey(file.path)
             let relativePath = normalizeKey(String(normalizedFilePath.dropFirst(normalizedSource.count)))
-            let localURL = destination.appending(path: relativePath)
+            let localURL = destination.appendingCompatibility(path: relativePath)
 
             try await downloadFile(file.path, to: localURL, force: force, remoteItem: file)
         }
@@ -278,7 +278,7 @@ public final class Server {
                     continue
                 }
 
-                if fileManager.fileExists(atPath: url.path(percentEncoded: false)) {
+                if fileManager.fileExists(atPath: url.compatibilityPath(percentEncoded: false)) {
                     try fileManager.removeItem(at: url)
                 }
             }
@@ -289,14 +289,14 @@ public final class Server {
     /// Download implementation specifically for files.
     ///
     private func downloadFile(_ source: String, to destination: URL, force: Bool, remoteItem: Item) async throws {
-        logger.debug("Downloading file from \"\(source)\" to \"\(destination.path(percentEncoded: false))\" \(force ? "with" : "without") force...")
+        logger.debug("Downloading file from \"\(source)\" to \"\(destination.compatibilityPath(percentEncoded: false))\" \(force ? "with" : "without") force...")
 
         if force == false {
             // Check for the destination file to not exist before starting a potentially long running download.
             try fileManager.assertFileDoesNotExist(at: destination)
-        } else if fileManager.fileExists(atPath: destination.path(percentEncoded: false)) {
+        } else if fileManager.fileExists(atPath: destination.compatibilityPath(percentEncoded: false)) {
             // Skip download if the local file is not older than the remote file.
-            let attributes = try fileManager.attributesOfItem(atPath: destination.path(percentEncoded: false))
+            let attributes = try fileManager.attributesOfItem(atPath: destination.compatibilityPath(percentEncoded: false))
 
             if let localModification = attributes[.modificationDate] as? Date, localModification >= remoteItem.modification {
                 return
@@ -323,14 +323,14 @@ public final class Server {
             try fileManager.assertFileDoesNotExist(at: destination)
         }
 
-        if fileManager.fileExists(atPath: destination.path(percentEncoded: false)) {
+        if fileManager.fileExists(atPath: destination.compatibilityPath(percentEncoded: false)) {
             try fileManager.removeItem(at: destination)
         }
 
         try fileManager.moveItem(at: data, to: destination)
 
         // Align the local modification date with the remote state for future change detection.
-        try fileManager.setAttributes([.modificationDate: remoteItem.modification], ofItemAtPath: destination.path(percentEncoded: false))
+        try fileManager.setAttributes([.modificationDate: remoteItem.modification], ofItemAtPath: destination.compatibilityPath(percentEncoded: false))
     }
 
     ///
@@ -348,9 +348,9 @@ public final class Server {
     /// This is the counterpart of ``downloadFile(_:to:force:remoteItem:)``.
     ///
     private func uploadFile(_ source: URL, to remoteFilePath: String, force: Bool) async throws {
-        logger.debug("Uploading file from \"\(source.path(percentEncoded: false))\" to \"\(remoteFilePath)\" \(force ? "with" : "without") force...")
+        logger.debug("Uploading file from \"\(source.compatibilityPath(percentEncoded: false))\" to \"\(remoteFilePath)\" \(force ? "with" : "without") force...")
 
-        let attributes = try fileManager.attributesOfItem(atPath: source.path(percentEncoded: false))
+        let attributes = try fileManager.attributesOfItem(atPath: source.compatibilityPath(percentEncoded: false))
         let localModification = attributes[.modificationDate] as? Date
 
         // Determine the current remote state to decide on conflicts and skipping.
@@ -364,7 +364,7 @@ public final class Server {
 
         if let remoteItem {
             if force == false {
-                throw RainmakerError.fileAlreadyExists(webDAVAddress.appending(path: remoteFilePath))
+                throw RainmakerError.fileAlreadyExists(webDAVAddress.appendingCompatibility(path: remoteFilePath))
             }
 
             // Skip upload if the remote file is not older than the local file.
@@ -403,7 +403,7 @@ public final class Server {
     /// This is the counterpart of ``downloadDirectory(_:to:force:)``.
     ///
     private func uploadDirectory(_ source: URL, to destination: String, force: Bool) async throws {
-        logger.debug("Uploading directory from \"\(source.path(percentEncoded: false))\" to \"\(destination)\" \(force ? "with" : "without") force...")
+        logger.debug("Uploading directory from \"\(source.compatibilityPath(percentEncoded: false))\" to \"\(destination)\" \(force ? "with" : "without") force...")
 
         let normalizedDestination = normalizeKey(destination)
 
@@ -525,12 +525,12 @@ public final class Server {
         self.session = session
         self.user = user
         self.userAgent = userAgent
-        OCSAddress = address.appending(path: "/ocs/v2.php/", directoryHint: .isDirectory)
-        webDAVAddress = address.appending(path: "/remote.php/dav/files/\(user ?? "")", directoryHint: .isDirectory)
+        OCSAddress = address.appendingCompatibility(path: "/ocs/v2.php/", directoryHint: .isDirectory)
+        webDAVAddress = address.appendingCompatibility(path: "/remote.php/dav/files/\(user ?? "")", directoryHint: .isDirectory)
         webDAVPathPrefix = "/remote.php/dav/files/\(user ?? "")"
-        trashbinAddress = address.appending(path: "/remote.php/dav/trashbin/\(user ?? "")/trash", directoryHint: .isDirectory)
+        trashbinAddress = address.appendingCompatibility(path: "/remote.php/dav/trashbin/\(user ?? "")/trash", directoryHint: .isDirectory)
         trashbinPathPrefix = "/remote.php/dav/trashbin/\(user ?? "")/trash"
-        trashbinRestoreAddress = address.appending(path: "/remote.php/dav/trashbin/\(user ?? "")/restore", directoryHint: .isDirectory)
+        trashbinRestoreAddress = address.appendingCompatibility(path: "/remote.php/dav/trashbin/\(user ?? "")/restore", directoryHint: .isDirectory)
     }
 }
 
@@ -539,24 +539,24 @@ public final class Server {
 extension Server: Serving {
     public func download(_ source: String, to destination: URL, force: Bool) async throws {
         try requireCredentials()
-        logger.debug("Downloading \"\(source)\" to \"\(destination.path)\"...")
+        logger.debug("Downloading \"\(source)\" to \"\(destination.compatibilityPath(percentEncoded: false))\"...")
         let item = try await info(source)
 
         if item.isDirectory {
             try await downloadDirectory(source, to: destination, force: force)
         } else {
-            let destinationFile = destination.appending(component: item.name)
+            let destinationFile = destination.appendingCompatibility(component: item.name)
             try await downloadFile(source, to: destinationFile, force: force, remoteItem: item)
         }
     }
 
     public func upload(_ source: URL, to destination: String, force: Bool) async throws {
         try requireCredentials()
-        logger.debug("Uploading \"\(source.path(percentEncoded: false))\" to \"\(destination)\"...")
+        logger.debug("Uploading \"\(source.compatibilityPath(percentEncoded: false))\" to \"\(destination)\"...")
 
         var isDirectory: ObjCBool = false
 
-        guard fileManager.fileExists(atPath: source.path(percentEncoded: false), isDirectory: &isDirectory) else {
+        guard fileManager.fileExists(atPath: source.compatibilityPath(percentEncoded: false), isDirectory: &isDirectory) else {
             throw RainmakerError.notFound
         }
 
@@ -629,7 +629,7 @@ extension Server: Serving {
         try requireCredentials()
         logger.debug("Creating directory at \(path)")
 
-        let url = webDAVAddress.appending(path: path)
+        let url = webDAVAddress.appendingCompatibility(path: path)
         let request = try makeWebDAVRequest(for: path, method: .mkcol)
         let (_, urlResponse) = try await session.data(for: request)
 
@@ -675,7 +675,7 @@ extension Server: Serving {
         logger.debug("Moving \(source) to \(destination)")
 
         // The Destination header must carry the absolute, percent-encoded target URL.
-        let destinationURL = webDAVAddress.appending(path: destination)
+        let destinationURL = webDAVAddress.appendingCompatibility(path: destination)
 
         var request = try makeWebDAVRequest(for: source, method: .move)
         request.setValue(destinationURL.absoluteString, forHTTPHeaderField: "Destination")
@@ -719,8 +719,8 @@ extension Server: Serving {
         logger.debug("Restoring trashed item \(id)")
 
         // Restoring is a MOVE into the restore collection. The destination name is ignored by the server, which restores the item to its original location.
-        let source = trashbinAddress.appending(path: id, directoryHint: .notDirectory)
-        let destination = trashbinRestoreAddress.appending(path: id, directoryHint: .notDirectory)
+        let source = trashbinAddress.appendingCompatibility(path: id, directoryHint: .notDirectory)
+        let destination = trashbinRestoreAddress.appendingCompatibility(path: id, directoryHint: .notDirectory)
 
         var request = try makeWebDAVRequest(for: source, method: .move)
         request.setValue(destination.absoluteString, forHTTPHeaderField: "Destination")
@@ -770,7 +770,7 @@ extension Server: Serving {
     public func login() async throws -> LoginFlow {
         logger.debug("Fetching login information...")
 
-        let url = address.appending(path: "index.php/login/v2", directoryHint: .notDirectory)
+        let url = address.appendingCompatibility(path: "index.php/login/v2", directoryHint: .notDirectory)
         let request = makeRequest(for: url, method: .post)
         let (data, _) = try await session.data(for: request)
         let dataTransferObject = try jsonDecoder.decode(LoginFlowResponse.self, from: data)
@@ -846,7 +846,7 @@ extension Server: Serving {
     }
 
     public func makeOCSRequest(for path: String, method: Method) throws -> URLRequest {
-        let url = OCSAddress.appending(path: path, directoryHint: .inferFromPath)
+        let url = OCSAddress.appendingCompatibility(path: path, directoryHint: .inferFromPath)
         var request = makeRequest(for: url, method: method)
         request.setValue("true", forHTTPHeaderField: "OCS-APIRequest")
 
@@ -859,7 +859,7 @@ extension Server: Serving {
     }
 
     public func makeWebDAVRequest(for path: String, method: Method) throws -> URLRequest {
-        try makeWebDAVRequest(for: webDAVAddress.appending(path: path, directoryHint: .inferFromPath), method: method)
+        try makeWebDAVRequest(for: webDAVAddress.appendingCompatibility(path: path, directoryHint: .inferFromPath), method: method)
     }
 
     public func poll(_ endpoint: URL, token: String) async throws -> LoginResult {
