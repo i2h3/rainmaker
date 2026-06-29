@@ -12,6 +12,20 @@
 A simple Swift library and CLI to access [Nextcloud](https://www.nextcloud.com) files programmatically.
 For further information, see [the documentation which is built from the source code and deployed to GitHub pages](https://i2h3.github.io/rainmaker/). 
 
+## Testing
+
+The test suite runs entirely against static fixtures committed under `Tests/RainmakerTests/Responses/`, so `swift test` needs no server and runs on every platform.
+
+These fixtures are generated automatically by the `record-fixtures` subcommand of `rainmaker-cli` (macOS with Docker only, never run in CI). It deploys ephemeral Nextcloud containers via [NextcloudContainerManager](https://github.com/i2h3/nextcloud-container-manager), records the test suite against them, and verifies the captures replay without a server:
+
+```bash
+# Regenerate fixtures for all supported versions, then review and commit the diff.
+swift run rainmaker-cli record-fixtures
+git diff Tests/RainmakerTests/Responses
+```
+
+Scope a run with `--version <tag>` and `--filter <substring>`. See [AGENTS.md](AGENTS.md) for details.
+
 ## License
 
 See [LICENSE](LICENSE).

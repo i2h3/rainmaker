@@ -1,7 +1,0 @@
-{
-  "poll": {
-    "token": "oq6KR9G7dAl8ZlOeO39kwi6eO8apnSGybm3gjvxquRU3IsrNaGIJzrM9uFWs24wFEcFHl2cqOSvfz44ixHqTjbBWalhT9U2Uyq8Zk3AppKEwu4NNo5GtTNrUro34ZB3C",
-    "endpoint": "http://localhost:8421/login/v2/poll"
-  },
-  "login": "http://localhost:8421/login/v2/flow/C9gG1bwLCy8s1cvX0JwgQ4VphjWG4qwmGY3oX3HNniPVwzjElw7yw4DsoWHee5tR8CsIMfDCxQUGLuH1ioR7R3NAYw5yLhFVrg2Yfn8YU71K9CZbJgmOAexuxnYvXupQ"
-}

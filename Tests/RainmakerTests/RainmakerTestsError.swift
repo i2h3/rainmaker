@@ -13,4 +13,9 @@ enum RainmakerTestsError: Error {
     /// A static resource required for a test was not found.
     ///
     case missingFixture(URL)
+
+    ///
+    /// Fixture recording was requested but the `RAINMAKER_FIXTURE_SERVER` environment variable is missing or not a valid URL.
+    ///
+    case invalidRecordingServer
 }
