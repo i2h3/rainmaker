@@ -3,6 +3,7 @@
 
 import Foundation
 @testable import Rainmaker
+import RainmakerTestServerTags
 import Testing
 
 ///

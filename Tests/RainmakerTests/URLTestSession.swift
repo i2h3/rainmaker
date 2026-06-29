@@ -4,12 +4,18 @@
 import Foundation
 import os
 @testable import Rainmaker
+import RainmakerTestServerTags
 
 ///
 /// A mock implementation of `URLSession` to return static responses from the test bundle resources.
 ///
 public actor URLTestSession: Requesting {
     let logger: Logger
+
+    ///
+    /// Derives the on-disk fixture locations this session reads from.
+    ///
+    let locator: FixtureLocator
 
     ///
     /// The root location of all resources related to the test this instance is initialized for.
@@ -28,14 +34,17 @@ public actor URLTestSession: Requesting {
             throw URLTestSessionError.resourcesNotFound
         }
 
-        let serverVersionResources = resources.appendingCompatibility(component: "Responses").appendingCompatibility(component: serverVersion.rawValue)
+        let locator = FixtureLocator(responsesRoot: resources.appendingCompatibility(component: "Responses"))
+        self.locator = locator
+
+        let serverVersionResources = locator.responsesRoot.appendingCompatibility(component: serverVersion.rawValue)
 
         guard FileManager.default.fileExists(atPath: serverVersionResources.compatibilityPath()) else {
             logger.fault("Not found: \(serverVersionResources.compatibilityPath())")
             throw URLTestSessionError.serverVersionNotFound
         }
 
-        let suiteName = URL(fileURLWithPath: testSourceCodeFile).deletingPathExtension().lastPathComponent
+        let suiteName = FixtureLocator.suiteName(fromSourceCodeFile: testSourceCodeFile)
         let suiteResources = serverVersionResources.appendingCompatibility(component: suiteName)
 
         guard FileManager.default.fileExists(atPath: suiteResources.compatibilityPath()) else {
@@ -43,8 +52,8 @@ public actor URLTestSession: Requesting {
             throw URLTestSessionError.suiteNotFound
         }
 
-        let sanitizedTestName = testName.prefix(upTo: testName.firstIndex(of: "(") ?? testName.endIndex)
-        let testResources = suiteResources.appendingCompatibility(component: sanitizedTestName)
+        let sanitizedTestName = FixtureLocator.testName(fromFunction: testName)
+        let testResources = locator.testDirectory(serverVersion: serverVersion, suiteName: suiteName, testName: sanitizedTestName)
         self.testName = testName
 
         if FileManager.default.fileExists(atPath: testResources.compatibilityPath()) {
@@ -71,15 +80,9 @@ public actor URLTestSession: Requesting {
             throw URLTestSessionError.missingValue
         }
 
-        let requestPath = url.compatibilityPath(percentEncoded: false)
+        let requestResources = locator.requestDirectory(in: testResources, method: method, url: url)
 
-        let requestResources = testResources
-            .appendingCompatibility(component: method)
-            .appendingCompatibility(path: requestPath)
-
-        let headersFile = requestResources
-            .appendingCompatibility(component: "Headers")
-            .appendingPathExtension("txt")
+        let headersFile = locator.headersFile(in: requestResources)
 
         logger.debug("Assuming headers file: \(headersFile.percentEncodedPath)")
         let headersData = try readDataFromPercentEncodedPath(at: headersFile)
@@ -88,18 +91,9 @@ public actor URLTestSession: Requesting {
             throw URLTestSessionError.missingAcceptHeader
         }
 
-        let bodyFileExtension = switch acceptedType {
-            case "application/json":
-                "json"
-            case "application/xml":
-                "xml"
-            default:
-                throw URLTestSessionError.unsupportedResponseType
-        }
+        let bodyFileExtension = try FixtureLocator.bodyExtension(forAcceptHeader: acceptedType)
 
-        let bodyFile = requestResources
-            .appendingCompatibility(component: "Body")
-            .appendingPathExtension(bodyFileExtension)
+        let bodyFile = locator.bodyFile(in: requestResources, pathExtension: bodyFileExtension)
 
         logger.debug("Assuming body file: \(bodyFile.percentEncodedPath)")
         let bodyData = try readDataFromPercentEncodedPath(at: bodyFile)
@@ -124,22 +118,14 @@ public actor URLTestSession: Requesting {
             throw URLTestSessionError.missingValue
         }
 
-        let requestPath = url.compatibilityPath(percentEncoded: false)
+        let requestResources = locator.requestDirectory(in: testResources, method: method, url: url)
 
-        let requestResources = testResources
-            .appendingCompatibility(component: method)
-            .appendingCompatibility(path: requestPath)
-
-        let headersFile = requestResources
-            .appendingCompatibility(component: "Headers")
-            .appendingPathExtension("txt")
+        let headersFile = locator.headersFile(in: requestResources)
 
         logger.debug("Assuming headers file: \(headersFile.percentEncodedPath)")
         let headersData = try readDataFromPercentEncodedPath(at: headersFile)
 
-        let bodyFile = requestResources
-            .appendingCompatibility(component: "Body")
-            .appendingPathExtension("bin")
+        let bodyFile = locator.bodyFile(in: requestResources, pathExtension: "bin")
 
         logger.debug("Assuming body file: \(bodyFile.percentEncodedPath)")
         let bodyData = try readDataFromPercentEncodedPath(at: bodyFile)
@@ -168,15 +154,9 @@ public actor URLTestSession: Requesting {
             throw URLTestSessionError.missingValue
         }
 
-        let requestPath = url.compatibilityPath(percentEncoded: false)
+        let requestResources = locator.requestDirectory(in: testResources, method: method, url: url)
 
-        let requestResources = testResources
-            .appendingCompatibility(component: method)
-            .appendingCompatibility(path: requestPath)
-
-        let headersFile = requestResources
-            .appendingCompatibility(component: "Headers")
-            .appendingPathExtension("txt")
+        let headersFile = locator.headersFile(in: requestResources)
 
         logger.debug("Assuming headers file: \(headersFile.percentEncodedPath)")
         let headersData = try readDataFromPercentEncodedPath(at: headersFile)
