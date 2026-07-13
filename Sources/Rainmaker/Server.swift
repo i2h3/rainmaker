@@ -845,6 +845,38 @@ extension Server: Serving {
         return envelope.ocs.data
     }
 
+    public func notifications() async throws -> [NotificationItem] {
+        try requireCredentials()
+        logger.debug("Fetching user notifications...")
+
+        let request = try makeOCSRequest(for: "apps/notifications/api/v2/notifications", method: .get)
+        let (data, urlResponse) = try await session.data(for: request)
+
+        guard let response = urlResponse as? HTTPURLResponse else {
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to cast URLResponse to HTTPURLResponse.")
+        }
+
+        // The endpoint only exists while the notifications app is installed and enabled, so its absence surfaces as a not found error.
+        if response.status == .notFound {
+            throw RainmakerError.notFound
+        }
+
+        guard response.status == .ok else {
+            throw RainmakerError.unexpectedStatus(code: response.statusCode)
+        }
+
+        // The notification timestamps are ISO 8601, so a dedicated decoder is used rather than the shared one which other responses rely on with its default date strategy.
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let envelope = try decoder.decode(NotificationsResponse.self, from: data)
+
+        guard envelope.ocs.meta.status == "ok" else {
+            throw RainmakerError.responseDecodingFailed(reason: "OCS request failed (\(envelope.ocs.meta.statuscode)): \(envelope.ocs.meta.message ?? "No message.")")
+        }
+
+        return envelope.ocs.data
+    }
+
     public func makeOCSRequest(for path: String, method: Method) throws -> URLRequest {
         let url = OCSAddress.appendingCompatibility(path: path, directoryHint: .inferFromPath)
         var request = makeRequest(for: url, method: method)

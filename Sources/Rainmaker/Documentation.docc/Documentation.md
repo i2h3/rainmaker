@@ -30,6 +30,8 @@ This is the only method currently supported.
 - ``Lock``
 - ``LoginFlow``
 - ``LoginResult``
+- ``NavigationItem``
+- ``NotificationItem``
 - ``Quota``
 - ``Permission``
 - ``TrashItem``
@@ -39,6 +41,7 @@ This is the only method currently supported.
 
 - ``CapabilitySet``
 - ``Capability``
+- ``Notifications``
 - ``Theming``
 - ``Trashing``
 - ``Version``

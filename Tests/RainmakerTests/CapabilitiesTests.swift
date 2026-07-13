@@ -47,6 +47,12 @@ import Testing
         #expect(trashing.undelete == true)
         #expect(trashing.deleteFromTrash == true)
 
+        let notifications = try #require(try capabilities.get(Notifications.self))
+        #expect(notifications.ocsEndpoints?.contains("list") == true)
+        #expect(notifications.push?.contains("devices") == true)
+        #expect(notifications.adminNotifications == ["ocs", "cli"])
+        #expect(capabilities.contains(Notifications.self))
+
         #expect(capabilities.version.string == serverVersion.rawValue)
         #expect(capabilities.version.major > 0)
     }
@@ -56,10 +62,12 @@ import Testing
         let server = try makeServer(user: nil, password: nil, serverVersion: serverVersion)
         let capabilities = try await server.capabilities()
 
-        // Theming is exposed to anonymous clients, the files capability (and therefore the trash bin support) is not.
+        // Theming is exposed to anonymous clients, the files capability (and therefore the trash bin support) is not, and neither is the notifications capability.
         _ = try #require(try capabilities.get(Theming.self))
         #expect(capabilities.contains(Files.self) == false)
         #expect(try capabilities.get(Trashing.self) == nil)
+        #expect(try capabilities.get(Notifications.self) == nil)
+        #expect(capabilities.contains(Notifications.self) == false)
 
         #expect(capabilities.version.string == serverVersion.rawValue)
     }

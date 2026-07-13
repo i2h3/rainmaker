@@ -296,6 +296,24 @@ protocol Serving: Sendable {
     func navigation() async throws -> [NavigationItem]
 
     ///
+    /// List the notifications currently queued for the authenticated user.
+    ///
+    /// These are provided by the server's bundled notifications app, which is not necessarily installed or enabled. Whether it is available can be checked in advance via the ``Notifications`` capability, e.g. `try await capabilities().contains(Notifications.self)`. When the app is unavailable the underlying endpoint does not exist and this call throws ``RainmakerError/notFound``.
+    ///
+    /// Downstream projects can derive whether there are any notifications and how many from the returned array via `isEmpty` and `count`.
+    ///
+    /// Credentials are required: notifications are user-scoped and the underlying OCS endpoint rejects unauthenticated requests.
+    ///
+    /// - Returns: The queued notifications in the order returned by the server, newest first.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
+    ///     - ``RainmakerError/notFound`` when the notifications app is not available on the server.
+    ///     - Any other error that might occur during retrieval.
+    ///
+    func notifications() async throws -> [NotificationItem]
+
+    ///
     /// Look up the login flow information.
     ///
     /// - Returns: A set of properties to kick off the authentication which yields an app password.
