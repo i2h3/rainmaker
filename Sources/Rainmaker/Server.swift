@@ -909,4 +909,20 @@ extension Server: Serving {
         let dataTransferObject = try jsonDecoder.decode(LoginResultResponse.self, from: data)
         return LoginResult(name: dataTransferObject.loginName, password: dataTransferObject.appPassword, server: dataTransferObject.server)
     }
+
+    public func deleteAppPassword() async throws {
+        try requireCredentials()
+        logger.debug("Deleting app password...")
+
+        let request = try makeOCSRequest(for: "core/apppassword", method: .delete)
+        let (_, urlResponse) = try await session.data(for: request)
+
+        guard let response = urlResponse as? HTTPURLResponse else {
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to cast URLResponse to HTTPURLResponse.")
+        }
+
+        guard response.status == .ok else {
+            throw RainmakerError.unexpectedStatus(code: response.statusCode)
+        }
+    }
 }

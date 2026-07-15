@@ -328,4 +328,18 @@ protocol Serving: Sendable {
     ///     - token: The unique token of the login flow to check the status of.
     ///
     func poll(_ endpoint: URL, token: String) async throws -> LoginResult
+
+    ///
+    /// Delete the app password this ``Server`` is currently authenticating with, ending the account's session on the server side.
+    ///
+    /// This targets the self-service `DELETE /ocs/v2.php/core/apppassword` endpoint: the server resolves which app password to revoke from the authenticated request itself, so no identifier is passed or needed.
+    /// Because ``Server/user`` and ``Server/password`` are immutable, calling this does not by itself make this ``Server`` instance unusable; it is the caller's responsibility to discard the ``Server`` (and any persisted copy of ``Server/password``) once this call returns.
+    ///
+    /// A `401 Unauthorized` response means the app password was already invalid (e.g. revoked elsewhere) before this request could even reach the server; a `403 Forbidden` response means the session was not authenticated with an app password at all. Both, like any other non-success response, are surfaced as ``RainmakerError/unexpectedStatus(code:)`` rather than tolerated here: whether such failures should still be treated as an effective local sign-out is a decision left to the caller.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
+    ///     - ``RainmakerError/unexpectedStatus(code:)`` for any non-success response.
+    ///
+    func deleteAppPassword() async throws
 }
