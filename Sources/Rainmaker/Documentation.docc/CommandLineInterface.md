@@ -27,6 +27,7 @@ SUBCOMMANDS:
   notifications           List the notifications queued for the authenticated user. Requires authentication and the server's notifications app.
   poll                    Poll the status of a previously initiated login flow.
   upload                  Upload a file or directory to a folder on the server.
+  watch                   Observe server-side changes over notify_push (or polling when unavailable) and print each event. Runs until interrupted.
 
   See 'rainmaker help <subcommand>' for detailed help.
 ```
