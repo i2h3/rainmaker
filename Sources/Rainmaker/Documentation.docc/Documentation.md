@@ -37,11 +37,21 @@ This is the only method currently supported.
 - ``TrashItem``
 - ``User``
 
+### Observing Changes
+
+Observe server-side changes over the `notify_push` WebSocket when available, falling back to polling otherwise, through a single stream of re-fetch hints.
+
+- ``Server/events(_:)``
+- ``ServerEvent``
+- ``ServerSubject``
+- ``ServerEventOptions``
+
 ### Capabilities
 
 - ``CapabilitySet``
 - ``Capability``
 - ``Notifications``
+- ``PushNotifications``
 - ``Theming``
 - ``Trashing``
 - ``Version``

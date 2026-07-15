@@ -14,6 +14,7 @@ public final class Server {
     let logger = Logger(category: "Server")
     let jsonDecoder: JSONDecoder
     let session: any Requesting
+    let webSocket: any WebSocketConnecting
 
     ///
     /// HTTP address of the Nextcloud host.
@@ -516,13 +517,15 @@ public final class Server {
     ///     - password: In most cases, this is the app password and not the account password.
     ///     - user: The Nextcloud user name used to identify as.
     ///     - session: A ``Requesting`` object (e.g. a `URLSession`) to use for network requests. Defaults to a new ephemeral `URLSession`.
+    ///     - webSocket: A ``WebSocketConnecting`` object (e.g. a `URLSession`) to open the `notify_push` WebSocket with, used by ``events(_:)``. It is a separate parameter from `session` only because a `URLSession` typed as `any Requesting` does not expose its WebSocket features. Defaults to a new ephemeral `URLSession`, matching `session`, since notify_push authenticates over the socket itself and needs no persistent cookie, credential, or cache storage.
     ///     - userAgent: The user agent to report as in HTTP request headers.
     ///
-    public init(address: URL, password: String? = nil, user: String? = nil, session: any Requesting = URLSession(configuration: .ephemeral), userAgent: String = "Rainmaker") {
+    public init(address: URL, password: String? = nil, user: String? = nil, session: any Requesting = URLSession(configuration: .ephemeral), webSocket: any WebSocketConnecting = URLSession(configuration: .ephemeral), userAgent: String = "Rainmaker") {
         self.address = address
         jsonDecoder = JSONDecoder()
         self.password = password
         self.session = session
+        self.webSocket = webSocket
         self.user = user
         self.userAgent = userAgent
         OCSAddress = address.appendingCompatibility(path: "/ocs/v2.php/", directoryHint: .isDirectory)

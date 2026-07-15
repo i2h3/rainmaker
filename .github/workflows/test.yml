@@ -56,11 +56,20 @@ jobs:
       - name: List available simulators
         run: xcrun simctl list devices available
       
+      # -parallel-testing-enabled NO runs the Swift Testing suite one test at a
+      # time. Some ServerEventsTests drive the coordinator's polling and backoff
+      # through real Task.sleep timers with tiny intervals; under xcodebuild the
+      # suite otherwise runs in parallel, and on a busy CI runner those timers get
+      # starved for tens of seconds, tripping the tests' timeout guard. `swift
+      # test` (the macOS job) already defaults to --no-parallel, which is why only
+      # the simulator jobs were affected. Serial execution costs a second or two
+      # here and removes the flakiness entirely.
       - name: Run tests on iOS Simulator
         run: |
           xcodebuild test \
             -scheme Rainmaker-Package \
             -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+            -parallel-testing-enabled NO \
             -enableCodeCoverage YES
 
   test-tvos:
@@ -80,6 +89,7 @@ jobs:
           xcodebuild test \
             -scheme Rainmaker-Package \
             -destination 'platform=tvOS Simulator,name=Apple TV 4K (3rd generation)' \
+            -parallel-testing-enabled NO \
             -enableCodeCoverage YES
 
   test-watchos:
@@ -99,6 +109,7 @@ jobs:
           xcodebuild test \
             -scheme Rainmaker-Package \
             -destination 'platform=watchOS Simulator,name=Apple Watch Series 11 (46mm)' \
+            -parallel-testing-enabled NO \
             -enableCodeCoverage YES
 
   test-visionos:
@@ -121,4 +132,5 @@ jobs:
           xcodebuild test \
             -scheme Rainmaker-Package \
             -destination 'platform=visionOS Simulator,name=Apple Vision Pro' \
+            -parallel-testing-enabled NO \
             -enableCodeCoverage YES

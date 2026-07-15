@@ -314,6 +314,22 @@ protocol Serving: Sendable {
     func notifications() async throws -> [NotificationItem]
 
     ///
+    /// Observe server-side changes, preferring the `notify_push` WebSocket when the server advertises it and falling back to polling otherwise.
+    ///
+    /// The transport is chosen automatically from the server's ``PushNotifications`` capability and switched transparently on connection loss, so the returned stream is uninterrupted regardless of which transport is active. Every ``ServerEvent`` is a hint to re-fetch the relevant state (for example calling ``notifications()`` in response to ``ServerEvent/notifications``), never a payload, which is what makes the WebSocket and polling interchangeable to the consumer.
+    ///
+    /// Credentials are required: the WebSocket handshake and the polled endpoints are user-scoped. A stream created without credentials, or whose credentials are rejected by the server later, finishes by throwing ``RainmakerError/credentialsRequired`` (or ``RainmakerError/unexpectedStatus(code:)`` with `401`) so the client can prompt for re-authentication. Transient network failures are handled internally by reconnecting and are never surfaced.
+    ///
+    /// The stream ends when the consumer stops iterating it.
+    ///
+    /// - Parameters:
+    ///     - options: Which subjects to observe and at which cadences. See ``ServerEventOptions``.
+    ///
+    /// - Returns: A stream of ``ServerEvent`` hints.
+    ///
+    func events(_ options: ServerEventOptions) -> AsyncThrowingStream<ServerEvent, Error>
+
+    ///
     /// Look up the login flow information.
     ///
     /// - Returns: A set of properties to kick off the authentication which yields an app password.
