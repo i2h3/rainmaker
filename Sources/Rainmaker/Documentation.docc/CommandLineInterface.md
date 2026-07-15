@@ -17,6 +17,7 @@ SUBCOMMANDS:
   capabilities            Fetch the capabilities advertised by a server. Authentication is optional.
   create-directory        Create a directory on the server.
   delete                  Delete a file or directory from the server.
+  delete-app-password     Delete the app password currently used to authenticate, ending the session on the server side.
   download                Download a file or directory from the server.
   info                    Show information about a remote file or directory.
   list                    List the content of a directory on the server by the given path.
