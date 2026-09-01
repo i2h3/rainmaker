@@ -6,7 +6,7 @@ import Foundation
 ///
 /// The server's notifications capability, advertised when the notifications app is installed and enabled.
 ///
-/// On Nextcloud, user notifications are provided by the bundled "Notifications" app (`notifications`). When that app is available the server advertises this object under the `notifications` key, which is why ``key`` is `"notifications"`. Its mere presence is the signal a client needs before calling ``Serving/notifications()``: check it with `try await capabilities().contains(Notifications.self)`.
+/// On Nextcloud, user notifications are provided by the bundled "Notifications" app (`notifications`). When that app is available the server advertises this object under the `notifications` key, which is why ``key`` is `"notifications"`. Its mere presence is the signal a client needs before calling ``Server/notifications()``: check it with `try await capabilities().contains(Notifications.self)`.
 ///
 /// The object is only advertised to authenticated clients; an anonymous capabilities request does not contain it.
 /// All fields are kept optional so that a server which omits one of them still decodes successfully.
@@ -17,7 +17,7 @@ public struct Notifications: Capability {
     ///
     /// The OCS endpoints the server supports, e.g. `["list", "get", "delete", "delete-all", ...]`.
     ///
-    /// The `"list"` entry is the one backing ``Serving/notifications()``.
+    /// The `"list"` entry is the one backing ``Server/notifications()``.
     ///
     public let ocsEndpoints: [String]?
 

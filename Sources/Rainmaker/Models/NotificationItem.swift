@@ -6,7 +6,7 @@ import Foundation
 ///
 /// A single notification currently queued for the authenticated user on the server.
 ///
-/// Notifications are listed through ``Serving/notifications()``. Whether the notifications app which provides them is available at all can be checked in advance via the ``Notifications`` capability, e.g. `try await capabilities().contains(Notifications.self)`.
+/// Notifications are listed through ``Server/notifications()``. Whether the notifications app which provides them is available at all can be checked in advance via the ``Notifications`` capability, e.g. `try await capabilities().contains(Notifications.self)`.
 ///
 /// This models the stable, human-readable fields of a notification. The rich-text variants (`subjectRich`, `messageRich` and their parameters) and the interactive `actions` returned by the server are intentionally not modelled yet, as acting on notifications is out of scope.
 ///
@@ -82,6 +82,44 @@ public struct NotificationItem: Model, Identifiable, CustomStringConvertible, Cu
         case message
         case link
         case icon
+    }
+
+    // MARK: - Encodable
+
+    ///
+    /// The keys a notification is encoded under, which are the property names rather than the names the server sends.
+    ///
+    /// Encoding deliberately does not reuse ``CodingKeys``: those exist to read the server's payload and carry its naming, which would leak back out into anything this library encodes. Keeping the two apart is what makes the encoded form match the model a Swift caller sees, including where a property was renamed for clarity such as ``creation`` over the server's `datetime`.
+    ///
+    private enum EncodingKeys: String, CodingKey {
+        case id
+        case app
+        case user
+        case creation
+        case objectType
+        case objectId
+        case subject
+        case message
+        case link
+        case icon
+    }
+
+    ///
+    /// Encode a notification under its property names, so that the encoded form mirrors this type rather than the server's payload.
+    ///
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: EncodingKeys.self)
+
+        try container.encode(id, forKey: .id)
+        try container.encode(app, forKey: .app)
+        try container.encode(user, forKey: .user)
+        try container.encode(creation, forKey: .creation)
+        try container.encode(objectType, forKey: .objectType)
+        try container.encode(objectId, forKey: .objectId)
+        try container.encode(subject, forKey: .subject)
+        try container.encode(message, forKey: .message)
+        try container.encode(link, forKey: .link)
+        try container.encode(icon, forKey: .icon)
     }
 
     // MARK: - CustomStringConvertible

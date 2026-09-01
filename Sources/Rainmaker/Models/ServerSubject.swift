@@ -4,13 +4,13 @@
 import Foundation
 
 ///
-/// A category of server-side change a client can observe through ``Serving/events(_:)``.
+/// A category of server-side change a client can observe through ``Server/events(_:)``.
 ///
 /// The raw values deliberately match the strings the server lists under ``PushNotifications/type``, so the subjects observable over the WebSocket are simply the intersection of the requested subjects with the advertised ones, without any mapping table.
 ///
 public enum ServerSubject: String, Sendable, CaseIterable, Hashable {
     ///
-    /// The notifications queued for the user changed, retrievable via ``Serving/notifications()``.
+    /// The notifications queued for the user changed, retrievable via ``Server/notifications()``.
     ///
     /// Nextcloud Talk mentions and calls also surface here as notifications with the `spreed` app identifier.
     ///
@@ -22,7 +22,7 @@ public enum ServerSubject: String, Sendable, CaseIterable, Hashable {
     case files
 
     ///
-    /// The user's activity stream changed.
+    /// The user's activity stream changed, retrievable via ``Server/activities(filter:since:limit:sort:previews:objectType:objectId:)``.
     ///
     case activities
 

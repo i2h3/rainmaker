@@ -14,6 +14,8 @@ OPTIONS:
   -h, --help              Show help information.
 
 SUBCOMMANDS:
+  activities              List one page of the activity stream of the authenticated user. Requires authentication and the server's activity app.
+  activity-filters        List the filters the server offers to narrow the activity stream down with. Requires authentication and the server's activity app.
   capabilities            Fetch the capabilities advertised by a server. Authentication is optional.
   create-directory        Create a directory on the server.
   delete                  Delete a file or directory from the server.

@@ -10,6 +10,13 @@ import os
 public final class Server {
     static let resourceURL = Bundle.module.resourceURL!
 
+    ///
+    /// The range of page sizes the activity endpoint accepts.
+    ///
+    /// The server answers with an internal error rather than with a validation error when the `limit` parameter falls outside of this, so ``activities(filter:since:limit:sort:previews:objectType:objectId:)`` clamps to it before sending the request.
+    ///
+    static let activityLimits = 1 ... 500
+
     nonisolated(unsafe) let fileManager = FileManager.default
     let logger = Logger(category: "Server")
     let jsonDecoder: JSONDecoder
@@ -523,6 +530,10 @@ public final class Server {
     public init(address: URL, password: String? = nil, user: String? = nil, session: any Requesting = URLSession(configuration: .ephemeral), webSocket: any WebSocketConnecting = URLSession(configuration: .ephemeral), userAgent: String = "Rainmaker") {
         self.address = address
         jsonDecoder = JSONDecoder()
+
+        // Every JSON date the server sends is ISO 8601, so the strategy belongs on the shared decoder rather than on a throwaway one per endpoint. It is set once here and never changed afterwards, which keeps the decoder as safe to share across calls as it already was.
+        jsonDecoder.dateDecodingStrategy = .iso8601
+
         self.password = password
         self.session = session
         self.webSocket = webSocket
@@ -868,10 +879,7 @@ extension Server: Serving {
             throw RainmakerError.unexpectedStatus(code: response.statusCode)
         }
 
-        // The notification timestamps are ISO 8601, so a dedicated decoder is used rather than the shared one which other responses rely on with its default date strategy.
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        let envelope = try decoder.decode(NotificationsResponse.self, from: data)
+        let envelope = try jsonDecoder.decode(NotificationsResponse.self, from: data)
 
         guard envelope.ocs.meta.status == "ok" else {
             throw RainmakerError.responseDecodingFailed(reason: "OCS request failed (\(envelope.ocs.meta.statuscode)): \(envelope.ocs.meta.message ?? "No message.")")
@@ -880,9 +888,106 @@ extension Server: Serving {
         return envelope.ocs.data
     }
 
-    public func makeOCSRequest(for path: String, method: Method) throws -> URLRequest {
+    public func activities(filter: String = ActivityFilter.all, since: Int = 0, limit: Int = 50, sort: ActivitySort = .newestFirst, previews: Bool = false, objectType: String? = nil, objectId: String? = nil) async throws -> ActivityPage {
+        try requireCredentials()
+        logger.debug("Fetching user activities...")
+
+        var effectiveFilter = filter
+        var objectQueryItems = [URLQueryItem]()
+
+        // Narrowing the stream down to a single object is a filter of its own on the server, so naming the object implies that filter and the caller does not have to know about it.
+        if let objectType, let objectId {
+            effectiveFilter = ActivityFilter.object
+            objectQueryItems = [URLQueryItem(name: "object_type", value: objectType), URLQueryItem(name: "object_id", value: objectId)]
+        }
+
+        // The server answers with an internal error rather than with a validation error when the page size is out of range, so it is kept within the accepted bounds here.
+        let effectiveLimit = min(max(limit, Server.activityLimits.lowerBound), Server.activityLimits.upperBound)
+
+        var queryItems = [
+            URLQueryItem(name: "since", value: String(since)),
+            URLQueryItem(name: "limit", value: String(effectiveLimit)),
+            URLQueryItem(name: "sort", value: sort.rawValue),
+        ]
+
+        if previews {
+            queryItems.append(URLQueryItem(name: "previews", value: "true"))
+        }
+
+        queryItems.append(contentsOf: objectQueryItems)
+
+        let request = try makeOCSRequest(for: "apps/activity/api/v2/activity/\(effectiveFilter)", method: .get, queryItems: queryItems)
+        let (data, urlResponse) = try await session.data(for: request)
+
+        guard let response = urlResponse as? HTTPURLResponse else {
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to cast URLResponse to HTTPURLResponse.")
+        }
+
+        let firstKnown = response.value(forHTTPHeaderField: "X-Activity-First-Known").flatMap { Int($0) }
+        let lastGiven = response.value(forHTTPHeaderField: "X-Activity-Last-Given").flatMap { Int($0) }
+
+        // The end of the stream is reported as a not modified response with an empty body, so there is nothing to decode and the page is empty.
+        if response.status == .notModified {
+            return ActivityPage(items: [], firstKnown: firstKnown, lastGiven: lastGiven)
+        }
+
+        // The endpoint only exists while the activity app is installed and enabled, so its absence surfaces as a not found error. An unknown filter is reported the same way.
+        if response.status == .notFound {
+            throw RainmakerError.notFound
+        }
+
+        guard response.status == .ok else {
+            throw RainmakerError.unexpectedStatus(code: response.statusCode)
+        }
+
+        let envelope = try jsonDecoder.decode(ActivityResponse.self, from: data)
+
+        guard envelope.ocs.meta.status == "ok" else {
+            throw RainmakerError.responseDecodingFailed(reason: "OCS request failed (\(envelope.ocs.meta.statuscode)): \(envelope.ocs.meta.message ?? "No message.")")
+        }
+
+        return ActivityPage(items: envelope.ocs.data, firstKnown: firstKnown, lastGiven: lastGiven)
+    }
+
+    public func activityFilters() async throws -> [ActivityFilter] {
+        try requireCredentials()
+        logger.debug("Fetching activity filters...")
+
+        let request = try makeOCSRequest(for: "apps/activity/api/v2/activity/filters", method: .get)
+        let (data, urlResponse) = try await session.data(for: request)
+
+        guard let response = urlResponse as? HTTPURLResponse else {
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to cast URLResponse to HTTPURLResponse.")
+        }
+
+        // The endpoint only exists while the activity app is installed and enabled, so its absence surfaces as a not found error.
+        if response.status == .notFound {
+            throw RainmakerError.notFound
+        }
+
+        guard response.status == .ok else {
+            throw RainmakerError.unexpectedStatus(code: response.statusCode)
+        }
+
+        let envelope = try jsonDecoder.decode(ActivityFiltersResponse.self, from: data)
+
+        guard envelope.ocs.meta.status == "ok" else {
+            throw RainmakerError.responseDecodingFailed(reason: "OCS request failed (\(envelope.ocs.meta.statuscode)): \(envelope.ocs.meta.message ?? "No message.")")
+        }
+
+        return envelope.ocs.data
+    }
+
+    public func makeOCSRequest(for path: String, method: Method, queryItems: [URLQueryItem] = []) throws -> URLRequest {
         let url = OCSAddress.appendingCompatibility(path: path, directoryHint: .inferFromPath)
-        var request = makeRequest(for: url, method: method)
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+
+        // The query is only assigned when there is one so that a request without query parameters produces a bare URL rather than one with a trailing question mark.
+        if queryItems.isEmpty == false {
+            components?.queryItems = queryItems
+        }
+
+        var request = makeRequest(for: components?.url ?? url, method: method)
         request.setValue("true", forHTTPHeaderField: "OCS-APIRequest")
 
         if let user, let password {

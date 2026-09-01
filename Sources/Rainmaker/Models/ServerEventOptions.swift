@@ -4,7 +4,7 @@
 import Foundation
 
 ///
-/// Configures which server-side changes ``Serving/events(_:)`` observes and how often it polls.
+/// Configures which server-side changes ``Server/events(_:)`` observes and how often it polls.
 ///
 /// The defaults observe every ``ServerSubject`` and poll every 30 seconds when the `notify_push` WebSocket is unavailable, matching the cadence the official Nextcloud clients use.
 ///

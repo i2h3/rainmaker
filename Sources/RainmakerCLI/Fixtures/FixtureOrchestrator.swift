@@ -23,7 +23,7 @@
         ///
         /// The test suites whose tests issue live requests against the deployed container and therefore produce fixtures by recording.
         ///
-        /// Excluded are suites that never touch the network (request-factory and fixture self-tests) and those whose fixtures are hand-authored with synthetic, version-independent values that a live server cannot reproduce: `TrashTests` (asserts fixed trash identifiers and deletion timestamps), `PollTests` (a successful poll needs a completed browser flow, and it targets the canonical address rather than the container) and `NotificationsTests` (the queued notifications depend on server state a plain baseline does not produce). Those are carried forward across versions instead.
+        /// Excluded are suites that never touch the network (request-factory and fixture self-tests) and those whose fixtures are hand-authored with synthetic, version-independent values that a live server cannot reproduce: `TrashTests` (asserts fixed trash identifiers and deletion timestamps), `PollTests` (a successful poll needs a completed browser flow, and it targets the canonical address rather than the container) `NotificationsTests` (the queued notifications depend on server state a plain baseline does not produce) and `ActivityTests` (the recorded activities depend on the same, and the end of the stream, the previews and an absent activity app cannot be provoked on a live container). Those are carried forward across versions instead.
         ///
         static let recordableSuites: Set<String> = [
             "CapabilitiesTests",

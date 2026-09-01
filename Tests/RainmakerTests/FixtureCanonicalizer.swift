@@ -26,7 +26,9 @@ struct FixtureCanonicalizer {
     ///
     /// Everything else (volatile headers such as `Date`, `ETag` or request identifiers) is dropped to keep fixtures minimal and stable. The match is case-insensitive.
     ///
-    static let persistedHeaderFields = ["Content-Type"]
+    /// The two activity headers carry the pagination cursors of ``ActivityPage``, which the client reads from the response rather than from its body, so a recording which dropped them would replay as a page without cursors. They hold plain identifiers and therefore cannot leak the recording host, unlike the `Link` header the same endpoint emits, which is deliberately not preserved.
+    ///
+    static let persistedHeaderFields = ["Content-Type", "X-Activity-First-Known", "X-Activity-Last-Given"]
 
     ///
     /// Create a canonicalizer for a given live server address.

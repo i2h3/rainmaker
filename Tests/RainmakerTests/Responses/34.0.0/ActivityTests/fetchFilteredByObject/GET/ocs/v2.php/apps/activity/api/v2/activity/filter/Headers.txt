@@ -1,0 +1,4 @@
+HTTP/1.1 200 OK
+Content-Type: application/json; charset=utf-8
+X-Activity-First-Known: 3
+X-Activity-Last-Given: 1
