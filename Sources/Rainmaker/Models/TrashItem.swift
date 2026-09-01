@@ -6,13 +6,13 @@ import Foundation
 ///
 /// Represents an item in the server's trash bin, directories and files alike.
 ///
-/// Trashed items are listed through ``Serving/trash()`` and can be restored to their original location with ``Serving/restore(_:)-(String)`` or removed altogether by emptying the trash bin with ``Serving/emptyTrash()``.
+/// Trashed items are listed through ``Server/trash()`` and can be restored to their original location with ``Server/restore(_:)-(String)`` or removed altogether by emptying the trash bin with ``Server/emptyTrash()``.
 ///
 public struct TrashItem: Model, Identifiable, CustomStringConvertible, CustomDebugStringConvertible {
     ///
     /// The opaque identifier of the trashed item within the trash bin.
     ///
-    /// This is the last path component of ``href``, e.g. `"Readme.md.d1700000000"`, and is the value to pass to ``Serving/restore(_:)-(String)``.
+    /// This is the last path component of ``href``, e.g. `"Readme.md.d1700000000"`, and is the value to pass to ``Server/restore(_:)-(String)``.
     ///
     public let id: String
 

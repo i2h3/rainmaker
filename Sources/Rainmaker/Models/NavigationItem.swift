@@ -78,4 +78,44 @@ public struct NavigationItem: Model, Identifiable, Decodable {
         case classes
         case isDefault = "default"
     }
+
+    // MARK: - Encodable
+
+    ///
+    /// The keys a navigation item is encoded under, which are the property names rather than the names the server sends.
+    ///
+    /// Encoding deliberately does not reuse ``CodingKeys``: those exist to read the server's payload and carry its naming, which would leak back out into anything this library encodes. Keeping the two apart is what makes the encoded form match the model a Swift caller sees, including where a property was renamed for clarity such as ``isActive`` over the server's `active`.
+    ///
+    private enum EncodingKeys: String, CodingKey {
+        case id
+        case order
+        case href
+        case icon
+        case type
+        case name
+        case app
+        case isActive
+        case unread
+        case classes
+        case isDefault
+    }
+
+    ///
+    /// Encode a navigation item under its property names, so that the encoded form mirrors this type rather than the server's payload.
+    ///
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: EncodingKeys.self)
+
+        try container.encode(id, forKey: .id)
+        try container.encode(order, forKey: .order)
+        try container.encode(href, forKey: .href)
+        try container.encode(icon, forKey: .icon)
+        try container.encode(type, forKey: .type)
+        try container.encode(name, forKey: .name)
+        try container.encode(app, forKey: .app)
+        try container.encode(isActive, forKey: .isActive)
+        try container.encode(unread, forKey: .unread)
+        try container.encode(classes, forKey: .classes)
+        try container.encode(isDefault, forKey: .isDefault)
+    }
 }

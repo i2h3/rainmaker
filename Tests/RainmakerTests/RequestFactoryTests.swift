@@ -50,6 +50,39 @@ import Testing
         #expect(request.allHTTPHeaderFields?["Authorization"] == nil)
     }
 
+    @Test("OCS Request With Query Items")
+    func ocsRequestWithQueryItems() throws {
+        let server = makeServer()
+        let queryItems = [URLQueryItem(name: "since", value: "24"), URLQueryItem(name: "limit", value: "50"), URLQueryItem(name: "sort", value: "desc")]
+        let request = try server.makeOCSRequest(for: "apps/activity/api/v2/activity/all", method: .get, queryItems: queryItems)
+
+        #expect(request.url?.compatibilityPath() == "/ocs/v2.php/apps/activity/api/v2/activity/all")
+
+        // The order the query items were passed in is preserved so that a caller stays in control of how the request reads.
+        let url = try #require(request.url)
+        let components = try #require(URLComponents(url: url, resolvingAgainstBaseURL: false))
+        #expect(components.queryItems == queryItems)
+
+        // The headers are the very same as for a request without a query.
+        let headers = request.allHTTPHeaderFields
+        #expect(headers?["OCS-APIRequest"] == "true")
+        #expect(headers?["Accept"] == "application/json")
+        #expect(headers?["Authorization"] == expectedBasicAuthorization)
+    }
+
+    @Test("OCS Request Without Query Items Is Unchanged")
+    func ocsRequestWithoutQueryItems() throws {
+        let server = makeServer()
+        let request = try server.makeOCSRequest(for: "cloud/capabilities", method: .get, queryItems: [])
+
+        // Omitting the argument entirely has to fall back to the very same empty query.
+        let reference = try server.makeOCSRequest(for: "cloud/capabilities", method: .get)
+
+        // An empty query must not introduce a trailing question mark, so relying on the default is interchangeable with passing none.
+        #expect(request.url == reference.url)
+        #expect(request.url?.query == nil)
+    }
+
     @Test("WebDAV Request When Authenticated")
     func webDAVRequestAuthenticated() throws {
         let server = makeServer()

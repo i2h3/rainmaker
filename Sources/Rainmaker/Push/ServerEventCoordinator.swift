@@ -5,7 +5,7 @@ import Foundation
 import os
 
 ///
-/// Drives a single ``Serving/events(_:)`` subscription: it discovers whether the server offers `notify_push`, prefers the WebSocket when it does, and otherwise polls, transparently switching and reconnecting so a consumer sees one uninterrupted stream of ``ServerEvent`` values.
+/// Drives a single ``Server/events(_:)`` subscription: it discovers whether the server offers `notify_push`, prefers the WebSocket when it does, and otherwise polls, transparently switching and reconnecting so a consumer sees one uninterrupted stream of ``ServerEvent`` values.
 ///
 /// Every event is a re-fetch hint, so the polling fallback simply synthesizes the same hints on a timer that the WebSocket would deliver on change. This is why the two transports are interchangeable from the consumer's point of view.
 ///

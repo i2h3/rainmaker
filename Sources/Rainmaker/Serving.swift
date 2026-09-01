@@ -260,7 +260,14 @@ protocol Serving: Sendable {
     ///
     /// Credentials are optional for this call.
     ///
-    func makeOCSRequest(for path: String, method: Method) throws -> URLRequest
+    /// The implementation on ``Server`` defaults `queryItems` to an empty array, so endpoints which are parameterized through the path alone are requested without naming it. Passing an empty array produces exactly the URL a call without any query would.
+    ///
+    /// - Parameters:
+    ///     - path: The path relative to the OCS root, e.g. `"apps/activity/api/v2/activity/all"`.
+    ///     - method: The HTTP method to use.
+    ///     - queryItems: The query parameters to append, in the order they should appear.
+    ///
+    func makeOCSRequest(for path: String, method: Method, queryItems: [URLQueryItem]) throws -> URLRequest
 
     ///
     /// Set up a URL request specifically for WebDAV interaction.
@@ -312,6 +319,49 @@ protocol Serving: Sendable {
     ///     - Any other error that might occur during retrieval.
     ///
     func notifications() async throws -> [NotificationItem]
+
+    ///
+    /// Retrieve one page of the activity stream the server records for the authenticated user.
+    ///
+    /// Activities are what the server logs about everything happening in an account: files being created, changed and shared, calendar events being scheduled, security relevant events and whatever else an installed app contributes. They are provided by the server's bundled activity app, which is not necessarily installed or enabled. Whether it is available can be checked in advance via the ``Activity`` capability, e.g. `try await capabilities().contains(Activity.self)`. When the app is unavailable the underlying endpoint does not exist and this call throws ``RainmakerError/notFound``.
+    ///
+    /// The server never returns the whole stream at once, so this returns a single ``ActivityPage`` and leaves paging to the caller: request the next page by passing the previous page's ``ActivityPage/lastGiven`` as `since`, until a page comes back with no ``ActivityPage/items``. Detecting whether anything new happened instead is a matter of comparing ``ActivityPage/firstKnown`` against the value remembered from an earlier call, which is how this pairs with ``ServerEvent/activities``.
+    ///
+    /// Credentials are required: activities are user-scoped and the underlying OCS endpoint rejects unauthenticated requests.
+    ///
+    /// - Parameters:
+    ///     - filter: The subset of the stream to retrieve. Beyond ``ActivityFilter/all``, ``ActivityFilter/own`` and ``ActivityFilter/others`` a server offers further, app-provided filters which can be discovered through ``activityFilters()``. Defaults to ``ActivityFilter/all``.
+    ///     - since: The identifier of the activity to continue after, exclusively. Defaults to `0`, which starts at the beginning of the requested sort order.
+    ///     - limit: How many activities to retrieve at most. Values outside of `1 ... 500` are clamped to that range because the server rejects them with an internal error. Defaults to `50`, matching the server's own default.
+    ///     - sort: The direction to walk the stream in. Defaults to ``ActivitySort/newestFirst``.
+    ///     - previews: Whether to include the thumbnails of referenced files in ``ActivityItem/previews``. Defaults to `false`, matching the server's own default.
+    ///     - objectType: The type of a single object to narrow the stream down to, e.g. `"files"`. Only effective together with `objectId`, and passing both selects ``ActivityFilter/object`` regardless of `filter`. Defaults to `nil`.
+    ///     - objectId: The identifier of a single object to narrow the stream down to. Only effective together with `objectType`. Defaults to `nil`.
+    ///
+    /// - Returns: One page of activities in the order returned by the server, together with the cursors needed to continue.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
+    ///     - ``RainmakerError/notFound`` when the activity app is not available on the server or the requested filter does not exist.
+    ///     - Any other error that might occur during retrieval.
+    ///
+    func activities(filter: String, since: Int, limit: Int, sort: ActivitySort, previews: Bool, objectType: String?, objectId: String?) async throws -> ActivityPage
+
+    ///
+    /// List the filters the server offers to narrow the activity stream down with.
+    ///
+    /// Filters are contributed by the server and its installed apps rather than being a fixed list, so this is how the identifiers accepted by the `filter` argument of ``activities(filter:since:limit:sort:previews:objectType:objectId:)`` beyond the well-known ones declared on ``ActivityFilter`` are discovered. Whether the server supports this is advertised under the ``Activity`` capability's `"filters-api"` entry.
+    ///
+    /// Credentials are required: the underlying OCS endpoint rejects unauthenticated requests.
+    ///
+    /// - Returns: The available filters in the order returned by the server.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
+    ///     - ``RainmakerError/notFound`` when the activity app is not available on the server.
+    ///     - Any other error that might occur during retrieval.
+    ///
+    func activityFilters() async throws -> [ActivityFilter]
 
     ///
     /// Observe server-side changes, preferring the `notify_push` WebSocket when the server advertises it and falling back to polling otherwise.

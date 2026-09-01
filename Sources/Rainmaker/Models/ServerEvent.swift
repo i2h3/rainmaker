@@ -4,10 +4,10 @@
 import Foundation
 
 ///
-/// A hint that something changed on the server, delivered by ``Serving/events(_:)``.
+/// A hint that something changed on the server, delivered by ``Server/events(_:)``.
 ///
-/// Every case is a hint to re-fetch, never a payload: this mirrors how the `notify_push` WebSocket works and lets the polling fallback synthesize the very same hints on a timer, so a client consumes ``Serving/events(_:)`` identically regardless of which transport is active.
-/// A client reacts to an event by re-fetching the relevant state itself, for example calling ``Serving/notifications()`` in response to ``notifications``.
+/// Every case is a hint to re-fetch, never a payload: this mirrors how the `notify_push` WebSocket works and lets the polling fallback synthesize the very same hints on a timer, so a client consumes ``Server/events(_:)`` identically regardless of which transport is active.
+/// A client reacts to an event by re-fetching the relevant state itself, for example calling ``Server/notifications()`` in response to ``notifications``.
 ///
 public enum ServerEvent: Sendable, Equatable {
     ///
@@ -18,7 +18,7 @@ public enum ServerEvent: Sendable, Equatable {
     case connected
 
     ///
-    /// The notifications queued for the user changed, retrievable via ``Serving/notifications()``.
+    /// The notifications queued for the user changed, retrievable via ``Server/notifications()``.
     ///
     case notifications
 
@@ -30,7 +30,7 @@ public enum ServerEvent: Sendable, Equatable {
     case files(ids: [Int]?)
 
     ///
-    /// The user's activity stream changed.
+    /// The user's activity stream changed, retrievable via ``Server/activities(filter:since:limit:sort:previews:objectType:objectId:)``.
     ///
     case activities
 

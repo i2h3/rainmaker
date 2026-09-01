@@ -53,6 +53,12 @@ import Testing
         #expect(notifications.adminNotifications == ["ocs", "cli"])
         #expect(capabilities.contains(Notifications.self))
 
+        let activity = try #require(try capabilities.get(Activity.self))
+        #expect(activity.apiV2?.contains("rich-strings") == true)
+        #expect(activity.apiV2?.contains("previews") == true)
+        #expect(activity.apiV2?.contains("filters-api") == true)
+        #expect(capabilities.contains(Activity.self))
+
         #expect(capabilities.version.string == serverVersion.rawValue)
         #expect(capabilities.version.major > 0)
     }
@@ -62,12 +68,14 @@ import Testing
         let server = try makeServer(user: nil, password: nil, serverVersion: serverVersion)
         let capabilities = try await server.capabilities()
 
-        // Theming is exposed to anonymous clients, the files capability (and therefore the trash bin support) is not, and neither is the notifications capability.
+        // Theming is exposed to anonymous clients, the files capability (and therefore the trash bin support) is not, and neither are the notifications and activity capabilities.
         _ = try #require(try capabilities.get(Theming.self))
         #expect(capabilities.contains(Files.self) == false)
         #expect(try capabilities.get(Trashing.self) == nil)
         #expect(try capabilities.get(Notifications.self) == nil)
         #expect(capabilities.contains(Notifications.self) == false)
+        #expect(try capabilities.get(Activity.self) == nil)
+        #expect(capabilities.contains(Activity.self) == false)
 
         #expect(capabilities.version.string == serverVersion.rawValue)
     }
