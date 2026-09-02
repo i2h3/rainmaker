@@ -274,7 +274,7 @@ protocol Serving: Sendable {
     ///
     /// The given `path` is resolved relative to the account's WebDAV files root (see ``Server/webDAVPathPrefix``, e.g. `"/remote.php/dav/files/<user>"`).
     ///
-    /// Unlike ``makeOCSRequest(for:method:)``, credentials are required for this call.
+    /// Unlike ``makeOCSRequest(for:method:queryItems:)``, credentials are required for this call.
     ///
     /// - Throws: ``RainmakerError/credentialsRequired`` when no credentials are set.
     ///

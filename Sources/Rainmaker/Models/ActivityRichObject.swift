@@ -10,7 +10,9 @@ import Foundation
 ///
 /// The server defines a couple of dozen object ``type`` values (`file`, `user`, `calendar-event`, `systemtag`, `open-graph` and more), and every installed app may contribute further ones. Modelling them as an open string rather than an enumeration therefore keeps this forward compatible: an unknown type can always still be rendered by falling back to ``name``.
 ///
-/// Only ``type``, ``id`` and ``name`` are guaranteed by the server. ``path`` and ``link`` are surfaced explicitly because they are the two optional fields clients need most often, and every remaining field of the concrete object type is preserved in ``other``. All of them are strings, including the numeric ones such as a file size or modification time, because the server validates rich object values to be strings.
+/// Only ``type``, ``id`` and ``name`` are guaranteed by the server. ``path`` and ``link`` are surfaced explicitly because they are the two optional fields clients need most often, and every remaining field of the concrete object type is preserved in ``other``.
+///
+/// Every field is exposed as a `String`, including conceptually numeric ones such as a file size, a modification time or an identifier. The server usually sends those as JSON strings, but not dependably: some payloads carry a numeric `id`, and an app contributing its own object type is free to send a number or a boolean for any field. Such values are converted rather than discarded, so a numeric identifier arrives here as its decimal digits.
 ///
 public struct ActivityRichObject: Model, Decodable, CustomStringConvertible, CustomDebugStringConvertible {
     ///
@@ -91,7 +93,7 @@ public struct ActivityRichObject: Model, Decodable, CustomStringConvertible, Cus
     ///
     /// Decode a rich object by reading every field the server sent, so that fields Rainmaker does not model are preserved in ``other`` instead of being lost.
     ///
-    /// Fields whose value is not a string are skipped rather than treated as an error, and the three required fields fall back to an empty string, so that a server which deviates from the documented shape still decodes successfully.
+    /// A field which is not a string is converted to one instead of being dropped, because the server does not dependably send numeric values such as an identifier as JSON strings and silently losing an identifier would be worse than reporting its digits. The three required fields fall back to an empty string, so that a server which deviates from the documented shape still decodes successfully.
     ///
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: DynamicKey.self)
@@ -100,6 +102,12 @@ public struct ActivityRichObject: Model, Decodable, CustomStringConvertible, Cus
         for key in container.allKeys {
             if let value = try? container.decode(String.self, forKey: key) {
                 fields[key.stringValue] = value
+            } else if let value = try? container.decode(Int.self, forKey: key) {
+                fields[key.stringValue] = String(value)
+            } else if let value = try? container.decode(Bool.self, forKey: key) {
+                fields[key.stringValue] = String(value)
+            } else if let value = try? container.decode(Double.self, forKey: key) {
+                fields[key.stringValue] = String(value)
             }
         }
 
