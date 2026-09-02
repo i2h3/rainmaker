@@ -83,11 +83,11 @@ import Testing
         #expect(query["object_id"] == nil)
     }
 
-    @Test("Page Size Is Clamped To What The Server Accepts", arguments: [(0, "1"), (-5, "1"), (1, "1"), (500, "500"), (501, "500"), (10000, "500")])
+    @Test("Page Size Is Clamped To What The Server Accepts", arguments: [(0, "1"), (-5, "1"), (1, "1"), (200, "200"), (201, "200"), (10000, "200")])
     func limitClamping(_ limit: Int, _ expected: String) async throws {
         let (_, query) = try await capture(limit: limit)
 
-        // Outside of one to five hundred the server answers with an internal error rather than a validation error.
+        // The server caps the page size at two hundred whatever is asked for, so a larger value would silently return fewer activities than requested.
         #expect(query["limit"] == expected)
     }
 

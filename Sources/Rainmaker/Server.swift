@@ -13,9 +13,9 @@ public final class Server {
     ///
     /// The range of page sizes the activity endpoint accepts.
     ///
-    /// The server answers with an internal error rather than with a validation error when the `limit` parameter falls outside of this, so ``activities(filter:since:limit:sort:previews:objectType:objectId:)`` clamps to it before sending the request.
+    /// The server silently reduces anything larger to two hundred and answers with an internal error rather than with a validation error for a page size of zero or below, so ``activities(filter:since:limit:sort:previews:objectType:objectId:)`` clamps to this range before sending the request. Clamping rather than passing the value through keeps the requested page size and the honoured one the same.
     ///
-    static let activityLimits = 1 ... 500
+    static let activityLimits = 1 ... 200
 
     nonisolated(unsafe) let fileManager = FileManager.default
     let logger = Logger(category: "Server")
@@ -926,7 +926,7 @@ extension Server: Serving {
         let firstKnown = response.value(forHTTPHeaderField: "X-Activity-First-Known").flatMap { Int($0) }
         let lastGiven = response.value(forHTTPHeaderField: "X-Activity-Last-Given").flatMap { Int($0) }
 
-        // An empty result carries no body to decode, so it becomes an empty page rather than an error. The server reports the end of the stream as not modified, and answers with no content when the account has every activity type switched off.
+        // An empty result carries no body to decode, so it becomes an empty page rather than an error. The server reports the end of the stream as not modified, and its endpoint also declares a no content answer for an account with no activity settings enabled, which activity app 7.0.0 has no reachable path to but which is handled here all the same.
         if response.status == .notModified || response.status == .noContent {
             return ActivityPage(items: [], firstKnown: firstKnown, lastGiven: lastGiven)
         }
