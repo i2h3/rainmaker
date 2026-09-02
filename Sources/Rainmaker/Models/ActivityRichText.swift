@@ -32,12 +32,38 @@ public struct ActivityRichText: Model, Decodable, CustomStringConvertible, Custo
     ///
     /// This mirrors what the server itself does when it derives ``ActivityItem/subject`` from ``ActivityItem/subjectRich``, so the result of calling this on ``ActivityItem/subjectRich`` equals ``ActivityItem/subject``. It is useful for clients which want to render the rich variant selectively and fall back to text elsewhere.
     ///
+    /// The template is scanned exactly once and substituted text is never revisited, so a name which happens to look like a placeholder itself is inserted literally instead of being expanded again. Object names are chosen by whoever created the file, the calendar or the tag an activity is about, which makes that reachable rather than theoretical. A placeholder without a matching parameter is left in place verbatim.
+    ///
     /// - Returns: The template with all of its placeholders substituted.
     ///
     public func resolved() -> String {
-        parameters.reduce(template) { result, parameter in
-            result.replacingOccurrences(of: "{\(parameter.key)}", with: parameter.value.name)
+        guard parameters.isEmpty == false else {
+            return template
         }
+
+        var result = ""
+        var remainder = Substring(template)
+
+        while let opening = remainder.firstIndex(of: "{") {
+            result.append(contentsOf: remainder[remainder.startIndex ..< opening])
+
+            let afterOpening = remainder.index(after: opening)
+
+            guard let closing = remainder[afterOpening...].firstIndex(of: "}") else {
+                // An unterminated brace is not a placeholder, so the rest of the template is taken as it is.
+                return result + remainder[opening...]
+            }
+
+            if let parameter = parameters[String(remainder[afterOpening ..< closing])] {
+                result.append(parameter.name)
+            } else {
+                result.append(contentsOf: remainder[opening ... closing])
+            }
+
+            remainder = remainder[remainder.index(after: closing)...]
+        }
+
+        return result + remainder
     }
 
     // MARK: - Decodable
