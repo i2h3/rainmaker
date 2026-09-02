@@ -926,8 +926,8 @@ extension Server: Serving {
         let firstKnown = response.value(forHTTPHeaderField: "X-Activity-First-Known").flatMap { Int($0) }
         let lastGiven = response.value(forHTTPHeaderField: "X-Activity-Last-Given").flatMap { Int($0) }
 
-        // The end of the stream is reported as a not modified response with an empty body, so there is nothing to decode and the page is empty.
-        if response.status == .notModified {
+        // An empty result carries no body to decode, so it becomes an empty page rather than an error. The server reports the end of the stream as not modified, and answers with no content when the account has every activity type switched off.
+        if response.status == .notModified || response.status == .noContent {
             return ActivityPage(items: [], firstKnown: firstKnown, lastGiven: lastGiven)
         }
 

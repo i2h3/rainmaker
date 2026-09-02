@@ -24,7 +24,7 @@ public struct ActivityPage: Model {
     ///
     /// The activities in this page, in the order returned by the server.
     ///
-    /// With the default sort order this is newest first. An empty array means the end of the stream has been reached, which the server signals with a `304 Not Modified` response.
+    /// With the default sort order this is newest first. An empty array means there is nothing more to read, which the server signals either with a `304 Not Modified` response at the end of the stream or with a `204 No Content` response when the account has every activity type switched off.
     ///
     public let items: [ActivityItem]
 
