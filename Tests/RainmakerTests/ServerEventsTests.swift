@@ -63,8 +63,13 @@ import Testing
     ///
     /// Collect the first `count` events, guarded by a timeout so a stalled stream fails the test instead of hanging.
     ///
+    ///
+    /// Collect the given number of events from a stream, failing the test rather than hanging it if they never arrive.
+    ///
+    /// The timeout is a guard against a stalled stream, not an assertion about how quickly the coordinator works. It is therefore generous on purpose: the cadences these tests configure are in the tens of milliseconds, so any value far above that distinguishes a hang from a slow machine, and a simulator under load is slow enough to miss a tight deadline while behaving correctly.
+    ///
     private func firstEvents(_ count: Int, from stream: AsyncThrowingStream<ServerEvent, Error>) async throws -> [ServerEvent] {
-        try await withTimeout(seconds: 3) {
+        try await withTimeout(seconds: 30) {
             var events: [ServerEvent] = []
 
             for try await event in stream {
