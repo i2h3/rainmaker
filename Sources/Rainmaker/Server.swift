@@ -174,6 +174,10 @@ public final class Server {
     ///
     /// Enumerate local files recursively and return a dictionary mapping normalized relative paths to their URLs.
     ///
+    /// The result of this method decides which remote items ``uploadDirectory(_:to:force:)`` considers orphaned, so an incomplete result must never be reported as a successful enumeration.
+    ///
+    /// - Throws: ``RainmakerError/enumeration(_:_:)`` when the local directory cannot be enumerated at all or when enumerating one of its items fails.
+    ///
     private func enumerateLocalFiles(at destination: URL) throws -> [String: URL] {
         logger.debug("Enumerating local files at \"\(destination.compatibilityPath(percentEncoded: false))\"...")
 
@@ -186,25 +190,29 @@ public final class Server {
             return false
         }
 
+        // A missing enumerator means the local state could not be determined at all, for example because the directory disappeared or became unreadable after the initial existence check.
+        // Returning an empty result in that case would be indistinguishable from a genuinely empty directory, which would make `uploadDirectory(_:to:force:)` classify every remote item as an orphan and delete the entire remote subtree.
+        guard let localEnumerator else {
+            throw RainmakerError.enumeration(destination, "Failed to enumerate the local directory.")
+        }
+
         var result = [String: URL]()
         // Use path components rather than string-prefix arithmetic so that resolving symlinks (e.g. macOS' `/var` → `/private/var`)
         // or other inconsistencies between the supplied destination URL and the URLs yielded by the enumerator do not skew the relative path.
         let destinationComponents = destination.resolvingSymlinksInPath().pathComponents
 
-        if let localEnumerator {
-            for case let fileURL as URL in localEnumerator {
-                let fileComponents = fileURL.resolvingSymlinksInPath().pathComponents
+        for case let fileURL as URL in localEnumerator {
+            let fileComponents = fileURL.resolvingSymlinksInPath().pathComponents
 
-                guard fileComponents.count > destinationComponents.count else {
-                    continue
-                }
-
-                let relativeComponents = fileComponents.dropFirst(destinationComponents.count)
-                let relativePath = relativeComponents.joined(separator: "/")
-                let normalizedKey = normalizeKey(relativePath)
-                result[normalizedKey] = fileURL
-                logger.debug("Found \"\(normalizedKey)\"")
+            guard fileComponents.count > destinationComponents.count else {
+                continue
             }
+
+            let relativeComponents = fileComponents.dropFirst(destinationComponents.count)
+            let relativePath = relativeComponents.joined(separator: "/")
+            let normalizedKey = normalizeKey(relativePath)
+            result[normalizedKey] = fileURL
+            logger.debug("Found \"\(normalizedKey)\"")
         }
 
         // The error handler closure is invoked during iteration, so the check must come after the loop.
@@ -314,6 +322,12 @@ public final class Server {
         let request = try makeWebDAVRequest(for: source, method: .get)
         let (data, urlResponse) = try await session.download(for: request, delegate: nil)
 
+        // The session materializes the payload in a temporary location which would otherwise be left behind on every failure path below.
+        // Once the payload has been staged next to its destination this removal silently does nothing.
+        defer {
+            try? fileManager.removeItem(at: data)
+        }
+
         guard let response = urlResponse as? HTTPURLResponse else {
             throw RainmakerError.responseDecodingFailed(reason: "Failed to cast URLResponse to HTTPURLResponse.")
         }
@@ -331,11 +345,25 @@ public final class Server {
             try fileManager.assertFileDoesNotExist(at: destination)
         }
 
-        if fileManager.fileExists(atPath: destination.compatibilityPath(percentEncoded: false)) {
-            try fileManager.removeItem(at: destination)
+        // Stage the payload in the destination's own directory so that putting it in place stays within one volume.
+        // The session's temporary directory is not necessarily on the same volume as the destination, in which case a move degrades into a copy which can fail halfway.
+        let stagingLocation = destination
+            .deletingLastPathComponent()
+            .appendingCompatibility(component: ".\(destination.lastPathComponent).\(UUID().uuidString).download", directoryHint: .notDirectory)
+
+        try fileManager.moveItem(at: data, to: stagingLocation)
+
+        // Cleans up after a failed replacement and silently does nothing once the staged payload has been consumed.
+        defer {
+            try? fileManager.removeItem(at: stagingLocation)
         }
 
-        try fileManager.moveItem(at: data, to: destination)
+        if fileManager.fileExists(atPath: destination.compatibilityPath(percentEncoded: false)) {
+            // Replacing keeps the existing file intact until the new content is completely in place, unlike deleting it first and moving the replacement afterwards.
+            _ = try fileManager.replaceItemAt(destination, withItemAt: stagingLocation)
+        } else {
+            try fileManager.moveItem(at: stagingLocation, to: destination)
+        }
 
         // Align the local modification date with the remote state for future change detection.
         try fileManager.setAttributes([.modificationDate: remoteItem.modification], ofItemAtPath: destination.compatibilityPath(percentEncoded: false))
@@ -385,8 +413,9 @@ public final class Server {
         request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
 
         // Preserve the local modification date on the server for future change detection.
-        if let localModification {
-            request.setValue("\(Int(localModification.timeIntervalSince1970))", forHTTPHeaderField: "X-OC-Mtime")
+        // See ``Date/wholeSecondsSince1970`` for why a modification date is not always representable and is then omitted.
+        if let modificationSeconds = localModification?.wholeSecondsSince1970 {
+            request.setValue("\(modificationSeconds)", forHTTPHeaderField: "X-OC-Mtime")
         }
 
         let (_, urlResponse) = try await session.upload(for: request, fromFile: source, delegate: nil)

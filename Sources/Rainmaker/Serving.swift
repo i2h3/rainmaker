@@ -58,6 +58,7 @@ protocol Serving: Sendable {
     /// | Directory | Exists | Not empty | `true` | Delete remote items which are not present in the local state, replace remote files with the state of their local counterparts, upload remotely missing files which exist in the local state |
     ///
     /// The local modification date of an uploaded file is preserved on the server via the `X-OC-Mtime` header so that future synchronization runs can detect unchanged files.
+    /// The header is omitted for a modification date at or before the Unix epoch and for one which cannot be expressed as a whole number of seconds, in which case the server records the upload time instead.
     ///
     /// - Parameters:
     ///     - source: The file or root directory in the local file system to upload.

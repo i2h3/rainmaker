@@ -38,6 +38,10 @@ import Testing
 
         let content = try Data(contentsOf: downloadedFile)
         #expect(content.isEmpty == false)
+
+        // The payload is staged next to its destination before being put in place, so a leftover entry means the staging file was not cleaned up.
+        let remainingItems = try FileManager.default.contentsOfDirectory(at: destination, includingPropertiesForKeys: nil)
+        #expect(remainingItems.map(\.lastPathComponent) == ["Readme.md"])
     }
 
     @Test("Directory", arguments: ServerVersion.allCases)
@@ -81,6 +85,10 @@ import Testing
 
         let newContent = try Data(contentsOf: existingFile)
         #expect(newContent != oldContent)
+
+        // Replacing an existing file must neither leave the staging file behind nor lose the destination in between.
+        let remainingItems = try FileManager.default.contentsOfDirectory(at: destination, includingPropertiesForKeys: nil)
+        #expect(remainingItems.map(\.lastPathComponent) == ["Readme.md"])
     }
 
     @Test("Overwrite Unchanged File", arguments: ServerVersion.allCases)
