@@ -69,6 +69,21 @@ import Testing
         #expect(braced.resolved() == "{file} stays")
     }
 
+    @Test("Keeps A Numeric Rich Object Value")
+    func keepsNumericValues() throws {
+        // The server does not dependably send numeric rich object values as JSON strings, and dropping an identifier because of that would lose the very thing a client needs to act on the object.
+        let richText = try makeRichText(#"["You changed {file}",{"file":{"type":"file","id":72,"name":"Readme.md","size":3145728,"preview-available":true}}]"#)
+
+        let file = try #require(richText.parameters["file"])
+        #expect(file.id == "72")
+        #expect(file.name == "Readme.md")
+        #expect(file.other["size"] == "3145728")
+        #expect(file.other["preview-available"] == "true")
+
+        // A converted identifier must still flatten normally.
+        #expect(richText.resolved() == "You changed Readme.md")
+    }
+
     @Test("Resolves Repeated And Adjacent Placeholders")
     func resolvesRepeatedPlaceholders() throws {
         let richText = try makeRichText(#"["{a}{a} {a}",{"a":{"type":"highlight","id":"1","name":"x"}}]"#)

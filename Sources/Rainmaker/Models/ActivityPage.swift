@@ -18,7 +18,7 @@ import Foundation
 /// }
 /// ```
 ///
-/// Checking whether anything new happened instead works the other way around: keep ``firstKnown`` from the last page fetched and compare it against the ``firstKnown`` of a fresh request. This pairs with ``ServerEvent/activities``, which announces that something changed without saying what.
+/// Checking whether anything new happened instead works the other way around, by remembering the identifier of the newest activity seen and issuing a fresh request without a cursor: the first entry of the resulting page, or its ``firstKnown``, is what to compare against. This pairs with ``ServerEvent/activities``, which announces that something changed without saying what.
 ///
 public struct ActivityPage: Model {
     ///
@@ -29,9 +29,11 @@ public struct ActivityPage: Model {
     public let items: [ActivityItem]
 
     ///
-    /// The identifier of the newest activity the server knows about, regardless of which page was requested. `nil` when the server did not report it.
+    /// The identifier of the newest activity the server knows about. `nil` whenever the server did not report it, which is the common case for every page but the first.
     ///
-    /// This corresponds to the server's `X-Activity-First-Known` header and is reported even for an empty page, which makes it the value to remember in order to detect later whether anything new happened.
+    /// This corresponds to the server's `X-Activity-First-Known` header, which the server only sends when it did not recognize the requested cursor, so above all when a request carries no `since` argument at all. A page fetched by passing a previous page's ``lastGiven`` therefore usually leaves this `nil` even though it has activities. It is emitted for an empty page too, as long as the cursor was absent or unrecognized.
+    ///
+    /// Because of that this is not a page-independent newest-identifier field to be read off any response. Use it to learn the newest identifier from a request made without a cursor, and do not treat `nil` as a statement about the stream.
     ///
     public let firstKnown: Int?
 
