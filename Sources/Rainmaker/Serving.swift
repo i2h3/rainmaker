@@ -332,7 +332,7 @@ protocol Serving: Sendable {
     /// - Parameters:
     ///     - filter: The subset of the stream to retrieve. Beyond ``ActivityFilter/all``, ``ActivityFilter/own`` and ``ActivityFilter/others`` a server offers further, app-provided filters which can be discovered through ``activityFilters()``. Defaults to ``ActivityFilter/all``.
     ///     - since: The identifier of the activity to continue after, exclusively. Defaults to `0`, which starts at the beginning of the requested sort order.
-    ///     - limit: How many activities to retrieve at most. Values outside of `1 ... 500` are clamped to that range because the server rejects them with an internal error. Defaults to `50`, matching the server's own default.
+    ///     - limit: How many activities to retrieve at most. Values are clamped to `1 ... 200`: the server caps the page size at two hundred regardless of what is asked for, and rejects a page size of zero or below with an internal error. Defaults to `50`, matching the server's own default.
     ///     - sort: The direction to walk the stream in. Defaults to ``ActivitySort/newestFirst``.
     ///     - previews: Whether to include the thumbnails of referenced files in ``ActivityItem/previews``. Defaults to `false`, matching the server's own default.
     ///     - objectType: The type of a single object to narrow the stream down to, e.g. `"files"`. Only effective together with `objectId`, and passing both selects ``ActivityFilter/object`` regardless of `filter`. Defaults to `nil`.

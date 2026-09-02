@@ -28,7 +28,7 @@ struct Activities: AsyncParsableCommand {
     @Option(help: "The identifier of the activity to continue after, exclusively.")
     var since: Int = 0
 
-    @Option(help: "How many activities to list at most, within 1 to 500.")
+    @Option(help: "How many activities to list at most, within 1 to 200.")
     var limit: Int = 50
 
     @Option(help: "The direction to walk the stream in.")
