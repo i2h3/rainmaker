@@ -345,18 +345,17 @@ public final class Server {
             try fileManager.assertFileDoesNotExist(at: destination)
         }
 
-        // Stage the payload in the destination's own directory so that putting it in place stays within one volume.
-        // The session's temporary directory is not necessarily on the same volume as the destination, in which case a move degrades into a copy which can fail halfway.
-        let stagingLocation = destination
-            .deletingLastPathComponent()
-            .appendingCompatibility(component: ".\(destination.lastPathComponent).\(UUID().uuidString).download", directoryHint: .notDirectory)
+        // Stage the payload next to its destination so that putting it in place stays within one volume.
+        // See ``URL/downloadStagingLocation()`` for why the staged location looks the way it does.
+        let stagingLocation = destination.downloadStagingLocation()
 
-        try fileManager.moveItem(at: data, to: stagingLocation)
-
-        // Cleans up after a failed replacement and silently does nothing once the staged payload has been consumed.
+        // Registered before the move so that a move which fails after having written part of the payload does not leak it either.
+        // Removal silently does nothing once the staged payload has been consumed or was never created in the first place.
         defer {
             try? fileManager.removeItem(at: stagingLocation)
         }
+
+        try fileManager.moveItem(at: data, to: stagingLocation)
 
         if fileManager.fileExists(atPath: destination.compatibilityPath(percentEncoded: false)) {
             // Replacing keeps the existing file intact until the new content is completely in place, unlike deleting it first and moving the replacement afterwards.
