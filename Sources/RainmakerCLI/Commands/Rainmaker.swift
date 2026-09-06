@@ -10,7 +10,7 @@ import Foundation
 @main
 struct Rainmaker: AsyncParsableCommand {
     static let configuration: CommandConfiguration = {
-        var subcommands: [any ParsableCommand.Type] = [Activities.self, ActivityFilters.self, Capabilities.self, CreateDirectory.self, Delete.self, DeleteAppPassword.self, Download.self, Info.self, List.self, Login.self, Move.self, Navigation.self, Notifications.self, Poll.self, Trash.self, Upload.self, Watch.self]
+        var subcommands: [any ParsableCommand.Type] = [Activities.self, ActivityFilters.self, Capabilities.self, CreateDirectory.self, Delete.self, DeleteAppPassword.self, Download.self, Info.self, List.self, Login.self, Move.self, Navigation.self, Notes.self, NotesSettings.self, Notifications.self, Poll.self, Trash.self, Upload.self, Watch.self]
 
         // The fixture recorder controls Docker and is therefore available on macOS only.
         #if os(macOS)

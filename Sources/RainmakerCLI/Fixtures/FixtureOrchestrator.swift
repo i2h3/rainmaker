@@ -35,8 +35,27 @@
             "LoginTests",
             "MoveTests",
             "NavigationTests",
+            "NotesTests",
             "UploadTests",
         ]
+
+        ///
+        /// The app installed on every deployed container, because `NotesTests` cannot record anything without it.
+        ///
+        /// The notes app is not part of a Nextcloud installation, so without this the endpoints behind ``Server/notes()`` would not exist and the suite would capture nothing but a not found response. Recording therefore depends on the Nextcloud app store being reachable, which serves the newest release compatible with the server version deployed.
+        ///
+        /// It is declared through ``NextcloudConfiguration/enabledApps``, so ``NextcloudContainerManager/deploy(configuration:)`` installs and enables it before returning, under the app store allowance of ``NextcloudContainerManager/defaultAppInstallationTimeout``. Everything after deployment can therefore assume the app is already answering.
+        ///
+        /// Naming a single app rather than a list is deliberate: what follows the installation is a lookup specific to this app, so a list would only pretend to generalize.
+        ///
+        static let installedApp = "notes"
+
+        ///
+        /// How long to keep retrying a readiness probe before giving up.
+        ///
+        /// These bound warm-up rather than work: ``NextcloudContainerManager/deploy(configuration:)`` returns once `status.php` reports the instance installed, which it does well before every part of it is serving. The notes API has been observed answering within a second or two while the account's WebDAV endpoint kept refusing the very same credentials for upwards of a minute, so the allowance is generous and each wait logs what it actually cost.
+        ///
+        static let readinessTimeout: TimeInterval = 300
 
         ///
         /// Apps disabled on every deployed container to keep responses deterministic and to make ``NextcloudContainerManager/deploy(configuration:)`` wait until the instance is ready.
@@ -103,14 +122,21 @@
         ///
         private func record(version: String, tests: [String]) async throws {
             log("Deploying nextcloud:\(version)…")
-            let container = try await NextcloudContainerManager.deploy(configuration: NextcloudConfiguration(tag: version, disabledApps: Self.disabledApps))
+            let container = try await NextcloudContainerManager.deploy(configuration: NextcloudConfiguration(tag: version, disabledApps: Self.disabledApps, enabledApps: [Self.installedApp]))
             log("Container ready at http://localhost:\(container.port) (id \(container.id.prefix(12))).")
 
             do {
                 let address = URL(string: "http://localhost:\(container.port)/")!
                 let server = Server(address: address, password: "admin", user: "admin", userAgent: "RainmakerFixtures")
+
+                // Provisioning is the first thing to touch WebDAV, so this is where the wait for it belongs.
+                _ = try await waitUntil("the account's WebDAV endpoint") { try await server.info("/") }
+
+                let notesFolder = try await resolveNotesFolder(on: server)
+                log("The \(Self.installedApp) app stores notes in \"\(notesFolder)\".")
+
                 let baselineDirectory = FileManager.default.temporaryDirectory.appendingPathComponent("rainmaker-baseline-\(version)")
-                let provisioner = FixtureProvisioner(server: server, baselineDirectory: baselineDirectory)
+                let provisioner = FixtureProvisioner(server: server, baselineDirectory: baselineDirectory, notesFolder: notesFolder)
 
                 if provisionBaseline {
                     log("Provisioning baseline data…")
@@ -124,7 +150,7 @@
                     }
 
                     log("Recording \(version) → \(test)…")
-                    let status = try runSwift(["test", "--no-parallel", "--filter", regexEscaped(test)], environment: recordingEnvironment(version: version, port: container.port), streamingOutput: false)
+                    let status = try runSwift(["test", "--no-parallel", "--filter", "\(regexEscaped(test))\\("], environment: recordingEnvironment(version: version, port: container.port), streamingOutput: false)
 
                     // A failing assertion during recording is surfaced but does not abort the run: the fixture was written before the assertion and the discrepancy is informative.
                     if status != 0 {
@@ -132,7 +158,13 @@
                     }
                 }
             } catch {
-                try? await NextcloudContainerManager.delete(container.id)
+                // A failed run is the one worth inspecting, so a container asked to be kept is kept even then.
+                if keepRunning {
+                    log("Leaving the failed container running at http://localhost:\(container.port) (id \(container.id.prefix(12))).")
+                } else {
+                    try? await NextcloudContainerManager.delete(container.id)
+                }
+
                 throw error
             }
 
@@ -203,9 +235,58 @@
         ///
         /// Escape regular-expression metacharacters so a test identifier can be passed verbatim to `swift test --filter`.
         ///
+        /// The escaped identifier is anchored by the caller with the opening parenthesis of the test's argument list, because `--filter` matches a substring of the full test identifier. Without that anchor, recording `NotesTests/fetch` would also run `fetchNone` and every other test whose name it prefixes, against a precondition established for a different test, which both fails those tests and captures wrong fixtures for them.
+        ///
         private func regexEscaped(_ identifier: String) -> String {
             let metacharacters = Set("\\.^$|?*+()[]{}")
             return String(identifier.flatMap { metacharacters.contains($0) ? ["\\", $0] : [$0] })
+        }
+
+        ///
+        /// Look up the folder the notes app stores notes in, which the baseline has to seed its notes into.
+        ///
+        /// Asking rather than assuming is what makes the seeded notes visible at all. The app derives its notes folder from the account's locale, so it is not a fixed name — these containers have been observed reporting both `"Notes"` and `"Notizen"` — and it persists whatever it resolved the first time it is asked about notes. Recording used to work only as long as the baseline happened to exist before anything reached the notes API, and silently captured empty note lists when it did not.
+        ///
+        /// It is retried because ``NextcloudContainerManager/deploy(configuration:)`` returning means the app is installed and enabled, not that the running web server serves it yet. The first request after a deployment has been observed answering with a not found error for a moment, so what is waited out here is that window rather than the installation, which the deployment already covered.
+        ///
+        private func resolveNotesFolder(on server: Server) async throws -> String {
+            try await waitUntil("the \(Self.installedApp) app") { try await server.notesSettings().notesPath }
+        }
+
+        ///
+        /// Retry a probe until it succeeds or ``readinessTimeout`` passes.
+        ///
+        /// A freshly deployed instance serves its parts at slightly different moments, and `status.php` reporting it installed is not a promise that any particular one of them answers yet. Each probe is therefore the very request the recording is about to depend on, so that what is waited for and what is needed cannot drift apart.
+        ///
+        /// - Parameters:
+        ///     - subject: What is being waited for, named for the error raised when it never answers.
+        ///     - probe: The request to retry, whose failure is taken as "not yet" rather than as a verdict.
+        ///
+        private func waitUntil<Value>(_ subject: String, probe: () async throws -> Value) async throws -> Value {
+            let start = Date()
+            let deadline = start.addingTimeInterval(Self.readinessTimeout)
+            var lastReason = "it never answered"
+            var attempts = 0
+
+            while Date() < deadline {
+                do {
+                    let value = try await probe()
+
+                    // Silent when it answered straight away, so only a warm-up worth knowing about is reported.
+                    if attempts > 0 {
+                        log("Waited \(Int(Date().timeIntervalSince(start)))s for \(subject).")
+                    }
+
+                    return value
+                } catch {
+                    lastReason = "\(error)"
+                    attempts += 1
+                }
+
+                try await Task.sleep(nanoseconds: 1_000_000_000)
+            }
+
+            throw FixtureRecordingError.serverNotReady(subject: subject, reason: lastReason)
         }
 
         ///

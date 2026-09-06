@@ -53,6 +53,18 @@ import Testing
         #expect(result.contains("http://localhost/login/v2/flow/REDACTED"))
     }
 
+    @Test("Redacts the volatile note entity tags")
+    func redactsNoteEntityTags() {
+        let body = #"[{"id":86,"modified":1700000000,"etag":"c649e503de046daca1b998c2e52b2a94"}]"#
+        let result = canonicalize(body, pathExtension: "json")
+
+        #expect(result.contains(#""etag": "00000000000000000000000000000000""#))
+
+        // The identifier and the modification date of a note are deliberately left as recorded, because the tests assert on the latter and rely on the former telling notes apart.
+        #expect(result.contains(#""id":86"#))
+        #expect(result.contains(#""modified":1700000000"#))
+    }
+
     @Test("Leaves binary bodies untouched")
     func leavesBinaryUntouched() {
         let body = "http://localhost:54540 should not be rewritten in binary"

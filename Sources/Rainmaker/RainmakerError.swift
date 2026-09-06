@@ -51,6 +51,13 @@ public enum RainmakerError: Error, Equatable, CustomStringConvertible {
     case unexpectedStatus(code: Int)
 
     ///
+    /// A server app is installed but too old to serve the version of its API this library requires.
+    ///
+    /// Carries the app identifier, the API version required, and the versions the app advertises.
+    ///
+    case unsupportedAPIVersion(app: String, required: String, advertised: [String])
+
+    ///
     /// For conformance to `CustomStringConvertible` to render an error as a human readable error description.
     ///
     public var description: String {
@@ -69,6 +76,8 @@ public enum RainmakerError: Error, Equatable, CustomStringConvertible {
                 "Not found."
             case let .responseDecodingFailed(reason: reason):
                 reason
+            case let .unsupportedAPIVersion(app: app, required: required, advertised: advertised):
+                "The \"\(app)\" app on the server does not support API version \(required) or newer, which is required. It advertises \(advertised.isEmpty ? "no version at all" : advertised.joined(separator: ", ")). Update the app on the server."
             case let .unexpectedStatus(code: code):
                 "Unexpected status: \(code) \(HTTPStatus(rawValue: code)?.description ?? "")"
         }

@@ -25,6 +25,53 @@ import Testing
         Server(address: serverAddress, password: password, user: user, userAgent: "RainmakerTests")
     }
 
+    @Test("App Request When Authenticated")
+    func appRequestAuthenticated() throws {
+        let server = makeServer()
+        let request = try server.makeAppRequest(for: "notes/api/v1/notes", method: .get)
+
+        #expect(request.url == server.appsAddress.appendingCompatibility(path: "notes/api/v1/notes", directoryHint: .inferFromPath))
+        #expect(request.url?.compatibilityPath(percentEncoded: false) == "/index.php/apps/notes/api/v1/notes")
+        #expect(request.httpMethod == "GET")
+
+        let headers = request.allHTTPHeaderFields
+        #expect(headers?["Accept"] == "application/json")
+        #expect(headers?["User-Agent"] == "RainmakerTests")
+        #expect(headers?["Authorization"] == expectedBasicAuthorization)
+
+        // An app's own API is not reachable through OCS, so the header announcing an OCS request must not be sent.
+        #expect(headers?["OCS-APIRequest"] == nil)
+    }
+
+    @Test("App Request When Unauthenticated")
+    func appRequestUnauthenticated() throws {
+        let server = makeServer(user: nil, password: nil)
+        let request = try server.makeAppRequest(for: "notes/api/v1/notes", method: .get)
+
+        // Whether an app route needs credentials is up to the app, so the request is still built, just without an `Authorization` header.
+        #expect(request.allHTTPHeaderFields?["Authorization"] == nil)
+    }
+
+    @Test("App Request With Query Items")
+    func appRequestWithQueryItems() throws {
+        let server = makeServer()
+        let request = try server.makeAppRequest(for: "notes/api/v1/notes", method: .get, queryItems: [URLQueryItem(name: "pruneBefore", value: "1700000000")])
+        let url = try #require(request.url)
+        let components = try #require(URLComponents(url: url, resolvingAgainstBaseURL: false))
+
+        #expect(components.path == "/index.php/apps/notes/api/v1/notes")
+        #expect(components.queryItems == [URLQueryItem(name: "pruneBefore", value: "1700000000")])
+    }
+
+    @Test("App Request Without Query Items Is Unchanged")
+    func appRequestWithoutQueryItems() throws {
+        let server = makeServer()
+        let request = try server.makeAppRequest(for: "notes/api/v1/notes", method: .get)
+
+        // An empty query has to produce a bare URL rather than one with a trailing question mark.
+        #expect(request.url?.absoluteString == "http://localhost/index.php/apps/notes/api/v1/notes")
+    }
+
     @Test("OCS Request When Authenticated")
     func ocsRequestAuthenticated() throws {
         let server = makeServer()
