@@ -12,9 +12,16 @@ import Foundation
 /// let changes = try await server.notes(changedSince: lastSynchronization)
 ///
 /// for note in changes.changed {
+///     // A note the server could not read is listed like any other, carrying a message about the failure in place of its text. Storing it would replace a perfectly good local copy with that message.
+///     guard note.hasError == false else {
+///         report(note.errorType, for: note.id)
+///         continue
+///     }
+///
 ///     store.upsert(note)
 /// }
 ///
+/// // Every identifier the server returned, the unreadable ones included, so a note it could not read this time is not mistaken for one which was deleted.
 /// store.deleteAll(exceptFor: changes.changed.map(\.id) + changes.unchanged)
 /// ```
 ///
@@ -25,6 +32,7 @@ public struct NoteChanges: Model {
     /// The notes the server recorded a change for at or after the requested moment, in the order returned by the server.
     ///
     /// Empty whenever nothing changed, which is the common case for a client polling frequently.
+    /// This can include a note the server could not read, which is reported through ``Note/hasError`` rather than by leaving it out, so its identifier still counts towards what exists.
     ///
     public let changed: [Note]
 
