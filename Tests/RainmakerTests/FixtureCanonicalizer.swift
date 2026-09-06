@@ -26,9 +26,11 @@ struct FixtureCanonicalizer {
     ///
     /// Everything else (volatile headers such as `Date`, `ETag` or request identifiers) is dropped to keep fixtures minimal and stable. The match is case-insensitive.
     ///
+    /// `X-Notes-API-Versions` has to be kept because ``Server/notes()`` refuses a notes app older than ``Notes/minimumAPIVersion`` and reads that header to decide, so a replayed response without it would look unsupported. Its value tracks whichever app release the app store served at recording time and therefore changes when that does.
+    ///
     /// The two activity headers carry the pagination cursors of ``ActivityPage``, which the client reads from the response rather than from its body, so a recording which dropped them would replay as a page without cursors. They hold plain identifiers and therefore cannot leak the recording host, unlike the `Link` header the same endpoint emits, which is deliberately not preserved.
     ///
-    static let persistedHeaderFields = ["Content-Type", "X-Activity-First-Known", "X-Activity-Last-Given"]
+    static let persistedHeaderFields = ["Content-Type", "X-Activity-First-Known", "X-Activity-Last-Given", "X-Notes-API-Versions"]
 
     ///
     /// Create a canonicalizer for a given live server address.
@@ -108,6 +110,10 @@ struct FixtureCanonicalizer {
     ///
     /// The placeholders are chosen to remain parseable: the timestamp matches the date format the WebDAV parsing expects and the file identifier stays numeric.
     ///
+    /// The JSON `"etag"` rule covers the notes the notes API reports, whose entity tags are content hashes differing per deployment. It also rewrites the one under `capabilities.files.directEditing` in the capabilities fixtures, the only other JSON fixture carrying that key, which is an entity tag as well and which no test asserts on.
+    ///
+    /// Two neighbouring fields of a note are deliberately left alone. Its `"modified"` timestamp is reproducible rather than volatile, because ``FixtureProvisioner`` stamps the seeded note files with fixed modification dates which ``Server/upload(_:to:force:)`` preserves, and flattening it would remove the very difference the incremental retrieval tests rely on. Its numeric `"id"` is a database identifier which does differ per deployment, but collapsing every note's id to one placeholder would make them indistinguishable and contradict `Note` being `Identifiable`, so the tests look notes up by title instead.
+    ///
     private static let volatileReplacements: [(pattern: String, replacement: String)] = [
         ("<d:getetag>[^<]*</d:getetag>", "<d:getetag>\"00000000000000000000000000000000\"</d:getetag>"),
         ("<d:getlastmodified>[^<]*</d:getlastmodified>", "<d:getlastmodified>Thu, 01 Jan 1970 00:00:00 GMT</d:getlastmodified>"),
@@ -117,6 +123,7 @@ struct FixtureCanonicalizer {
         ("/login/v2/flow/[^\"<\\s]+", "/login/v2/flow/REDACTED"),
         ("\"token\"[ ]*:[ ]*\"[^\"]*\"", "\"token\": \"REDACTED\""),
         ("\"appPassword\"[ ]*:[ ]*\"[^\"]*\"", "\"appPassword\": \"REDACTED\""),
+        ("\"etag\"[ ]*:[ ]*\"[^\"]*\"", "\"etag\": \"00000000000000000000000000000000\""),
     ]
 
     ///

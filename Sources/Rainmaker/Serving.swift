@@ -271,6 +271,22 @@ protocol Serving: Sendable {
     func makeOCSRequest(for path: String, method: Method, queryItems: [URLQueryItem]) throws -> URLRequest
 
     ///
+    /// Set up a URL request specifically for the REST API of a server app which is not reachable through OCS.
+    ///
+    /// Apps commonly expose their own endpoints below `/index.php/apps/`, outside both the OCS root ``makeOCSRequest(for:method:queryItems:)`` targets and the WebDAV roots ``makeWebDAVRequest(for:method:)`` targets. The notes app is one of them, and this is what ``notes()`` is built on.
+    ///
+    /// Credentials are optional for this call, matching ``makeOCSRequest(for:method:queryItems:)``, because whether an app route requires them is up to the app. No `OCS-APIRequest` header is set, as the request does not go through OCS.
+    ///
+    /// The implementation on ``Server`` defaults `queryItems` to an empty array, so endpoints which are parameterized through the path alone are requested without naming it. Passing an empty array produces exactly the URL a call without any query would.
+    ///
+    /// - Parameters:
+    ///     - path: The path relative to the apps root (see ``Server/appsAddress``), e.g. `"notes/api/v1/notes"`.
+    ///     - method: The HTTP method to use.
+    ///     - queryItems: The query parameters to append, in the order they should appear.
+    ///
+    func makeAppRequest(for path: String, method: Method, queryItems: [URLQueryItem]) throws -> URLRequest
+
+    ///
     /// Set up a URL request specifically for WebDAV interaction.
     ///
     /// The given `path` is resolved relative to the account's WebDAV files root (see ``Server/webDAVPathPrefix``, e.g. `"/remote.php/dav/files/<user>"`).
@@ -320,6 +336,75 @@ protocol Serving: Sendable {
     ///     - Any other error that might occur during retrieval.
     ///
     func notifications() async throws -> [NotificationItem]
+
+    ///
+    /// List all notes of the authenticated user.
+    ///
+    /// Notes are provided by the server's notes app which, unlike most of what this library covers, is not part of a Nextcloud installation and has to be installed separately. Whether it is available can be checked in advance via the ``Notes`` capability, e.g. `try await capabilities().contains(Notes.self)`. When the app is unavailable the underlying endpoint does not exist and this call throws ``RainmakerError/notFound``.
+    ///
+    /// The very same not found error is what a server answers whose `index.php` routing is disabled or whose reverse proxy swallows the route, so those causes cannot be told apart from the response alone.
+    ///
+    /// An app which is installed but older than ``Notes/minimumAPIVersion`` is reported separately, as ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)``. That requirement is checked on every response, because the notes API advertises the versions it serves in a header of its own, and it can be checked in advance through ``Notes/isSupported``.
+    ///
+    /// The whole collection is retrieved in a single request, because the endpoint returns everything at once unless a chunk size is requested, which this deliberately does not do. Use ``notes(changedSince:)`` to retrieve only what changed since an earlier call.
+    ///
+    /// > Warning: Every note including its full content is fetched and held in memory at once, so what this costs grows with the size of the account's notes.
+    ///
+    /// Credentials are required: notes are user-scoped and the underlying endpoint rejects unauthenticated requests.
+    ///
+    /// - Returns: The notes in the order returned by the server.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
+    ///     - ``RainmakerError/notFound`` when the notes app is not available on the server.
+    ///     - ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)`` when it is available but older than ``Notes/minimumAPIVersion``.
+    ///     - ``RainmakerError/responseDecodingFailed(reason:)`` when a success response does not carry a list of notes.
+    ///     - Any other error that might occur during retrieval.
+    ///
+    func notes() async throws -> [Note]
+
+    ///
+    /// List the notes of the authenticated user which changed since a given moment, together with the identifiers of those which did not.
+    ///
+    /// This is the incremental counterpart of ``notes()`` for a client keeping its own copy of the notes: the server returns every note it recorded a change for at or after `changedSince` in full, and reduces every note it did not to its identifier alone. Both together are the complete set of notes the account has, which is what makes deletions detectable. See ``NoteChanges`` for how the two halves are meant to be applied.
+    ///
+    /// The moment is sent to the server as its `pruneBefore` parameter, converted to whole seconds since the Unix epoch. A moment at or before the epoch prunes nothing and therefore behaves like ``notes()``.
+    ///
+    /// > Warning: The server compares this moment against its own record of when it last noticed each note change, which is not the same as that note's ``Note/modification`` date. A note may be from 2020, but when the server only found it today it is not pruned from the response. Never pass a note's ``Note/modification`` back in as this moment; pass one measured on the same clock the server runs on instead, such as when the previous retrieval was made. The API defines the exact value to reuse as the `Last-Modified` header of the previous response, which is the server's own request time and which this library does not surface.
+    ///
+    /// Everything else, including how an unavailable app surfaces, matches ``notes()``.
+    ///
+    /// - Parameters:
+    ///     - changedSince: The moment to retrieve changes since, measured against the server's own record of when it last saw a note change rather than against ``Note/modification``.
+    ///
+    /// - Returns: The changed notes and the identifiers of the unchanged ones.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
+    ///     - ``RainmakerError/notFound`` when the notes app is not available on the server.
+    ///     - ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)`` when it is available but older than ``Notes/minimumAPIVersion``.
+    ///     - ``RainmakerError/responseDecodingFailed(reason:)`` when a success response does not carry a list of notes.
+    ///     - Any other error that might occur during retrieval.
+    ///
+    func notes(changedSince: Date) async throws -> NoteChanges
+
+    ///
+    /// Look up the settings the notes app keeps for the authenticated user.
+    ///
+    /// These say where the app stores notes and which extension it gives a new one, which matters because notes are ordinary files: the folder is not a fixed name but a value derived from the account's locale by default, so anything which wants to reach notes over WebDAV rather than through ``notes()`` has to ask for it rather than assume it. See ``NotesSettings``.
+    ///
+    /// The same requirement and the same failure modes as ``notes()`` apply, since this is the same app's API.
+    ///
+    /// - Returns: The notes app's settings for the authenticated user.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
+    ///     - ``RainmakerError/notFound`` when the notes app is not available on the server.
+    ///     - ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)`` when it is available but older than ``Notes/minimumAPIVersion``.
+    ///     - ``RainmakerError/responseDecodingFailed(reason:)`` when a success response does not carry the settings.
+    ///     - Any other error that might occur during retrieval.
+    ///
+    func notesSettings() async throws -> NotesSettings
 
     ///
     /// Retrieve one page of the activity stream the server records for the authenticated user.

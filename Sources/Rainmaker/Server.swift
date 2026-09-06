@@ -58,6 +58,13 @@ public final class Server {
     public let OCSAddress: URL
 
     ///
+    /// Root address of the server apps' own REST APIs, which are reachable outside the OCS root.
+    ///
+    /// Looks like `"/index.php/apps/"` and is what ``makeAppRequest(for:method:queryItems:)`` resolves its path against.
+    ///
+    public let appsAddress: URL
+
+    ///
     /// The path prefix appended to the base address before the actual remote subject path on every trash bin WebDAV request, including the user's name.
     ///
     /// Looks like `"/remote.php/dav/trashbin/<user>/trash"`.
@@ -87,6 +94,47 @@ public final class Server {
         guard user != nil, password != nil else {
             throw RainmakerError.credentialsRequired
         }
+    }
+
+    ///
+    /// Request an endpoint of the notes app's API and return its raw payload.
+    ///
+    /// This is what every notes feature shares: the base path, the mapping of an absent app onto a not found error, and the enforcement of ``Notes/minimumAPIVersion``.
+    ///
+    /// None of those endpoints answers with an OCS envelope, so unlike every other JSON endpoint in this library there is no `meta` status vouching for a payload. A success response carrying something else entirely, for example an HTML login or maintenance page served by a proxy, therefore has to surface as ``RainmakerError/responseDecodingFailed(reason:)`` rather than as an opaque Foundation error, which is why every caller wraps its decoding. The payload is left out of those messages so that note contents cannot leak into logs.
+    ///
+    /// - Parameters:
+    ///     - path: The path relative to the notes app's API root, e.g. `"notes"` or `"settings"`.
+    ///     - queryItems: The query parameters to append, in the order they should appear.
+    ///
+    private func notesAPIPayload(for path: String, queryItems: [URLQueryItem] = []) async throws -> Data {
+        let request = try makeAppRequest(for: "notes/api/v1/\(path)", method: .get, queryItems: queryItems)
+        let (data, urlResponse) = try await session.data(for: request)
+
+        guard let response = urlResponse as? HTTPURLResponse else {
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to cast URLResponse to HTTPURLResponse.")
+        }
+
+        // The endpoint only exists while the notes app is installed and enabled, so its absence surfaces as a not found error. A notes app too old to serve this major version of the API is reported the same way.
+        if response.status == .notFound {
+            throw RainmakerError.notFound
+        }
+
+        guard response.status == .ok else {
+            throw RainmakerError.unexpectedStatus(code: response.statusCode)
+        }
+
+        // Every response of the notes API advertises which versions of it the installed app can serve, so the requirement is enforced from the response already in hand rather than by asking for the server's capabilities first.
+        let advertisedAPIVersions = (response.value(forHTTPHeaderField: "X-Notes-API-Versions") ?? "")
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { $0.isEmpty == false }
+
+        guard Notes.supports(apiVersions: advertisedAPIVersions) else {
+            throw RainmakerError.unsupportedAPIVersion(app: Notes.key, required: Notes.minimumAPIVersion, advertised: advertisedAPIVersions)
+        }
+
+        return data
     }
 
     ///
@@ -568,6 +616,7 @@ public final class Server {
         self.user = user
         self.userAgent = userAgent
         OCSAddress = address.appendingCompatibility(path: "/ocs/v2.php/", directoryHint: .isDirectory)
+        appsAddress = address.appendingCompatibility(path: "/index.php/apps/", directoryHint: .isDirectory)
         webDAVAddress = address.appendingCompatibility(path: "/remote.php/dav/files/\(user ?? "")", directoryHint: .isDirectory)
         webDAVPathPrefix = "/remote.php/dav/files/\(user ?? "")"
         trashbinAddress = address.appendingCompatibility(path: "/remote.php/dav/trashbin/\(user ?? "")/trash", directoryHint: .isDirectory)
@@ -916,6 +965,60 @@ extension Server: Serving {
         return envelope.ocs.data
     }
 
+    public func notes() async throws -> [Note] {
+        try requireCredentials()
+        logger.debug("Fetching notes...")
+
+        let data = try await notesAPIPayload(for: "notes")
+
+        do {
+            return try jsonDecoder.decode([Note].self, from: data)
+        } catch {
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to decode the notes: \(error)")
+        }
+    }
+
+    public func notes(changedSince: Date) async throws -> NoteChanges {
+        try requireCredentials()
+        logger.debug("Fetching notes changed since \(changedSince)...")
+
+        // A moment at or before the Unix epoch has no positive number of seconds to express it, and pruning before it would exclude nothing anyway, so the server is asked not to prune at all.
+        let pruneBefore = changedSince.wholeSecondsSince1970 ?? 0
+        let data = try await notesAPIPayload(for: "notes", queryItems: [URLQueryItem(name: "pruneBefore", value: String(pruneBefore))])
+        let entries: [NoteEntry]
+
+        do {
+            entries = try jsonDecoder.decode([NoteEntry].self, from: data)
+        } catch {
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to decode the notes: \(error)")
+        }
+
+        var changed = [Note]()
+        var unchanged = [Int]()
+
+        for entry in entries {
+            switch entry {
+                case let .changed(note): changed.append(note)
+                case let .unchanged(id): unchanged.append(id)
+            }
+        }
+
+        return NoteChanges(changed: changed, unchanged: unchanged)
+    }
+
+    public func notesSettings() async throws -> NotesSettings {
+        try requireCredentials()
+        logger.debug("Fetching note settings...")
+
+        let data = try await notesAPIPayload(for: "settings")
+
+        do {
+            return try jsonDecoder.decode(NotesSettings.self, from: data)
+        } catch {
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to decode the note settings: \(error)")
+        }
+    }
+
     public func activities(filter: String = ActivityFilter.all, since: Int = 0, limit: Int = 50, sort: ActivitySort = .newestFirst, previews: Bool = false, objectType: String? = nil, objectId: String? = nil) async throws -> ActivityPage {
         try requireCredentials()
         logger.debug("Fetching user activities...")
@@ -1017,6 +1120,25 @@ extension Server: Serving {
 
         var request = makeRequest(for: components?.url ?? url, method: method)
         request.setValue("true", forHTTPHeaderField: "OCS-APIRequest")
+
+        if let user, let password {
+            let encodedCredentials = Data("\(user):\(password)".utf8).base64EncodedString()
+            request.setValue("Basic \(encodedCredentials)", forHTTPHeaderField: "Authorization")
+        }
+
+        return request
+    }
+
+    public func makeAppRequest(for path: String, method: Method, queryItems: [URLQueryItem] = []) throws -> URLRequest {
+        let url = appsAddress.appendingCompatibility(path: path, directoryHint: .inferFromPath)
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+
+        // The query is only assigned when there is one so that a request without query parameters produces a bare URL rather than one with a trailing question mark.
+        if queryItems.isEmpty == false {
+            components?.queryItems = queryItems
+        }
+
+        var request = makeRequest(for: components?.url ?? url, method: method)
 
         if let user, let password {
             let encodedCredentials = Data("\(user):\(password)".utf8).base64EncodedString()

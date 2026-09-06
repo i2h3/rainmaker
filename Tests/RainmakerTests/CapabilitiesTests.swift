@@ -59,6 +59,13 @@ import Testing
         #expect(activity.apiV2?.contains("filters-api") == true)
         #expect(capabilities.contains(Activity.self))
 
+        // The notes app is not part of a Nextcloud installation and is installed on the recording containers on demand, which is why its capability is here at all.
+        let notes = try #require(try capabilities.get(Notes.self))
+        #expect(notes.apiVersion?.isEmpty == false)
+        #expect(notes.version?.isEmpty == false)
+        #expect(notes.notesPath?.isEmpty == false)
+        #expect(capabilities.contains(Notes.self))
+
         #expect(capabilities.version.string == serverVersion.rawValue)
         #expect(capabilities.version.major > 0)
     }
@@ -76,6 +83,8 @@ import Testing
         #expect(capabilities.contains(Notifications.self) == false)
         #expect(try capabilities.get(Activity.self) == nil)
         #expect(capabilities.contains(Activity.self) == false)
+        #expect(try capabilities.get(Notes.self) == nil)
+        #expect(capabilities.contains(Notes.self) == false)
 
         #expect(capabilities.version.string == serverVersion.rawValue)
     }

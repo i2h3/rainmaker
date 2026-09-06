@@ -66,6 +66,19 @@ Whether and how many notifications are pending follows from the returned array, 
 - ``Server/notifications()``
 - ``NotificationItem``
 
+### Notes
+
+Retrieve the notes of an account, either all of them at once or, for a client keeping its own copy, only those the server recorded a change for since a given moment.
+Whether the app providing them is installed at all is advertised through the ``Notes`` capability, which matters more here than elsewhere because the notes app is not part of a Nextcloud installation, and which also reports whether it is new enough to be usable.
+Notes are ordinary files, so ``NotesSettings`` says where to find them when reaching for them over WebDAV instead.
+
+- ``Server/notes()``
+- ``Server/notes(changedSince:)``
+- ``Server/notesSettings()``
+- ``Note``
+- ``NoteChanges``
+- ``NotesSettings``
+
 ### Apps Navigation
 
 List the server apps, such as Files, Photos and Activity, which the server advertises to the authenticated user so that a client can surface them in its own navigation.
@@ -78,6 +91,7 @@ List the server apps, such as Files, Photos and Activity, which the server adver
 - ``CapabilitySet``
 - ``Capability``
 - ``Activity``
+- ``Notes``
 - ``Notifications``
 - ``PushNotifications``
 - ``Theming``
@@ -94,6 +108,7 @@ If the built in features of Rainmaker do not suffice for your use case, you can 
 This is useful for API endpoints not covered by Rainmaker.
 In example a third-party Nextcloud server app.
 
+- ``Server/makeAppRequest(for:method:queryItems:)``
 - ``Server/makeOCSRequest(for:method:queryItems:)``
 - ``Server/makeWebDAVRequest(for:method:)``
 - ``Method``

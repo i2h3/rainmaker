@@ -22,7 +22,7 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.6.2"),
         .package(url: "https://github.com/nicklockwood/SwiftFormat", from: "0.55.0"),
-        .package(url: "https://github.com/i2h3/nextcloud-container-manager", from: "1.4.1"),
+        .package(url: "https://github.com/i2h3/nextcloud-container-manager", from: "2.0.0"),
     ],
     targets: [
         .target(name: "Rainmaker", resources: [.copy("Requests/Bodies")]),

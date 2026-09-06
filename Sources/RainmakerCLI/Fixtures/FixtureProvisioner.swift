@@ -22,9 +22,28 @@
         let baselineDirectory: URL
 
         ///
+        /// The folder inside the account the seeded notes are placed in, relative to its root.
+        ///
+        /// Looked up from the server by ``FixtureOrchestrator`` rather than assumed, because the notes app derives this from the account's locale and ignores notes anywhere else. See ``Server/notesSettings()``.
+        ///
+        let notesFolder: String
+
+        ///
         /// The special-character directory names exercised by the listing tests, each seeded with a `Readme.md`.
         ///
         static let specialCharacterNames = [":", "?", "&", "#", "%"]
+
+        ///
+        /// The notes seeded into the account's notes folder, each with the modification date to stamp it with.
+        ///
+        /// The notes app derives a note from every file in that folder: its title from the file name, its category from the sub-folder and its content from the file. Seeding them as plain files therefore needs nothing beyond the WebDAV upload the baseline already uses.
+        ///
+        /// The modification dates are fixed rather than left at the upload time so that the `modified` field the notes API reports is reproducible across recordings, which is what lets `NotesTests` assert on it. ``Server/upload(_:to:force:)`` carries them to the server in the `X-OC-Mtime` header.
+        ///
+        static let notes: [(name: String, contents: String, modification: Date)] = [
+            (name: "Rainmaker.md", contents: "# Rainmaker\n", modification: Date(timeIntervalSince1970: 1_700_000_000)),
+            (name: "Recipes/Pancakes.md", contents: "# Pancakes\n", modification: Date(timeIntervalSince1970: 1_600_000_000)),
+        ]
 
         ///
         /// Generate the baseline tree on disk and upload it to the server.
@@ -60,6 +79,9 @@
             } else if testID.contains("UploadTests/directory") {
                 // The fixture creates "/Documents" fresh (MKCOL → 201), so it must be absent beforehand.
                 try? await server.delete("/Documents")
+            } else if testID.contains("NotesTests/fetchNone") {
+                // The fixture records an account without a single note, so the seeded notes folder has to be gone beforehand. The baseline is restored before every following test, which brings it back.
+                try? await server.delete("/\(notesFolder)")
             } else if testID.contains("MoveTests/overwriteExisting") || testID.contains("MoveTests/conflictWhenExists") {
                 // Both move "/Readme.md" onto an existing "/Existing.md", so that destination must already be present.
                 let existing = baselineDirectory.appendingPathComponent("Existing.md")
@@ -85,6 +107,12 @@
             try write("# Example\n", to: "Documents/Example.md")
             try write("frog", to: "Photos/Frog.jpg")
             try write("whiteboard", to: "Templates/Brainstorming.whiteboard")
+
+            for note in Self.notes {
+                let path = "\(notesFolder)/\(note.name)"
+                try write(note.contents, to: path)
+                try FileManager.default.setAttributes([.modificationDate: note.modification], ofItemAtPath: baselineDirectory.appendingPathComponent(path).path)
+            }
 
             for folder in ["Special Characters", "Special%20Characters"] {
                 for name in Self.specialCharacterNames {
