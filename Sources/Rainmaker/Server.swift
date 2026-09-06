@@ -567,6 +567,9 @@ public final class Server {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
 
+        // Every request authenticates itself, so cookies have no part to play and are refused in both directions. Accepting them is actively harmful: a request to an app's own API makes the server open a session and send its cookies back, and a later WebDAV request carrying them is authenticated through that session instead of through its own credentials, which then fails the server's cross-site request check. The symptom is a WebDAV call answering 401 or 412 for no reason other than an unrelated call having preceded it. OCS requests avoid this by announcing themselves as such, which no other endpoint has an equivalent for.
+        request.httpShouldHandleCookies = false
+
         return request
     }
 

@@ -72,6 +72,16 @@ import Testing
         #expect(request.url?.absoluteString == "http://localhost/index.php/apps/notes/api/v1/notes")
     }
 
+    @Test("Requests Refuse Cookies")
+    func requestsRefuseCookies() throws {
+        let server = makeServer()
+
+        // A request to an app's own API makes the server open a session, and a WebDAV request carrying the resulting cookies is authenticated through that session rather than through its own credentials, which the server then rejects. Every factory therefore has to opt out of cookie handling, not just the one that triggers it.
+        #expect(try server.makeAppRequest(for: "notes/api/v1/notes", method: .get).httpShouldHandleCookies == false)
+        #expect(try server.makeOCSRequest(for: "cloud/capabilities", method: .get).httpShouldHandleCookies == false)
+        #expect(try server.makeWebDAVRequest(for: "Readme.md", method: .propfind).httpShouldHandleCookies == false)
+    }
+
     @Test("OCS Request When Authenticated")
     func ocsRequestAuthenticated() throws {
         let server = makeServer()
