@@ -52,6 +52,10 @@ import Testing
         #expect(uncategorized.isFavorite == false)
         #expect(uncategorized.isReadOnly == false)
 
+        // A note the server read without trouble reports no failure, which is what makes the flag meaningful on the ones that do.
+        #expect(uncategorized.hasError == false)
+        #expect(uncategorized.errorType.isEmpty)
+
         // Pins the conversion of the server's whole seconds since the Unix epoch, which the provisioner stamped onto the seeded file.
         #expect(uncategorized.modification == Date(timeIntervalSince1970: 1_700_000_000))
 

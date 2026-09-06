@@ -56,13 +56,13 @@ import Testing
     @Test("Note Encodes Under Its Property Names")
     func note() throws {
         let payload = """
-        {"id":76,"etag":"be284e00488c61c101ee28309d235e0b","readonly":false,"modified":1376753464,"title":"New note","category":"sub-directory","content":"New note","favorite":false}
+        {"id":76,"etag":"be284e00488c61c101ee28309d235e0b","readonly":false,"modified":1376753464,"title":"New note","category":"sub-directory","content":"New note","favorite":false,"error":false,"errorType":""}
         """
 
         let keys = try encodedKeys(of: Note.self, from: payload)
 
-        #expect(keys.isDisjoint(with: ["etag", "readonly", "favorite", "modified"]))
-        #expect(keys == ["id", "entityTag", "isReadOnly", "title", "category", "content", "isFavorite", "modification"])
+        #expect(keys.isDisjoint(with: ["etag", "readonly", "favorite", "modified", "error"]))
+        #expect(keys == ["id", "entityTag", "isReadOnly", "title", "category", "content", "hasError", "errorType", "isFavorite", "modification"])
     }
 
     @Test("Note Settings Encode Under Their Property Names")

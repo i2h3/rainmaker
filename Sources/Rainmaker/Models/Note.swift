@@ -11,6 +11,8 @@ import Foundation
 /// Every note is a file in the account's notes folder, which is why ``title`` doubles as its file name and ``category`` as the folder it sits in.
 /// The attachments ``content`` may refer to are intentionally not modelled, as retrieving them is out of scope.
 ///
+/// A note the server could not read is still listed rather than omitted, and the response still succeeds. Such a note carries ``hasError``, and its ``content`` is a message about the failure instead of the note's text. Anything which stores what it retrieves has to check that before writing, or it replaces a perfectly good local copy with an error message.
+///
 public struct Note: Model, Identifiable, CustomStringConvertible, CustomDebugStringConvertible, Decodable {
     ///
     /// The server-assigned identifier of the note, unique per account.
@@ -28,6 +30,7 @@ public struct Note: Model, Identifiable, CustomStringConvertible, CustomDebugStr
     /// Whether the note cannot be edited, for example because it was shared by another user without granting write access.
     ///
     /// This corresponds to the server's `readonly` field.
+    /// The server also forces it for a note it could not read, so on its own it is not a statement about permissions; see ``hasError``.
     ///
     public let isReadOnly: Bool
 
@@ -49,7 +52,25 @@ public struct Note: Model, Identifiable, CustomStringConvertible, CustomDebugStr
     ///
     /// The text of the note, which the notes app formats as Markdown.
     ///
+    /// This is only the note's text while ``hasError`` is `false`. For a note the server could not read it is the message the server substituted for it, which is localized to the account's language and names the failure, for example `"Error: OCP\\Files\\NotPermittedException"`.
+    ///
     public let content: String
+
+    ///
+    /// Whether the server ran into an error while reading this note.
+    ///
+    /// The note is listed all the same and the response still succeeds, so this is the only reliable way to tell a note which was read from one which was not. When it is `true` the server has replaced ``content`` with a message about the failure, named the failure in ``errorType``, and forced ``isReadOnly``.
+    ///
+    /// This corresponds to the server's `error` field, which every server serving version 1 of the API sends.
+    ///
+    public let hasError: Bool
+
+    ///
+    /// The kind of error the server ran into while reading this note, as the class name it uses internally, for example `"OCP\\Files\\NotPermittedException"`.
+    ///
+    /// Empty whenever ``hasError`` is `false`. It is meant for telling failures apart and for reporting them, not for display: it is an implementation detail of the server rather than anything a user would recognize.
+    ///
+    public let errorType: String
 
     ///
     /// Whether the note is marked as a favorite, which clients customarily surface at the top of a list.
@@ -73,6 +94,8 @@ public struct Note: Model, Identifiable, CustomStringConvertible, CustomDebugStr
         case title
         case category
         case content
+        case hasError = "error"
+        case errorType
         case isFavorite = "favorite"
         case modification = "modified"
     }
@@ -82,7 +105,7 @@ public struct Note: Model, Identifiable, CustomStringConvertible, CustomDebugStr
     ///
     /// Decode a note from the server's payload.
     ///
-    /// Every field is required. ``Notes/minimumAPIVersion`` is enforced before a payload reaches this type, and that version sends all of them, so a missing field means a response this type cannot describe rather than an older server. The notes this library requests are also never reduced by an `exclude` parameter, and the reduced form a `pruneBefore` request produces is recognized before decoding is attempted.
+    /// Every field is required, ``hasError`` and ``errorType`` included: the server has sent those since it first served version 1 of the API. ``Notes/minimumAPIVersion`` is enforced before a payload reaches this type, and that version sends all of them, so a missing field means a response this type cannot describe rather than an older server. The notes this library requests are also never reduced by an `exclude` parameter, and the reduced form a `pruneBefore` request produces is recognized before decoding is attempted.
     ///
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -93,6 +116,8 @@ public struct Note: Model, Identifiable, CustomStringConvertible, CustomDebugStr
         title = try container.decode(String.self, forKey: .title)
         category = try container.decode(String.self, forKey: .category)
         content = try container.decode(String.self, forKey: .content)
+        hasError = try container.decode(Bool.self, forKey: .hasError)
+        errorType = try container.decode(String.self, forKey: .errorType)
         isFavorite = try container.decode(Bool.self, forKey: .isFavorite)
 
         // Decoding into a `TimeInterval` rather than an integer avoids the trap an out of range value would cause on the platforms where `Int` is only 32 bits wide.
@@ -114,6 +139,8 @@ public struct Note: Model, Identifiable, CustomStringConvertible, CustomDebugStr
         case title
         case category
         case content
+        case hasError
+        case errorType
         case isFavorite
         case modification
     }
@@ -130,6 +157,8 @@ public struct Note: Model, Identifiable, CustomStringConvertible, CustomDebugStr
         try container.encode(title, forKey: .title)
         try container.encode(category, forKey: .category)
         try container.encode(content, forKey: .content)
+        try container.encode(hasError, forKey: .hasError)
+        try container.encode(errorType, forKey: .errorType)
         try container.encode(isFavorite, forKey: .isFavorite)
         try container.encode(modification, forKey: .modification)
     }
