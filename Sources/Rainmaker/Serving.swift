@@ -350,6 +350,8 @@ protocol Serving: Sendable {
     ///
     /// > Warning: Every note including its full content is fetched and held in memory at once, so what this costs grows with the size of the account's notes.
     ///
+    /// A note the server could not read is listed like any other and does not fail the call. It carries ``Note/hasError`` and its ``Note/content`` is a message about the failure rather than the note's text, so anything which stores what it retrieves has to check that first.
+    ///
     /// Credentials are required: notes are user-scoped and the underlying endpoint rejects unauthenticated requests.
     ///
     /// - Returns: The notes in the order returned by the server.
@@ -372,7 +374,7 @@ protocol Serving: Sendable {
     ///
     /// > Warning: The server compares this moment against its own record of when it last noticed each note change, which is not the same as that note's ``Note/modification`` date. A note may be from 2020, but when the server only found it today it is not pruned from the response. Never pass a note's ``Note/modification`` back in as this moment; pass one measured on the same clock the server runs on instead, such as when the previous retrieval was made. The API defines the exact value to reuse as the `Last-Modified` header of the previous response, which is the server's own request time and which this library does not surface.
     ///
-    /// Everything else, including how an unavailable app surfaces, matches ``notes()``.
+    /// Everything else, including how an unavailable app surfaces and how a note the server could not read is reported, matches ``notes()``.
     ///
     /// - Parameters:
     ///     - changedSince: The moment to retrieve changes since, measured against the server's own record of when it last saw a note change rather than against ``Note/modification``.

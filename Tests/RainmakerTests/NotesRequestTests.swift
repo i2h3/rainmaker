@@ -262,13 +262,43 @@ import Testing
         }
     }
 
+    @Test("An Unreadable Note Is Reported As One")
+    func unreadableNote() async throws {
+        // Shaped exactly as the server builds it when reading the file throws: the note stays in the list, the response still succeeds, the content is replaced by a localized message, and read-only is forced. See lib/Service/Note.php in the notes app.
+        let payload = #"[{"id":7,"etag":"9cf1","readonly":true,"modified":1700000000,"title":"Unreadable","category":"","content":"Fehler: OCP\\Files\\NotPermittedException","favorite":false,"error":true,"errorType":"OCP\\Files\\NotPermittedException"}]"#
+        let note = try #require(try await makeServer(body: payload).notes().first)
+
+        // Without this a client cannot tell the note apart from one which was read, and would store the server's message over a perfectly good local copy.
+        #expect(note.hasError)
+        #expect(note.errorType == #"OCP\Files\NotPermittedException"#)
+        #expect(note.content == #"Fehler: OCP\Files\NotPermittedException"#)
+
+        // Forced by the server for a note it could not read, which is why it cannot stand in for the failure itself.
+        #expect(note.isReadOnly)
+
+        // Everything the server could still report about the note is intact.
+        #expect(note.id == 7)
+        #expect(note.title == "Unreadable")
+        #expect(note.modification == Date(timeIntervalSince1970: 1_700_000_000))
+    }
+
+    @Test("A Readable Note Reports No Failure")
+    func readableNote() async throws {
+        let payload = #"[{"id":8,"etag":"1a2b","readonly":false,"modified":1700000000,"title":"Fine","category":"","content":"text","favorite":false,"error":false,"errorType":""}]"#
+        let note = try #require(try await makeServer(body: payload).notes().first)
+
+        #expect(note.hasError == false)
+        #expect(note.errorType.isEmpty)
+        #expect(note.content == "text")
+    }
+
     @Test("Ignores The Fields Which Are Not Modelled")
     func ignoresUnmodelledFields() async throws {
         let payload = ##"[{"id":86,"title":"Rainmaker","modified":1700000000,"category":"","favorite":false,"readonly":false,"internalPath":"/Notes/Rainmaker.md","shareTypes":[],"isShared":false,"error":false,"errorType":"","content":"# Rainmaker\n","etag":"c649e503de046daca1b998c2e52b2a94"}]"##
         let server = makeServer(body: payload)
         let note = try #require(try await server.notes().first)
 
-        // This is verbatim what a live server sends, which is more than the API documents. Unknown fields must be ignored rather than break the retrieval, which is what the API's compatibility rules ask of a client.
+        // This is verbatim what a live server sends, which is more than the API documents. The fields which are still not modelled must be ignored rather than break the retrieval, which is what the API's compatibility rules ask of a client.
         #expect(note.id == 86)
         #expect(note.title == "Rainmaker")
         #expect(note.entityTag == "c649e503de046daca1b998c2e52b2a94")
@@ -278,7 +308,7 @@ import Testing
 
     @Test("Partitions The Pruned Entries")
     func partitionsPrunedEntries() async throws {
-        let payload = #"[{"id":1,"etag":"a","readonly":false,"modified":1700000000,"title":"Changed","category":"","content":"body","favorite":false},{"id":2},{"id":3}]"#
+        let payload = #"[{"id":1,"etag":"a","readonly":false,"modified":1700000000,"title":"Changed","category":"","content":"body","favorite":false,"error":false,"errorType":""},{"id":2},{"id":3}]"#
         let server = makeServer(body: payload)
         let changes = try await server.notes(changedSince: Date(timeIntervalSince1970: 1_600_000_000))
 
