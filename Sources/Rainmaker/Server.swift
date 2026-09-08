@@ -968,6 +968,64 @@ extension Server: Serving {
         return envelope.ocs.data
     }
 
+    public func collectives() async throws -> [Collective] {
+        try requireCredentials()
+        logger.debug("Fetching collectives...")
+
+        let request = try makeOCSRequest(for: "apps/collectives/api/v1.0/collectives", method: .get)
+        let (data, urlResponse) = try await session.data(for: request)
+
+        guard let response = urlResponse as? HTTPURLResponse else {
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to cast URLResponse to HTTPURLResponse.")
+        }
+
+        // The endpoint only exists while the collectives app is installed and enabled, so its absence surfaces as a not found error.
+        if response.status == .notFound {
+            throw RainmakerError.notFound
+        }
+
+        guard response.status == .ok else {
+            throw RainmakerError.unexpectedStatus(code: response.statusCode)
+        }
+
+        let envelope = try jsonDecoder.decode(CollectivesResponse.self, from: data)
+
+        guard envelope.ocs.meta.status == "ok" else {
+            throw RainmakerError.responseDecodingFailed(reason: "OCS request failed (\(envelope.ocs.meta.statuscode)): \(envelope.ocs.meta.message ?? "No message.")")
+        }
+
+        return envelope.ocs.data.collectives
+    }
+
+    public func pages(inCollective collectiveId: Int) async throws -> [CollectivePage] {
+        try requireCredentials()
+        logger.debug("Fetching pages of collective \(collectiveId)...")
+
+        let request = try makeOCSRequest(for: "apps/collectives/api/v1.0/collectives/\(collectiveId)/pages", method: .get)
+        let (data, urlResponse) = try await session.data(for: request)
+
+        guard let response = urlResponse as? HTTPURLResponse else {
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to cast URLResponse to HTTPURLResponse.")
+        }
+
+        // The endpoint only exists while the collectives app is installed and enabled, and the server answers the same way for a collective which does not exist or which this account cannot reach, so all of those surface as a not found error.
+        if response.status == .notFound {
+            throw RainmakerError.notFound
+        }
+
+        guard response.status == .ok else {
+            throw RainmakerError.unexpectedStatus(code: response.statusCode)
+        }
+
+        let envelope = try jsonDecoder.decode(PagesResponse.self, from: data)
+
+        guard envelope.ocs.meta.status == "ok" else {
+            throw RainmakerError.responseDecodingFailed(reason: "OCS request failed (\(envelope.ocs.meta.statuscode)): \(envelope.ocs.meta.message ?? "No message.")")
+        }
+
+        return envelope.ocs.data.pages
+    }
+
     public func notes() async throws -> [Note] {
         try requireCredentials()
         logger.debug("Fetching notes...")
