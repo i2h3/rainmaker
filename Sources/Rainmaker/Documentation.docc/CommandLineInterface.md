@@ -17,6 +17,7 @@ SUBCOMMANDS:
   activities              List one page of the activity stream of the authenticated user. Requires authentication and the server's activity app.
   activity-filters        List the filters the server offers to narrow the activity stream down with. Requires authentication and the server's activity app.
   capabilities            Fetch the capabilities advertised by a server. Authentication is optional.
+  collectives             List the collectives of the authenticated user and their pages. Requires authentication and the server's collectives app.
   create-directory        Create a directory on the server.
   delete                  Delete a file or directory from the server.
   delete-app-password     Delete the app password currently used to authenticate, ending the session on the server side.

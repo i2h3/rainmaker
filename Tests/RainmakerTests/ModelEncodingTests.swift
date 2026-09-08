@@ -65,6 +65,34 @@ import Testing
         #expect(keys == ["id", "entityTag", "isReadOnly", "title", "category", "content", "hasError", "errorType", "isFavorite", "modification"])
     }
 
+    @Test("Collective Encodes Under Its Property Names")
+    func collective() throws {
+        let payload = """
+        {"id":1,"slug":"Cookbook","circleId":"vDOFtMFKA9zMxtLm4ARcNEqfH944PCy","emoji":"\u{1F4D7}","trashTimestamp":null,"pageMode":0,"name":"Cookbook","level":9,"editPermissionLevel":1,"sharePermissionLevel":1,"canEdit":true,"canShare":true,"shareToken":null,"isPageShare":false,"sharePageId":0,"shareEditable":false,"userPageOrder":0,"userShowMembers":true,"userShowRecentPages":true,"userFavoritePages":[],"canLeave":true}
+        """
+
+        let keys = try encodedKeys(of: Collective.self, from: payload)
+
+        // Neither the server's own naming nor the fields this library deliberately does not model may survive a round trip.
+        #expect(keys.isDisjoint(with: ["circleId", "pageMode", "editPermissionLevel", "sharePermissionLevel", "isPageShare", "sharePageId", "shareEditable", "trashTimestamp", "userPageOrder", "userShowMembers", "userShowRecentPages", "userFavoritePages"]))
+
+        #expect(keys == ["id", "name", "slug", "emoji", "teamId", "level", "canEdit", "canShare", "canLeave", "shareToken"])
+    }
+
+    @Test("Collective Page Encodes Under Its Property Names")
+    func collectivePage() throws {
+        let payload = """
+        {"id":116,"slug":"","lastUserId":"admin","lastUserDisplayName":"admin","emoji":null,"subpageOrder":[132],"isFullWidth":false,"tags":[],"trashTimestamp":null,"title":"Landing page","timestamp":1700000000,"size":539,"fileName":"Readme.md","filePath":"","filePathString":"","collectivePath":".Collectives/Cookbook","collectiveNameWithEmoji":null,"parentId":0,"shareToken":null,"linkedPageIds":[]}
+        """
+
+        let keys = try encodedKeys(of: CollectivePage.self, from: payload)
+
+        #expect(keys.isDisjoint(with: ["timestamp", "lastUserId", "lastUserDisplayName", "filePathString", "collectiveNameWithEmoji", "trashTimestamp", "shareToken"]))
+
+        // `isLandingPage` is encoded although the server does not send it, because it is part of the model a caller sees.
+        #expect(keys == ["id", "title", "slug", "emoji", "fileName", "filePath", "collectivePath", "parentId", "isLandingPage", "modification", "size", "isFullWidth", "tags", "subpageOrder", "linkedPageIds", "lastEditor", "lastEditorDisplayName"])
+    }
+
     @Test("Note Settings Encode Under Their Property Names")
     func notesSettings() throws {
         let payload = """

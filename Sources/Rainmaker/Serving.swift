@@ -338,6 +338,47 @@ protocol Serving: Sendable {
     func notifications() async throws -> [NotificationItem]
 
     ///
+    /// List the collectives the authenticated user is a member of.
+    ///
+    /// Collectives are the shared, Markdown-based wikis of the [Collectives](https://apps.nextcloud.com/apps/collectives) app which, like the notes app, is not part of a Nextcloud installation and has to be installed separately.
+    ///
+    /// Unlike every other app this library covers, the Collectives app advertises no capability at all, so its availability cannot be checked through ``capabilities()`` the way ``notes()`` can be checked with the ``Notes`` capability or ``activities(filter:since:limit:sort:previews:objectType:objectId:)`` with the ``Activity`` one. When the app is absent the underlying OCS route does not exist and this call throws ``RainmakerError/notFound``. A client which wants to know in advance can call ``navigation()`` and look for the entry whose ``NavigationItem/id`` is `"collectives"`, which the server advertises exactly while the app is enabled for the user.
+    ///
+    /// Credentials are required: collectives are user-scoped and the underlying OCS endpoint rejects unauthenticated requests.
+    ///
+    /// - Returns: The collectives in the order returned by the server. Trashed collectives are not included, as the server lists those through a separate endpoint which is out of scope.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
+    ///     - ``RainmakerError/notFound`` when the collectives app is not available on the server.
+    ///     - ``RainmakerError/unexpectedStatus(code:)`` for any other non-success response, such as `403` when the app is installed but not permitted for this user.
+    ///     - Any other error that might occur during retrieval.
+    ///
+    func collectives() async throws -> [Collective]
+
+    ///
+    /// List the metadata of the pages within a single collective.
+    ///
+    /// The server returns the whole page hierarchy of the collective at once, flat and fully recursive, so this is a single request no matter how deeply the pages are nested. The hierarchy is passed on unchanged and in the server's order rather than assembled into a tree; it is reconstructed from ``CollectivePage/parentId``, and the page at the root is the one whose ``CollectivePage/isLandingPage`` is `true`.
+    ///
+    /// This returns page metadata only. The Markdown content of a page lives in a file in the collective's folder, named by ``CollectivePage/fileName`` and ``CollectivePage/filePath``, and retrieving it is out of scope.
+    ///
+    /// Credentials are required, and the same availability considerations as for ``collectives()`` apply.
+    ///
+    /// - Parameters:
+    ///     - collectiveId: The identifier of the collective to list the pages of, as exposed by ``Collective/id``.
+    ///
+    /// - Returns: The pages in the order returned by the server, flat and including the page at the root of the collective. Trashed pages are not included.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
+    ///     - ``RainmakerError/notFound`` when no such collective exists, it is not accessible to the authenticated user, or the collectives app is not available on the server. The server answers `404` in all of those cases, so they are deliberately not told apart.
+    ///     - ``RainmakerError/unexpectedStatus(code:)`` for any other non-success response.
+    ///     - Any other error that might occur during retrieval.
+    ///
+    func pages(inCollective collectiveId: Int) async throws -> [CollectivePage]
+
+    ///
     /// List all notes of the authenticated user.
     ///
     /// Notes are provided by the server's notes app which, unlike most of what this library covers, is not part of a Nextcloud installation and has to be installed separately. Whether it is available can be checked in advance via the ``Notes`` capability, e.g. `try await capabilities().contains(Notes.self)`. When the app is unavailable the underlying endpoint does not exist and this call throws ``RainmakerError/notFound``.
