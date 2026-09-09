@@ -47,6 +47,12 @@ import Testing
         #expect(trashing.undelete == true)
         #expect(trashing.deleteFromTrash == true)
 
+        // Chunked uploads are advertised inside the same `files` object the trash bin flags live in, with the limits every supported release ships by default.
+        let chunkedUpload = try #require(try capabilities.get(ChunkedUpload.self))
+        #expect(chunkedUpload.isSupported == true)
+        #expect(chunkedUpload.maxSize == 104_857_600)
+        #expect(chunkedUpload.maxParallelCount == 5)
+
         let notifications = try #require(try capabilities.get(Notifications.self))
         #expect(notifications.ocsEndpoints?.contains("list") == true)
         #expect(notifications.push?.contains("devices") == true)
@@ -88,6 +94,7 @@ import Testing
         _ = try #require(try capabilities.get(Theming.self))
         #expect(capabilities.contains(Files.self) == false)
         #expect(try capabilities.get(Trashing.self) == nil)
+        #expect(try capabilities.get(ChunkedUpload.self) == nil)
         #expect(try capabilities.get(Notifications.self) == nil)
         #expect(capabilities.contains(Notifications.self) == false)
         #expect(try capabilities.get(Activity.self) == nil)

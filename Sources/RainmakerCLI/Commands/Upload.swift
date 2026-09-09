@@ -47,6 +47,12 @@ struct Upload: AsyncParsableCommand {
     var force: Bool = false
 
     ///
+    /// The size in bytes of the chunks a file larger than this is uploaded in.
+    ///
+    @Option(help: "Size in bytes of the chunks a file larger than this is uploaded in. Raised to 5 MiB when smaller.")
+    var chunkSize: Int = Server.defaultChunkSize
+
+    ///
     /// Runs the command.
     ///
     func run() async throws {
@@ -60,6 +66,6 @@ struct Upload: AsyncParsableCommand {
         let expandedSource = (source as NSString).expandingTildeInPath
         let sourceURL = URL(fileURLWithPath: expandedSource)
 
-        try await server.upload(sourceURL, to: destination, force: force)
+        try await server.upload(sourceURL, to: destination, force: force, chunkSize: chunkSize)
     }
 }

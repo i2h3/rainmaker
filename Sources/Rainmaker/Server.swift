@@ -17,6 +17,34 @@ public final class Server {
     ///
     static let activityLimits = 1 ... 200
 
+    ///
+    /// The chunk size ``upload(_:to:force:chunkSize:)`` uses when the caller does not choose one, which is 10 MiB.
+    ///
+    /// This matches the default of the official desktop client. It keeps a single request well below what reverse proxies commonly cap request bodies at, see ``ChunkedUpload/maxSize``, while a file of many gigabytes still fits into the ten thousand chunks a transfer may consist of.
+    ///
+    public static let defaultChunkSize = 10 * 1024 * 1024
+
+    ///
+    /// The smallest chunk size ``upload(_:to:force:chunkSize:)`` sends, which is 5 MiB.
+    ///
+    /// A server keeping its files in an S3 compatible object storage assembles the chunks as a multipart upload, and S3 rejects every part but the last below this size. Such a server reports that only when the transfer is finalized, after every chunk has already been sent, so a smaller requested chunk size is raised to this one before anything is sent rather than being passed through.
+    ///
+    public static let minimumChunkSize = 5 * 1024 * 1024
+
+    ///
+    /// The number of chunks a single transfer may consist of at most, which the server limits to ten thousand.
+    ///
+    /// ``effectiveChunkSize(for:requested:)`` raises the chunk size as far as needed for a file to fit into this many chunks.
+    ///
+    static let maximumChunkCount: Int64 = 10000
+
+    ///
+    /// The number of bytes copied at once while a chunk is staged into a temporary file, which is 1 MiB.
+    ///
+    /// Staging copies through a buffer of this size rather than reading a whole chunk into memory, so the memory a chunked upload needs does not grow with the chunk size.
+    ///
+    static let stagingBufferSize = 1024 * 1024
+
     nonisolated(unsafe) let fileManager = FileManager.default
     let logger = Logger(category: "Server")
     let jsonDecoder: JSONDecoder
@@ -87,6 +115,13 @@ public final class Server {
     /// Looks like `"/remote.php/dav/trashbin/<user>/restore"`.
     ///
     public let trashbinRestoreAddress: URL
+
+    ///
+    /// WebDAV address of the user's upload collection, below which ``upload(_:to:force:chunkSize:)`` stages the chunks of a large file until the server assembles them.
+    ///
+    /// Looks like `"/remote.php/dav/uploads/<user>"`.
+    ///
+    public let uploadsAddress: URL
 
     // MARK: - Helpers
 
@@ -433,9 +468,9 @@ public final class Server {
     ///
     /// Upload implementation specifically for files.
     ///
-    /// This is the counterpart of ``downloadFile(_:to:force:remoteItem:)``.
+    /// This is the counterpart of ``downloadFile(_:to:force:remoteItem:)``. It decides whether the remote state calls for an upload at all, and then whether the file is small enough for a single request or has to go through ``uploadFileChunked(_:to:size:chunkSize:modification:)``.
     ///
-    private func uploadFile(_ source: URL, to remoteFilePath: String, force: Bool) async throws {
+    private func uploadFile(_ source: URL, to remoteFilePath: String, force: Bool, chunkSize: Int) async throws {
         logger.debug("Uploading file from \"\(source.compatibilityPath(percentEncoded: false))\" to \"\(remoteFilePath)\" \(force ? "with" : "without") force...")
 
         let attributes = try fileManager.attributesOfItem(atPath: source.compatibilityPath(percentEncoded: false))
@@ -459,6 +494,15 @@ public final class Server {
             if let localModification, remoteItem.modification >= localModification {
                 return
             }
+        }
+
+        // A file larger than a chunk is not sent in one request but staged in chunks the server assembles, which keeps it within the request size and time limits of the server and any reverse proxy in front of it.
+        let size = (attributes[.size] as? NSNumber)?.int64Value ?? 0
+        let effectiveChunkSize = Self.effectiveChunkSize(for: size, requested: chunkSize)
+
+        if size > effectiveChunkSize {
+            try await uploadFileChunked(source, to: remoteFilePath, size: size, chunkSize: effectiveChunkSize, modification: localModification)
+            return
         }
 
         var request = try makeWebDAVRequest(for: remoteFilePath, method: .put)
@@ -491,7 +535,7 @@ public final class Server {
     ///
     /// This is the counterpart of ``downloadDirectory(_:to:force:)``.
     ///
-    private func uploadDirectory(_ source: URL, to destination: String, force: Bool) async throws {
+    private func uploadDirectory(_ source: URL, to destination: String, force: Bool, chunkSize: Int) async throws {
         logger.debug("Uploading directory from \"\(source.compatibilityPath(percentEncoded: false))\" to \"\(destination)\" \(force ? "with" : "without") force...")
 
         let normalizedDestination = normalizeKey(destination)
@@ -540,7 +584,7 @@ public final class Server {
 
         for (relativePath, localURL) in localFiles {
             let remotePath = normalizedDestination.isEmpty ? "/\(relativePath)" : "/\(normalizedDestination)/\(relativePath)"
-            try await uploadFile(localURL, to: remotePath, force: force)
+            try await uploadFile(localURL, to: remotePath, force: force, chunkSize: chunkSize)
         }
 
         // Delete remote items not present in the local state, deepest first so a directory is never removed before its still-pending child entries (deleting a directory removes its contents recursively, which would invalidate the paths captured for those children).
@@ -558,6 +602,219 @@ public final class Server {
                     // The remote item was already removed together with a parent directory.
                 }
             }
+        }
+    }
+
+    ///
+    /// The chunk size actually used for a file of the given size when the given one was requested.
+    ///
+    /// The requested size is raised to ``minimumChunkSize`` and beyond that as far as needed for the file to fit into ``maximumChunkCount`` chunks. It is never lowered, so a caller who has read ``ChunkedUpload/maxSize`` and stays below it keeps what they asked for.
+    ///
+    static func effectiveChunkSize(for size: Int64, requested chunkSize: Int) -> Int64 {
+        let smallestFitting = (size + Self.maximumChunkCount - 1) / Self.maximumChunkCount
+        return max(Int64(chunkSize), Int64(Self.minimumChunkSize), smallestFitting)
+    }
+
+    ///
+    /// The name of the folder below ``uploadsAddress`` in which the chunks of the given file are staged.
+    ///
+    /// It is derived from the remote path, the size and the modification date rather than drawn at random, so that uploading the same file to the same place always uses the same folder, which keeps the requests of a transfer reproducible, while a changed file uses a different one. Two devices uploading the same version of a file at the same time therefore share a folder, which is harmless because they send identical chunks.
+    ///
+    static func uploadTransferName(for remoteFilePath: String, size: Int64, modification: Date?) -> String {
+        String(Data("\(remoteFilePath)\n\(size)\n\(modification?.wholeSecondsSince1970 ?? 0)".utf8).sha256HexString.prefix(32))
+    }
+
+    ///
+    /// Upload a single large file in chunks which the server assembles into the file at the given remote path.
+    ///
+    /// This is the chunked counterpart of the single request in ``uploadFile(_:to:force:chunkSize:)``, which decides between the two. The transfer follows the server's chunked upload protocol: a folder named by ``uploadTransferName(for:size:modification:)`` is created below ``uploadsAddress``, every chunk is sent into it under its one-based position, and a final move of the folder's virtual `.file` makes the server assemble the chunks into the destination. A folder left behind by an interrupted attempt is removed before the transfer starts over, so the server never assembles chunks of two attempts, and a failure at any point removes the folder again.
+    ///
+    /// Every request names the final destination in its `Destination` header, which is what makes a server backed by an object storage stream the chunks straight into their final place, and the total size in `OC-Total-Length`, which a server keeping its files locally checks against the assembled size before it puts the file in place and which lets both reject a file exceeding the quota before the first chunk is stored.
+    ///
+    /// The file is checked for changes once every chunk has been read, because a file which changed underneath the transfer would be assembled from chunks of two different versions. Such a transfer is abandoned with ``RainmakerError/sourceChanged(_:)`` rather than finalized.
+    ///
+    private func uploadFileChunked(_ source: URL, to remoteFilePath: String, size: Int64, chunkSize: Int64, modification: Date?) async throws {
+        let destination = webDAVAddress.appendingCompatibility(path: remoteFilePath)
+        let transfer = uploadsAddress.appendingCompatibility(path: Self.uploadTransferName(for: remoteFilePath, size: size, modification: modification), directoryHint: .notDirectory)
+        logger.debug("Uploading \(size) bytes in chunks of \(chunkSize) bytes via \"\(transfer.absoluteString)\"...")
+
+        try await createUploadTransfer(at: transfer, destination: destination)
+
+        do {
+            let handle = try FileHandle(forReadingFrom: source)
+
+            defer {
+                try? handle.close()
+            }
+
+            var offset: Int64 = 0
+            var position = 1
+
+            while offset < size {
+                let length = min(chunkSize, size - offset)
+                let staged = try stageChunk(from: handle, of: source, length: length)
+
+                defer {
+                    try? fileManager.removeItem(at: staged)
+                }
+
+                try await uploadChunk(at: staged, position: position, transfer: transfer, destination: destination, totalSize: size)
+                offset += length
+                position += 1
+            }
+
+            // The attributes are read again rather than the sent bytes being compared, because a file replaced in place by one of the same size would otherwise go unnoticed.
+            let attributes = try fileManager.attributesOfItem(atPath: source.compatibilityPath(percentEncoded: false))
+
+            guard (attributes[.size] as? NSNumber)?.int64Value == size, attributes[.modificationDate] as? Date == modification else {
+                throw RainmakerError.sourceChanged(source)
+            }
+
+            try await finishUploadTransfer(transfer, destination: destination, totalSize: size, modification: modification)
+        } catch {
+            // The folder is removed on a best effort basis so that a failed transfer does not occupy the account's quota until the server expires it. A failure of the removal must not mask the error being reported.
+            try? await deleteUploadTransfer(transfer)
+            throw error
+        }
+    }
+
+    ///
+    /// Copy the next `length` bytes from the given handle into a temporary file and return its location.
+    ///
+    /// A chunk is staged as a file of its own so that it can be sent the same way a whole file is, streamed from disk by the session rather than held in memory, and the copy goes through a buffer of ``stagingBufferSize`` for the same reason. The caller removes the staged file once it has been sent.
+    ///
+    /// - Throws: ``RainmakerError/sourceChanged(_:)`` when the file ends before `length` bytes could be read, which means it shrank since its size was determined.
+    ///
+    private func stageChunk(from handle: FileHandle, of source: URL, length: Int64) throws -> URL {
+        let location = fileManager.temporaryDirectory.appendingCompatibility(component: ".rainmaker-\(UUID().uuidString).chunk", directoryHint: .notDirectory)
+        try Data().write(to: location)
+
+        do {
+            let output = try FileHandle(forWritingTo: location)
+
+            defer {
+                try? output.close()
+            }
+
+            var remaining = length
+
+            while remaining > 0 {
+                let count = Int(min(Int64(Self.stagingBufferSize), remaining))
+
+                guard let buffer = try handle.read(upToCount: count), buffer.isEmpty == false else {
+                    throw RainmakerError.sourceChanged(source)
+                }
+
+                try output.write(contentsOf: buffer)
+                remaining -= Int64(buffer.count)
+            }
+        } catch {
+            try? fileManager.removeItem(at: location)
+            throw error
+        }
+
+        return location
+    }
+
+    ///
+    /// Create the folder a chunked upload is staged in, replacing one left behind by an interrupted attempt.
+    ///
+    /// The destination is named already here because a server backed by an object storage decides at this point where the chunks are streamed to. A server keeping its files locally ignores it.
+    ///
+    private func createUploadTransfer(at transfer: URL, destination: URL, replacingExisting: Bool = true) async throws {
+        var request = try makeWebDAVRequest(for: transfer, method: .mkcol)
+        request.setValue(destination.absoluteString, forHTTPHeaderField: "Destination")
+
+        let (_, urlResponse) = try await session.data(for: request)
+
+        guard let response = urlResponse as? HTTPURLResponse else {
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to cast URLResponse to HTTPURLResponse.")
+        }
+
+        // An existing folder was left behind by an interrupted attempt. It is removed and created anew rather than reused, so that the server never assembles chunks of two attempts, and only once so that a server answering this way for another reason cannot keep this going forever.
+        if response.status == .methodNotAllowed, replacingExisting {
+            try await deleteUploadTransfer(transfer)
+            try await createUploadTransfer(at: transfer, destination: destination, replacingExisting: false)
+            return
+        }
+
+        guard response.status == .created else {
+            throw RainmakerError.unexpectedStatus(code: response.statusCode)
+        }
+    }
+
+    ///
+    /// Send one staged chunk into the transfer folder under its one-based position, which is the order the server assembles the chunks in.
+    ///
+    private func uploadChunk(at staged: URL, position: Int, transfer: URL, destination: URL, totalSize: Int64) async throws {
+        var request = try makeWebDAVRequest(for: transfer.appendingCompatibility(path: String(position), directoryHint: .notDirectory), method: .put)
+        request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
+        request.setValue(destination.absoluteString, forHTTPHeaderField: "Destination")
+        request.setValue(String(totalSize), forHTTPHeaderField: "OC-Total-Length")
+
+        let (_, urlResponse) = try await session.upload(for: request, fromFile: staged, delegate: nil)
+
+        guard let response = urlResponse as? HTTPURLResponse else {
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to cast URLResponse to HTTPURLResponse.")
+        }
+
+        // A chunk answers 201 Created, or 204 No Content when it replaces one of an earlier attempt.
+        guard response.status == .created || response.status == .noContent else {
+            throw RainmakerError.unexpectedStatus(code: response.statusCode)
+        }
+    }
+
+    ///
+    /// Make the server assemble the chunks of a transfer into the destination file, which also removes the transfer folder.
+    ///
+    private func finishUploadTransfer(_ transfer: URL, destination: URL, totalSize: Int64, modification: Date?) async throws {
+        var request = try makeWebDAVRequest(for: transfer.appendingCompatibility(path: ".file", directoryHint: .notDirectory), method: .move)
+        request.setValue(destination.absoluteString, forHTTPHeaderField: "Destination")
+        request.setValue("T", forHTTPHeaderField: "Overwrite")
+        request.setValue(String(totalSize), forHTTPHeaderField: "OC-Total-Length")
+
+        // Preserve the local modification date on the server for future change detection, exactly as the single request of a small file does.
+        if let modificationSeconds = modification?.wholeSecondsSince1970 {
+            request.setValue("\(modificationSeconds)", forHTTPHeaderField: "X-OC-Mtime")
+        }
+
+        let (_, urlResponse) = try await session.data(for: request)
+
+        guard let response = urlResponse as? HTTPURLResponse else {
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to cast URLResponse to HTTPURLResponse.")
+        }
+
+        // A missing parent collection makes the server respond with a conflict, as it does for a single request.
+        if response.status == .conflict {
+            throw RainmakerError.notFound
+        }
+
+        // The destination is occupied although overwriting was requested, which a locked file can cause.
+        if response.status == .preconditionFailed {
+            throw RainmakerError.destinationExists(destination)
+        }
+
+        // Assembling answers 201 Created for a new file or 204 No Content for an overwritten one.
+        guard response.status == .created || response.status == .noContent else {
+            throw RainmakerError.unexpectedStatus(code: response.statusCode)
+        }
+    }
+
+    ///
+    /// Remove the folder of a transfer together with every chunk in it.
+    ///
+    /// A folder which is already gone is not an error: the server removes it by itself once the chunks have been assembled and expires a stale one after a day.
+    ///
+    private func deleteUploadTransfer(_ transfer: URL) async throws {
+        let request = try makeWebDAVRequest(for: transfer, method: .delete)
+        let (_, urlResponse) = try await session.data(for: request)
+
+        guard let response = urlResponse as? HTTPURLResponse else {
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to cast URLResponse to HTTPURLResponse.")
+        }
+
+        guard response.status == .noContent || response.status == .notFound else {
+            throw RainmakerError.unexpectedStatus(code: response.statusCode)
         }
     }
 
@@ -630,6 +887,7 @@ public final class Server {
         trashbinAddress = address.appendingCompatibility(path: "/remote.php/dav/trashbin/\(user ?? "")/trash", directoryHint: .isDirectory)
         trashbinPathPrefix = "/remote.php/dav/trashbin/\(user ?? "")/trash"
         trashbinRestoreAddress = address.appendingCompatibility(path: "/remote.php/dav/trashbin/\(user ?? "")/restore", directoryHint: .isDirectory)
+        uploadsAddress = address.appendingCompatibility(path: "/remote.php/dav/uploads/\(user ?? "")", directoryHint: .isDirectory)
     }
 }
 
@@ -692,12 +950,18 @@ extension Server: Serving {
     /// | File | Exists | Contains item with same name | `false` | Cancel with conflict error |
     /// | File | Exists | Contains item with same name | `true` | Skip if the remote file is not older than the local file, overwrite otherwise |
     /// | File | Changed | Contains item with same name | `true` | Overwrite remote file |
+    /// | File | Larger than `chunkSize` | any | any | As above, but sent in chunks the server assembles |
     /// | Directory | Exists | Empty or absent | `false` | Upload content of source directory into destination directory |
     /// | Directory | Exists | Not empty | `false` | Cancel with conflict error |
     /// | Directory | Exists | Not empty | `true` | Delete remote items which are not present in the local state, replace remote files with the state of their local counterparts, upload remotely missing files which exist in the local state |
     ///
     /// The local modification date of an uploaded file is preserved on the server via the `X-OC-Mtime` header so that future synchronization runs can detect unchanged files.
     /// The header is omitted for a modification date at or before the Unix epoch and for one which cannot be expressed as a whole number of seconds, in which case the server records the upload time instead.
+    ///
+    /// A file larger than `chunkSize` is not sent in a single request but as a sequence of chunks the server assembles once the last one has arrived, which keeps uploads of large files within the request size and time limits of the server and any reverse proxy in front of it.
+    /// The chunks are staged in a folder below ``uploadsAddress`` and sent one after another; a failure at any point removes that folder again, and the server discards a stale one by itself after a day.
+    /// The chunk size is raised to ``minimumChunkSize`` when a smaller one is requested, because a server backed by an object storage rejects smaller chunks, and beyond that as far as needed for the file to fit into the ten thousand chunks a transfer may consist of. It should not exceed the ``ChunkedUpload/maxSize`` the server advertises, which is not enforced here because the server does not enforce it either.
+    /// A file which changes while it is being uploaded is not assembled on the server; the upload fails with ``RainmakerError/sourceChanged(_:)`` instead.
     ///
     /// - Parameters:
     ///     - source: The file or root directory in the local file system to upload.
@@ -706,13 +970,16 @@ extension Server: Serving {
     ///       For directory uploads, this directory is created automatically when it does not yet exist.
     ///       The content of the source is placed directly into that directory.
     ///     - force: Whether the remote state should be overwritten with the local state or not. This is `false` by default.
+    ///     - chunkSize: The size in bytes of the chunks a file larger than this is uploaded in. Defaults to ``defaultChunkSize``.
     ///
     /// - Throws:
     ///     - ``RainmakerError/notFound`` when the local source does not exist.
     ///     - ``RainmakerError/fileAlreadyExists(_:)`` when a file is uploaded and an equally named remote item already exists while `force` is `false`.
     ///     - ``RainmakerError/directoryNotEmpty`` when a directory is uploaded into a non-empty remote directory while `force` is `false`.
+    ///     - ``RainmakerError/sourceChanged(_:)`` when a file changed while it was being uploaded in chunks.
+    ///     - ``RainmakerError/unexpectedStatus(code:)`` for any other non-success response, such as `507` when the account's quota is exhausted.
     ///
-    public func upload(_ source: URL, to destination: String, force: Bool = false) async throws {
+    public func upload(_ source: URL, to destination: String, force: Bool = false, chunkSize: Int = Server.defaultChunkSize) async throws {
         try requireCredentials()
         logger.debug("Uploading \"\(source.compatibilityPath(percentEncoded: false))\" to \"\(destination)\"...")
 
@@ -723,11 +990,11 @@ extension Server: Serving {
         }
 
         if isDirectory.boolValue {
-            try await uploadDirectory(source, to: destination, force: force)
+            try await uploadDirectory(source, to: destination, force: force, chunkSize: chunkSize)
         } else {
             let folder = normalizeKey(destination)
             let remoteFilePath = folder.isEmpty ? "/\(source.lastPathComponent)" : "/\(folder)/\(source.lastPathComponent)"
-            try await uploadFile(source, to: remoteFilePath, force: force)
+            try await uploadFile(source, to: remoteFilePath, force: force, chunkSize: chunkSize)
         }
     }
 

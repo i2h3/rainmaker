@@ -46,6 +46,13 @@ public enum RainmakerError: Error, Equatable, CustomStringConvertible {
     case responseDecodingFailed(reason: String)
 
     ///
+    /// A local file changed while it was being uploaded in chunks, so the upload was abandoned rather than having the server assemble a file from chunks of two different versions.
+    ///
+    /// Carries the location of the local file. Uploading it again sends the current version.
+    ///
+    case sourceChanged(URL)
+
+    ///
     /// The HTTP response was delivered with the given status code which was unexpected in the throwing code.
     ///
     case unexpectedStatus(code: Int)
@@ -76,6 +83,8 @@ public enum RainmakerError: Error, Equatable, CustomStringConvertible {
                 "Not found."
             case let .responseDecodingFailed(reason: reason):
                 reason
+            case let .sourceChanged(url):
+                "The file at \(url.compatibilityPath()) changed while it was being uploaded."
             case let .unsupportedAPIVersion(app: app, required: required, advertised: advertised):
                 "The \"\(app)\" app on the server does not support API version \(required) or newer, which is required. It advertises \(advertised.isEmpty ? "no version at all" : advertised.joined(separator: ", ")). Update the app on the server."
             case let .unexpectedStatus(code: code):

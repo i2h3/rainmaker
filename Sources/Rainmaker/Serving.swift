@@ -19,7 +19,7 @@ protocol Serving: Sendable {
     ///
     /// Upload a file or a directory including its contents from the local file system to the server.
     ///
-    func upload(_ source: URL, to destination: String, force: Bool) async throws
+    func upload(_ source: URL, to destination: String, force: Bool, chunkSize: Int) async throws
 
     ///
     /// Returns items in the given path.

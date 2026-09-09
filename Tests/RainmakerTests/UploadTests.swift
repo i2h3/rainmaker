@@ -16,7 +16,7 @@ import Testing
 
         await #expect(throws: RainmakerError.credentialsRequired) {
             let source = FileManager.default.temporaryDirectory.appendingCompatibility(component: UUID().uuidString)
-            try await server.upload(source, to: "/", force: false)
+            try await server.upload(source, to: "/", force: false, chunkSize: Server.defaultChunkSize)
         }
     }
 
@@ -26,7 +26,7 @@ import Testing
 
         await #expect(throws: RainmakerError.notFound) {
             let source = FileManager.default.temporaryDirectory.appendingCompatibility(component: UUID().uuidString)
-            try await server.upload(source, to: "/", force: false)
+            try await server.upload(source, to: "/", force: false, chunkSize: Server.defaultChunkSize)
         }
     }
 
@@ -45,7 +45,7 @@ import Testing
         try Data("content".utf8).write(to: file)
 
         await #expect(throws: Never.self) {
-            try await server.upload(file, to: "/", force: false)
+            try await server.upload(file, to: "/", force: false, chunkSize: Server.defaultChunkSize)
         }
     }
 
@@ -64,7 +64,7 @@ import Testing
         try Data("content".utf8).write(to: file)
 
         await #expect {
-            try await server.upload(file, to: "/", force: false)
+            try await server.upload(file, to: "/", force: false, chunkSize: Server.defaultChunkSize)
         } throws: { error in
             guard case RainmakerError.fileAlreadyExists = error else {
                 return false
@@ -91,7 +91,7 @@ import Testing
         try FileManager.default.setAttributes([.modificationDate: Date.distantFuture], ofItemAtPath: file.compatibilityPath())
 
         await #expect(throws: Never.self) {
-            try await server.upload(file, to: "/", force: true)
+            try await server.upload(file, to: "/", force: true, chunkSize: Server.defaultChunkSize)
         }
     }
 
@@ -112,7 +112,7 @@ import Testing
         try FileManager.default.setAttributes([.modificationDate: Date.distantPast], ofItemAtPath: file.compatibilityPath())
 
         await #expect(throws: Never.self) {
-            try await server.upload(file, to: "/", force: true)
+            try await server.upload(file, to: "/", force: true, chunkSize: Server.defaultChunkSize)
         }
     }
 
@@ -134,7 +134,7 @@ import Testing
         try Data("deep".utf8).write(to: nested.appendingCompatibility(component: "Deep.md"))
 
         await #expect(throws: Never.self) {
-            try await server.upload(source, to: "/Documents", force: false)
+            try await server.upload(source, to: "/Documents", force: false, chunkSize: Server.defaultChunkSize)
         }
     }
 
@@ -155,7 +155,50 @@ import Testing
         try FileManager.default.setAttributes([.modificationDate: Date.distantPast], ofItemAtPath: file.compatibilityPath())
 
         await #expect(throws: Never.self) {
-            try await server.upload(source, to: "/Documents", force: true)
+            try await server.upload(source, to: "/Documents", force: true, chunkSize: Server.defaultChunkSize)
+        }
+    }
+
+    @Test("Chunked File", arguments: ServerVersion.allCases)
+    func chunkedFile(_ serverVersion: ServerVersion) async throws {
+        let server = try makeServer(serverVersion: serverVersion)
+
+        let source = FileManager.default.temporaryDirectory.appendingCompatibility(component: UUID().uuidString)
+        try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
+
+        defer {
+            try? FileManager.default.removeItem(at: source)
+        }
+
+        // Just above the smallest chunk size the library sends, so the file is split into one full chunk and one short one.
+        // The folder the chunks are staged in is named after the file's size and modification date, so the latter is pinned to keep the recorded requests replayable.
+        let file = source.appendingCompatibility(component: "Chunked.bin")
+        try Data(count: Server.minimumChunkSize + 4096).write(to: file)
+        try FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSince1970: 1_700_000_000)], ofItemAtPath: file.compatibilityPath())
+
+        await #expect(throws: Never.self) {
+            try await server.upload(file, to: "/", force: false, chunkSize: Server.minimumChunkSize)
+        }
+    }
+
+    @Test("Chunked Overwrite File", arguments: ServerVersion.allCases)
+    func chunkedOverwriteFile(_ serverVersion: ServerVersion) async throws {
+        let server = try makeServer(serverVersion: serverVersion)
+
+        let source = FileManager.default.temporaryDirectory.appendingCompatibility(component: UUID().uuidString)
+        try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
+
+        defer {
+            try? FileManager.default.removeItem(at: source)
+        }
+
+        // Date the local file into the future so it is considered newer than the remote state and thus uploaded, in chunks because of its size, replacing the existing remote file.
+        let file = source.appendingCompatibility(component: "Readme.md")
+        try Data(count: Server.minimumChunkSize + 4096).write(to: file)
+        try FileManager.default.setAttributes([.modificationDate: Date.distantFuture], ofItemAtPath: file.compatibilityPath())
+
+        await #expect(throws: Never.self) {
+            try await server.upload(file, to: "/", force: true, chunkSize: Server.minimumChunkSize)
         }
     }
 }

@@ -26,12 +26,13 @@ This is the only method currently supported.
 ### Files
 
 Browse, download, upload and reorganize the files of an account over WebDAV.
+A file larger than the chunk size is uploaded in chunks the server assembles, which keeps large uploads within the request limits of the server and any reverse proxy in front of it; the ``ChunkedUpload`` capability advertises the limits a server suggests for that.
 
 - ``Server/enumerate(at:recursively:)->AsyncThrowingStream<Item,Error>``
 - ``Server/enumerate(at:recursively:)->[Item]``
 - ``Server/info(_:)``
 - ``Server/download(_:to:force:)``
-- ``Server/upload(_:to:force:)``
+- ``Server/upload(_:to:force:chunkSize:)``
 - ``Server/createDirectory(_:)``
 - ``Server/delete(_:)``
 - ``Server/move(_:to:overwrite:)``
@@ -152,6 +153,7 @@ List the server apps, such as Files, Photos and Activity, which the server adver
 - ``CapabilitySet``
 - ``Capability``
 - ``Activity``
+- ``ChunkedUpload``
 - ``Notes``
 - ``Notifications``
 - ``PushNotifications``
