@@ -91,6 +91,23 @@ Pages are returned flat and in the server's order; their hierarchy is reconstruc
 - ``CollectivePage``
 - ``MembershipLevel``
 
+### Talk
+
+Retrieve the conversations of an account and the image of a single one of them, which is what a client needs to surface conversations without taking part in them.
+The Talk app is not part of a Nextcloud installation, and whether it is available is advertised through the ``Talk`` capability, which unlike every other capability covered here is visible to anonymous clients as well.
+Conversations come back in the server's own order, which is no order at all, so a client presenting a list sorts them by ``Conversation/lastActivity`` itself.
+The image of a conversation is whatever the server resolved it to, from an uploaded picture to an icon it generated, and is commonly an SVG document rather than a bitmap.
+Each explicit avatar fetch bypasses the local HTTP cache.
+Cache images between displays, refreshing when ``Conversation/avatarVersion`` changes and periodically even if it does not, for example once a day.
+In one-to-one conversations that version says nothing at all: it is the same value for every such conversation and never moves when the other person changes their profile picture.
+Keep separate cached images for each server, account, conversation token and appearance.
+
+- ``Server/conversations()``
+- ``Server/conversationAvatar(_:darkTheme:)``
+- ``Conversation``
+- ``ConversationType``
+- ``ConversationAvatar``
+
 ### Apps Navigation
 
 List the server apps, such as Files, Photos and Activity, which the server advertises to the authenticated user so that a client can surface them in its own navigation.
@@ -106,6 +123,7 @@ List the server apps, such as Files, Photos and Activity, which the server adver
 - ``Notes``
 - ``Notifications``
 - ``PushNotifications``
+- ``Talk``
 - ``Theming``
 - ``Trashing``
 - ``Version``

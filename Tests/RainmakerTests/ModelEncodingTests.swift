@@ -117,6 +117,47 @@ import Testing
         #expect(keys == ["id", "order", "href", "icon", "type", "name", "app", "isActive", "unread", "classes", "isDefault"])
     }
 
+    @Test("Conversation Encodes Under Its Property Names")
+    func conversation() throws {
+        let payload = """
+        {"id":2,"token":"by9jp6mr","type":6,"name":"Note to self","displayName":"Note to self","description":"A place for your private notes","objectType":"note_to_self","objectId":"admin","participantType":1,"readOnly":0,"hasPassword":false,"hasCall":false,"lastActivity":1700000000,"lastReadMessage":5,"unreadMessages":0,"unreadMention":false,"unreadMentionDirect":false,"isFavorite":true,"notificationLevel":1,"sessionId":"0","permissions":510,"avatarVersion":"Rw2KnG5yXX5AdMzz","isCustomAvatar":true,"isArchived":false,"tagIds":[],"lastMessage":{"id":5,"message":"System created the conversation"}}
+        """
+
+        let keys = try encodedKeys(of: Conversation.self, from: payload)
+
+        // The server sends far more about a conversation than is modelled, so what matters here is that none of it leaks into the encoded form.
+        #expect(keys.isDisjoint(with: ["name", "description", "objectType", "objectId", "participantType", "readOnly", "isFavorite", "isCustomAvatar", "lastMessage", "permissions", "tagIds"]))
+        #expect(keys == ["id", "token", "type", "displayName", "avatarVersion", "lastActivity", "unreadMessages", "unreadMention"])
+    }
+
+    @Test("Conversation Kind Encodes As Its Case Name")
+    func conversationType() throws {
+        let payload = """
+        {"id":2,"token":"by9jp6mr","type":6,"displayName":"Note to self","lastActivity":1700000000,"unreadMessages":0,"unreadMention":false,"avatarVersion":"00000000"}
+        """
+
+        let conversation = try JSONDecoder().decode(Conversation.self, from: Data(payload.utf8))
+        let data = try JSONEncoder().encode(conversation)
+        let object = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+
+        // The raw number the server sends says nothing on its own, so the encoded form carries the name of the case instead.
+        #expect(object["type"] as? String == "noteToSelf")
+    }
+
+    @Test("Unknown Conversation Kind Encodes As The Number The Server Sent")
+    func unknownConversationType() throws {
+        let payload = """
+        {"id":9,"token":"aaaabbbb","type":99,"displayName":"From the future","lastActivity":1700000000,"unreadMessages":0,"unreadMention":false,"avatarVersion":"00000000"}
+        """
+
+        let conversation = try JSONDecoder().decode(Conversation.self, from: Data(payload.utf8))
+        let data = try JSONEncoder().encode(conversation)
+        let object = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+
+        // A kind this library cannot name has no name to encode, so the raw value survives rather than being lost.
+        #expect(object["type"] as? Int == 99)
+    }
+
     @Test("Nested Activity Models Encode Under Their Property Names")
     func nestedActivityModels() throws {
         let payload = """

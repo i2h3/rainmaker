@@ -65,7 +65,7 @@ public actor URLRecordingSession: Requesting {
         }
 
         let bodyExtension = try FixtureLocator.bodyExtension(forAcceptHeader: acceptedType)
-        let body = canonicalizer.canonicalizedBody(data, pathExtension: bodyExtension)
+        let body = canonicalizer.canonicalizedBody(data, pathExtension: bodyExtension, requestURL: url)
         try record(method: method, url: url, response: response, body: body, bodyExtension: bodyExtension)
 
         return (data, urlResponse)
@@ -76,7 +76,7 @@ public actor URLRecordingSession: Requesting {
         let (method, url, response) = try Self.components(of: request, urlResponse)
 
         let data = try Data(contentsOf: location)
-        let body = canonicalizer.canonicalizedBody(data, pathExtension: "bin")
+        let body = canonicalizer.canonicalizedBody(data, pathExtension: "bin", requestURL: url)
         try record(method: method, url: url, response: response, body: body, bodyExtension: "bin")
 
         return (location, urlResponse)

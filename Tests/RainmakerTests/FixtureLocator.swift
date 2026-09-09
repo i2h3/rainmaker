@@ -88,6 +88,9 @@ struct FixtureLocator {
                 "json"
             case "application/xml":
                 "xml"
+            case "*/*":
+                // A request announcing no preference asks for something which is not a payload this library parses, such as the image behind ``Server/conversationAvatar(_:darkTheme:)``. Recording it under the extension a download uses keeps such bytes out of ``FixtureCanonicalizer``, which skips that extension wholesale.
+                "bin"
             default:
                 throw URLTestSessionError.unsupportedResponseType
         }

@@ -17,7 +17,7 @@ import Testing
 
         #expect(items.isEmpty == false)
 
-        // The "files" app is always advertised and is the default app, so it makes for a stable assertion.
+        // The "files" app is always advertised, so it makes for a stable assertion.
         let files = try #require(items.first { $0.id == "files" })
         #expect(files.name == "Dateien")
         #expect(files.app == "files")
@@ -28,7 +28,14 @@ import Testing
         #expect(files.unread == 0)
         #expect(files.classes == "")
         #expect(files.isActive == false)
-        #expect(files.isDefault)
+
+        // The Talk app, which `FixtureOrchestrator` installs for `ConversationsTests`, registers itself ahead of everything else with a negative order and is therefore what the server reports as the default app. That is why the flag is asserted on the entry which actually carries it rather than on "files", which held it before Talk was part of the baseline.
+        #expect(files.isDefault == false)
+
+        let talk = try #require(items.first { $0.id == "spreed" })
+        #expect(talk.app == "spreed")
+        #expect(talk.order == -5)
+        #expect(talk.isDefault)
     }
 
     @Test("Unauthenticated Fetch", arguments: ServerVersion.allCases)

@@ -968,6 +968,72 @@ extension Server: Serving {
         return envelope.ocs.data
     }
 
+    public func conversations() async throws -> [Conversation] {
+        try requireCredentials()
+        logger.debug("Fetching Talk conversations...")
+
+        let request = try makeOCSRequest(for: "apps/spreed/api/v4/room", method: .get)
+        let (data, urlResponse) = try await session.data(for: request)
+
+        guard let response = urlResponse as? HTTPURLResponse else {
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to cast URLResponse to HTTPURLResponse.")
+        }
+
+        // The endpoint only exists while the Talk app is installed and enabled, so its absence surfaces as a not found error.
+        if response.status == .notFound {
+            throw RainmakerError.notFound
+        }
+
+        guard response.status == .ok else {
+            throw RainmakerError.unexpectedStatus(code: response.statusCode)
+        }
+
+        let envelope = try jsonDecoder.decode(ConversationsResponse.self, from: data)
+
+        guard envelope.ocs.meta.status == "ok" else {
+            throw RainmakerError.responseDecodingFailed(reason: "OCS request failed (\(envelope.ocs.meta.statuscode)): \(envelope.ocs.meta.message ?? "No message.")")
+        }
+
+        return envelope.ocs.data
+    }
+
+    public func conversationAvatar(_ token: String, darkTheme: Bool = false) async throws -> ConversationAvatar {
+        try requireCredentials()
+        logger.debug("Fetching the avatar of Talk conversation \(token)...")
+
+        // The dark variant has a sub-route of its own, which the query parameter the endpoint also accepts is deliberately not used for: a path tells the two responses apart wherever requests are keyed by their URL, a query does not.
+        let path = darkTheme ? "apps/spreed/api/v1/room/\(token)/avatar/dark" : "apps/spreed/api/v1/room/\(token)/avatar"
+        var request = try makeOCSRequest(for: path, method: .get)
+
+        // Talk caches these responses for a day. The caller decides when to refresh an image, so do not reuse an older response from URLSession's cache.
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+
+        // The response is an image rather than an OCS payload, so the JSON every other request announces would be a lie. The server answers its error envelope as XML in return, which is why nothing below parses a body.
+        request.setValue("*/*", forHTTPHeaderField: "Accept")
+
+        let (data, urlResponse) = try await session.data(for: request)
+
+        guard let response = urlResponse as? HTTPURLResponse else {
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to cast URLResponse to HTTPURLResponse.")
+        }
+
+        // The endpoint answers the same way for a conversation which does not exist, one this account cannot reach, and a server without the Talk app, so all of those surface as a not found error.
+        if response.status == .notFound {
+            throw RainmakerError.notFound
+        }
+
+        guard response.status == .ok else {
+            throw RainmakerError.unexpectedStatus(code: response.statusCode)
+        }
+
+        // Without a stated type the bytes cannot be turned into an image, and guessing between a bitmap and the SVG documents this endpoint commonly serves would be worse than reporting the gap.
+        guard let contentType = response.value(forHTTPHeaderField: "Content-Type") else {
+            throw RainmakerError.responseDecodingFailed(reason: "The server did not state the type of the conversation avatar it sent.")
+        }
+
+        return ConversationAvatar(data: data, contentType: contentType)
+    }
+
     public func collectives() async throws -> [Collective] {
         try requireCredentials()
         logger.debug("Fetching collectives...")

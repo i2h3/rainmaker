@@ -85,7 +85,9 @@ struct FixtureCanonicalizer {
     ///
     /// Binary bodies (`bin`) are returned unchanged. Textual bodies have the live origin rewritten and volatile fields replaced with fixed placeholders. A body which is not valid UTF-8 is returned unchanged.
     ///
-    func canonicalizedBody(_ data: Data, pathExtension: String) -> Data {
+    /// The request URL decides which replacements apply. Beyond ``volatileReplacements``, which every body gets, there are rules whose field names are not unique across this server's APIs, and applying those everywhere rewrites values which happen to share a name with something volatile elsewhere. Scoping them to the API they describe is what keeps the login flow's single-use `token` from being confused with the token addressing a Talk conversation.
+    ///
+    func canonicalizedBody(_ data: Data, pathExtension: String, requestURL: URL) -> Data {
         guard pathExtension != "bin" else {
             return data
         }
@@ -96,7 +98,19 @@ struct FixtureCanonicalizer {
 
         text = text.replacingOccurrences(of: liveAuthority, with: canonicalHost)
 
-        for (pattern, replacement) in Self.volatileReplacements {
+        // `URLComponents` is used rather than the modern `URL` path accessor for the same reason the initializer uses it: the accessor is unavailable on the older platforms the package supports.
+        let path = URLComponents(url: requestURL, resolvingAgainstBaseURL: false)?.path ?? ""
+        var replacements = Self.volatileReplacements
+
+        if path.contains("/login/v2") {
+            replacements += Self.loginReplacements
+        }
+
+        if path.contains("/apps/spreed/") {
+            replacements += Self.talkReplacements
+        }
+
+        for (pattern, replacement) in replacements {
             text = text.replacingOccurrences(of: pattern, with: replacement, options: .regularExpression)
         }
 
@@ -112,6 +126,8 @@ struct FixtureCanonicalizer {
     ///
     /// The JSON `"etag"` rule covers the notes the notes API reports, whose entity tags are content hashes differing per deployment. It also rewrites the one under `capabilities.files.directEditing` in the capabilities fixtures, the only other JSON fixture carrying that key, which is an entity tag as well and which no test asserts on.
     ///
+    /// The `"hello-v2-token-key"` rule covers the public key the Talk app advertises under its capabilities, which is generated per installation. Its name is unique to that one field, which is why it belongs here rather than in a scoped set.
+    ///
     /// Two neighbouring fields of a note are deliberately left alone. Its `"modified"` timestamp is reproducible rather than volatile, because ``FixtureProvisioner`` stamps the seeded note files with fixed modification dates which ``Server/upload(_:to:force:)`` preserves, and flattening it would remove the very difference the incremental retrieval tests rely on. Its numeric `"id"` is a database identifier which does differ per deployment, but collapsing every note's id to one placeholder would make them indistinguishable and contradict `Note` being `Identifiable`, so the tests look notes up by title instead.
     ///
     private static let volatileReplacements: [(pattern: String, replacement: String)] = [
@@ -120,10 +136,30 @@ struct FixtureCanonicalizer {
         ("<oc:id>[^<]*</oc:id>", "<oc:id>00000000000000000000000000000000</oc:id>"),
         ("<oc:fileid>[^<]*</oc:fileid>", "<oc:fileid>0</oc:fileid>"),
         ("<oc:comments-href>[^<]*</oc:comments-href>", "<oc:comments-href>/remote.php/dav/comments/files/0</oc:comments-href>"),
+        ("\"etag\"[ ]*:[ ]*\"[^\"]*\"", "\"etag\": \"00000000000000000000000000000000\""),
+        ("\"hello-v2-token-key\"[ ]*:[ ]*\"[^\"]*\"", "\"hello-v2-token-key\": \"REDACTED\""),
+    ]
+
+    ///
+    /// Replacements applied only to the bodies of the login flow, which is the one API whose `token` is a secret rather than an identifier.
+    ///
+    /// These used to be part of ``volatileReplacements`` and applied to every body, which was safe only while the login flow was the sole API sending a field named `token`. Talk sends one too, and its value addresses a conversation in every further request, so the two must not share a rule.
+    ///
+    private static let loginReplacements: [(pattern: String, replacement: String)] = [
         ("/login/v2/flow/[^\"<\\s]+", "/login/v2/flow/REDACTED"),
         ("\"token\"[ ]*:[ ]*\"[^\"]*\"", "\"token\": \"REDACTED\""),
         ("\"appPassword\"[ ]*:[ ]*\"[^\"]*\"", "\"appPassword\": \"REDACTED\""),
-        ("\"etag\"[ ]*:[ ]*\"[^\"]*\"", "\"etag\": \"00000000000000000000000000000000\""),
+    ]
+
+    ///
+    /// Replacements applied only to the bodies of the Talk API, whose conversations carry timestamps and an avatar version differing per deployment.
+    ///
+    /// The token of a conversation is deliberately *not* replaced. It is not only asserted on, it is part of the path of every further request about that conversation, so the fixture directory of ``Server/conversationAvatar(_:darkTheme:)`` is named after it. Rewriting it in the listing while the recorded directory keeps the live value would send a replayed lookup to a directory which does not exist. Its churn across regenerations is therefore accepted.
+    ///
+    private static let talkReplacements: [(pattern: String, replacement: String)] = [
+        ("\"lastActivity\"[ ]*:[ ]*[0-9]+", "\"lastActivity\": 1700000000"),
+        ("\"timestamp\"[ ]*:[ ]*[0-9]+", "\"timestamp\": 1700000000"),
+        ("\"avatarVersion\"[ ]*:[ ]*\"[^\"]*\"", "\"avatarVersion\": \"00000000\""),
     ]
 
     ///

@@ -46,6 +46,13 @@
         ]
 
         ///
+        /// The name of the Talk conversation seeded for `ConversationsTests`, which is what makes it findable without relying on a token or an identifier.
+        ///
+        /// A conversation with a known name is needed because a plain Talk installation only creates conversations of its own, whose names are localized to the account's language and whose unread counts follow the release of the app rather than of the server. The same literal appears in the test suite, which cannot import this module.
+        ///
+        static let seededConversation = "Rainmaker"
+
+        ///
         /// Generate the baseline tree on disk and upload it to the server.
         ///
         /// This is idempotent: the local tree is regenerated and uploaded with `force` so that an existing remote state is reconciled to the baseline.
@@ -79,6 +86,8 @@
             } else if testID.contains("UploadTests/directory") {
                 // The fixture creates "/Documents" fresh (MKCOL → 201), so it must be absent beforehand.
                 try? await server.delete("/Documents")
+            } else if testID.contains("ConversationsTests/") {
+                try await seedConversation()
             } else if testID.contains("NotesTests/fetchNone") {
                 // The fixture records an account without a single note, so the seeded notes folder has to be gone beforehand. The baseline is restored before every following test, which brings it back.
                 try? await server.delete("/\(notesFolder)")
@@ -92,6 +101,33 @@
         }
 
         // MARK: - Private
+
+        ///
+        /// Create the Talk conversation named ``seededConversation`` unless it already exists.
+        ///
+        /// Conversations live outside the account's files, so ``reset()`` neither removes nor restores them and the one created here survives for the rest of the container's life. That is why this is idempotent and why every test of the suite asks for it rather than only the first: the recorder runs them in whichever order `swift test list` reports, so no test can rely on another having run before it.
+        ///
+        /// Talk has no WebDAV surface to provision through, so the request is built with ``Server/makeOCSRequest(for:method:queryItems:)`` and performed on a session of its own. That is the sanctioned route for reaching an endpoint the library itself does not cover.
+        ///
+        private func seedConversation() async throws {
+            let existing = try await server.conversations()
+
+            guard existing.contains(where: { $0.displayName == Self.seededConversation }) == false else {
+                return
+            }
+
+            var request = try server.makeOCSRequest(for: "apps/spreed/api/v4/room", method: .post)
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+            // A room type of 2 is a group conversation, which is the kind a client creates and therefore the kind worth recording.
+            request.httpBody = try JSONSerialization.data(withJSONObject: ["roomType": 2, "roomName": Self.seededConversation])
+
+            let (_, urlResponse) = try await URLSession(configuration: .ephemeral).data(for: request)
+
+            guard let response = urlResponse as? HTTPURLResponse, response.statusCode == 200 || response.statusCode == 201 else {
+                throw FixtureRecordingError.conversationSeedingFailed
+            }
+        }
 
         ///
         /// Generate the controlled baseline tree on the local file system.

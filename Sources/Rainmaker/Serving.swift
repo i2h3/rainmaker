@@ -338,6 +338,56 @@ protocol Serving: Sendable {
     func notifications() async throws -> [NotificationItem]
 
     ///
+    /// List the Nextcloud Talk conversations the authenticated user takes part in.
+    ///
+    /// These are provided by the server's Talk app which, like the notes app, is not part of a Nextcloud installation and has to be installed separately. Whether it is available can be checked in advance via the ``Talk`` capability, e.g. `try await capabilities().contains(Talk.self)`. When the app is unavailable the underlying endpoint does not exist and this call throws ``RainmakerError/notFound``.
+    ///
+    /// Every conversation the user takes part in is returned, including the ones the server maintains on its own: the Talk app's own release notes as a ``ConversationType/changelog`` conversation and the account's ``ConversationType/noteToSelf``. Downstream projects can derive whether there are any conversations and how many from the returned array via `isEmpty` and `count`.
+    ///
+    /// The image of a conversation is retrieved separately through ``conversationAvatar(_:darkTheme:)``.
+    ///
+    /// Credentials are required: conversations are user-scoped and the underlying OCS endpoint rejects unauthenticated requests.
+    ///
+    /// - Returns: The conversations in the order returned by the server, which the server does not sort deliberately. A client presenting a conversation list is expected to sort it itself, e.g. by ``Conversation/lastActivity`` descending.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
+    ///     - ``RainmakerError/notFound`` when the Talk app is not available on the server.
+    ///     - ``RainmakerError/unexpectedStatus(code:)`` for any other non-success response.
+    ///     - Any other error that might occur during retrieval.
+    ///
+    func conversations() async throws -> [Conversation]
+
+    ///
+    /// Retrieve the image of a single Nextcloud Talk conversation.
+    ///
+    /// The server resolves which image a conversation has, so this returns whatever it decided on and a client renders it as it comes: a picture a moderator uploaded, an emoji picked in the web interface, the other person's avatar in a ``ConversationType/oneToOne`` conversation, or an icon generated from the kind of conversation it is. The generated icons and the emoji avatars are SVG documents rather than bitmaps, which makes ``ConversationAvatar/contentType`` the field to look at before turning the bytes into an image.
+    ///
+    /// Each call bypasses the local HTTP cache, because the server permits caching these responses for a day even when the image changes sooner.
+    /// Cache the returned image between displays and refresh it when ``Conversation/avatarVersion`` changes or a bounded cache lifetime expires, for example after one day.
+    /// An unchanged version is not sufficient to keep an image indefinitely, and for a ``ConversationType/oneToOne`` conversation it says nothing whatsoever: the server derives that marker from the path of a generic icon, so it is identical for every such conversation and never moves when the other person changes their profile picture.
+    /// Cache entries must therefore distinguish the server, account, conversation token and appearance rather than the version alone.
+    ///
+    /// Note that this is served by version 1 of the Talk API while ``conversations()`` is served by version 4. The two are versioned independently.
+    ///
+    /// Credentials are required, and the same availability considerations as for ``conversations()`` apply.
+    ///
+    /// - Parameters:
+    ///     - token: The ``Conversation/token`` of the conversation to retrieve the image of.
+    ///     - darkTheme: Whether to retrieve the variant meant for a dark appearance. The implementation on ``Server`` defaults this to `false`.
+    ///
+    /// - Returns: The image bytes together with their MIME type.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
+    ///     - ``RainmakerError/notFound`` when no such conversation exists, it is not accessible to the authenticated user, or the Talk app is not available on the server. The server answers `404` in all of those cases, so they are deliberately not told apart.
+    ///     - ``RainmakerError/unexpectedStatus(code:)`` for any other non-success response.
+    ///     - ``RainmakerError/responseDecodingFailed(reason:)`` when the server does not state the type of the image it sent.
+    ///     - Any other error that might occur during retrieval.
+    ///
+    func conversationAvatar(_ token: String, darkTheme: Bool) async throws -> ConversationAvatar
+
+    ///
     /// List the collectives the authenticated user is a member of.
     ///
     /// Collectives are the shared, Markdown-based wikis of the [Collectives](https://apps.nextcloud.com/apps/collectives) app which, like the notes app, is not part of a Nextcloud installation and has to be installed separately.
