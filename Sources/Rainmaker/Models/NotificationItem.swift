@@ -10,7 +10,7 @@ import Foundation
 ///
 /// This models the stable, human-readable fields of a notification. The rich-text variants (`subjectRich`, `messageRich` and their parameters) and the interactive `actions` returned by the server are intentionally not modelled yet, as acting on notifications is out of scope.
 ///
-public struct NotificationItem: Model, Identifiable, CustomStringConvertible, CustomDebugStringConvertible, Decodable {
+public struct NotificationItem: Model, Hashable, Identifiable, CustomStringConvertible, CustomDebugStringConvertible, Decodable {
     ///
     /// The server-assigned identifier of the notification, unique per user.
     ///
@@ -71,6 +71,9 @@ public struct NotificationItem: Model, Identifiable, CustomStringConvertible, Cu
     ///
     public let icon: String
 
+    ///
+    /// The keys a notification is decoded from, which are the names the server sends. Encoding uses the separate encoding keys below so that the server's naming does not leak into the encoded form.
+    ///
     private enum CodingKeys: String, CodingKey {
         case id = "notification_id"
         case app

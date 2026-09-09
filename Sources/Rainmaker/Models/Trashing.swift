@@ -12,6 +12,9 @@ import Foundation
 /// They are kept optional so that a server which does not advertise a particular flag still decodes successfully.
 ///
 public struct Trashing: Capability {
+    ///
+    /// The name of the object the server advertises this capability under, which is the shared `files` object rather than one of the trash bin's own.
+    ///
     public static let key = "files"
 
     ///
@@ -28,6 +31,9 @@ public struct Trashing: Capability {
     ///
     public let deleteFromTrash: Bool?
 
+    ///
+    /// The keys this capability is decoded from, which are the names the server sends.
+    ///
     private enum CodingKeys: String, CodingKey {
         case undelete
         case deleteFromTrash = "delete_from_trash"

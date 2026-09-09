@@ -10,7 +10,7 @@ import Foundation
 ///
 /// Whether the server supports discovering them is advertised under the ``Activity`` capability's `"filters-api"` entry.
 ///
-public struct ActivityFilter: Model, Identifiable, Decodable, CustomStringConvertible, CustomDebugStringConvertible {
+public struct ActivityFilter: Model, Hashable, Identifiable, Decodable, CustomStringConvertible, CustomDebugStringConvertible {
     ///
     /// Every activity, which is what the server falls back to when no filter is given.
     ///

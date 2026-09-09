@@ -215,6 +215,11 @@ enum HTTPStatus: Int, RawRepresentable, CustomStringConvertible {
     case httpVersionNotSupported = 505
 
     ///
+    /// Equals the raw status code of `507`.
+    ///
+    case insufficientStorage = 507
+
+    ///
     /// Human readable description to be rendered in text.
     ///
     var description: String {
@@ -301,6 +306,8 @@ enum HTTPStatus: Int, RawRepresentable, CustomStringConvertible {
                 "Gateway time-out"
             case .httpVersionNotSupported:
                 "HTTP version not supported"
+            case .insufficientStorage:
+                "Insufficient storage"
         }
     }
 

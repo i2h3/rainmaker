@@ -12,7 +12,7 @@ import Foundation
 ///
 /// An entry can be about more than one object because the server merges related activities: ``objectType`` and ``objectId`` then identify the primary object while ``objects`` lists all of them.
 ///
-public struct ActivityItem: Model, Identifiable, CustomStringConvertible, CustomDebugStringConvertible, Decodable {
+public struct ActivityItem: Model, Hashable, Identifiable, CustomStringConvertible, CustomDebugStringConvertible, Decodable {
     ///
     /// The server-assigned identifier of the activity, unique per user and increasing over time.
     ///
@@ -124,6 +124,9 @@ public struct ActivityItem: Model, Identifiable, CustomStringConvertible, Custom
     ///
     public let previews: [ActivityPreview]
 
+    ///
+    /// The keys an activity is decoded from, which are the names the server sends. Encoding uses the separate encoding keys below so that the server's naming does not leak into the encoded form.
+    ///
     private enum CodingKeys: String, CodingKey {
         case id = "activity_id"
         case app

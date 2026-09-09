@@ -14,7 +14,7 @@ import Foundation
 ///
 /// Every field is exposed as a `String`, including conceptually numeric ones such as a file size, a modification time or an identifier. The server usually sends those as JSON strings, but not dependably: some payloads carry a numeric `id`, and an app contributing its own object type is free to send a number or a boolean for any field. Such values are converted rather than discarded, so a numeric identifier arrives here as its decimal digits.
 ///
-public struct ActivityRichObject: Model, Decodable, CustomStringConvertible, CustomDebugStringConvertible {
+public struct ActivityRichObject: Model, Hashable, Decodable, CustomStringConvertible, CustomDebugStringConvertible {
     ///
     /// The kind of object this is, e.g. `"file"`, `"user"` or `"systemtag"`.
     ///

@@ -10,7 +10,7 @@ import Foundation
 ///
 /// A single activity can carry several previews because activities about multiple files are merged into one entry by the server.
 ///
-public struct ActivityPreview: Model, Decodable, CustomStringConvertible, CustomDebugStringConvertible {
+public struct ActivityPreview: Model, Hashable, Decodable, CustomStringConvertible, CustomDebugStringConvertible {
     ///
     /// The address of the image to display.
     ///
@@ -48,12 +48,60 @@ public struct ActivityPreview: Model, Decodable, CustomStringConvertible, Custom
     ///
     /// The name of the previewed file.
     ///
-    public let filename: String
+    public let fileName: String
 
     ///
     /// The full path of the previewed file including the owning account, e.g. `"/admin/files/Readme.md"`. `nil` when the server does not report it.
     ///
     public let filePath: String?
+
+    ///
+    /// The keys a preview is decoded from, which are the names the server sends.
+    ///
+    private enum CodingKeys: String, CodingKey {
+        case source
+        case link
+        case mimeType
+        case isMimeTypeIcon
+        case fileId
+        case view
+        case fileName = "filename"
+        case filePath
+    }
+
+    // MARK: - Encodable
+
+    ///
+    /// The keys a preview is encoded under, which are the property names rather than the names the server sends.
+    ///
+    /// Encoding deliberately does not reuse ``CodingKeys``: those exist to read the server's payload and carry its naming, which would leak back out into anything this library encodes. Keeping the two apart is what makes the encoded form match the model a Swift caller sees, including where a property was renamed for clarity such as ``fileName`` over the server's `filename`.
+    ///
+    private enum EncodingKeys: String, CodingKey {
+        case source
+        case link
+        case mimeType
+        case isMimeTypeIcon
+        case fileId
+        case view
+        case fileName
+        case filePath
+    }
+
+    ///
+    /// Encode a preview under its property names, so that the encoded form mirrors this type rather than the server's payload.
+    ///
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: EncodingKeys.self)
+
+        try container.encode(source, forKey: .source)
+        try container.encode(link, forKey: .link)
+        try container.encode(mimeType, forKey: .mimeType)
+        try container.encode(isMimeTypeIcon, forKey: .isMimeTypeIcon)
+        try container.encode(fileId, forKey: .fileId)
+        try container.encode(view, forKey: .view)
+        try container.encode(fileName, forKey: .fileName)
+        try container.encode(filePath, forKey: .filePath)
+    }
 
     // MARK: - CustomStringConvertible
 
@@ -61,7 +109,7 @@ public struct ActivityPreview: Model, Decodable, CustomStringConvertible, Custom
     /// Implementation for `CustomStringConvertible` conformance to have a concise and human-readable textual representation of a preview.
     ///
     public var description: String {
-        filename
+        fileName
     }
 
     // MARK: - CustomDebugStringConvertible
@@ -70,6 +118,6 @@ public struct ActivityPreview: Model, Decodable, CustomStringConvertible, Custom
     /// Implementation for `CustomDebugStringConvertible` conformance to have a concise and human-readable textual representation of a preview.
     ///
     public var debugDescription: String {
-        "#\(fileId) (\(mimeType)): \(filename)"
+        "#\(fileId) (\(mimeType)): \(fileName)"
     }
 }

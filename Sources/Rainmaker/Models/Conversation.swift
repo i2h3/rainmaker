@@ -14,7 +14,7 @@ import Foundation
 ///
 /// The server sends far more about a conversation than is modelled here, because this type exists to list conversations rather than to take part in one. The last message, the read markers (`lastReadMessage`, `lastCommonReadMessage`), the permission bit fields (`permissions`, `attendeePermissions`, `defaultPermissions`, `callPermissions`), the attendee and session details (`attendeeId`, `actorId`, `actorType`, `sessionId`, `lastPing`), the call state (`hasCall`, `callFlag`, `callStartTime`, `callRecording`, `canStartCall`), `isCustomAvatar`, the lobby, breakout room, message expiration, SIP and federation fields as well as `name`, `description`, `listable`, `notificationLevel`, `participantType`, `hasPassword`, `isFavorite`, `isArchived`, `isImportant`, `isSensitive` and `tagIds` are intentionally not modelled, as chatting, calling and moderating are out of scope. A client needing any of them can build its own request with ``Server/makeOCSRequest(for:method:queryItems:)``.
 ///
-public struct Conversation: Model, Identifiable, CustomStringConvertible, CustomDebugStringConvertible, Decodable {
+public struct Conversation: Model, Hashable, Identifiable, CustomStringConvertible, CustomDebugStringConvertible, Decodable {
     ///
     /// The server-assigned identifier of the conversation, unique per server.
     ///

@@ -16,6 +16,9 @@ import Foundation
 /// The app's configuration, which the server advertises under `config` and `config-local`, is deliberately not modelled: it is deeply nested, it is reshaped between Talk releases, and none of it is needed to list conversations. A downstream project which needs part of it can declare its own ``Capability`` with the same ``key`` modelling just that subtree, which is exactly the extension point ``Capability`` offers.
 ///
 public struct Talk: Capability {
+    ///
+    /// The name of the object the server advertises this capability under, which is the internal identifier of the Talk app rather than its presented name.
+    ///
     public static let key = "spreed"
 
     ///
@@ -53,6 +56,9 @@ public struct Talk: Capability {
         features?.contains(feature) == true || localFeatures?.contains(feature) == true
     }
 
+    ///
+    /// The keys this capability is decoded from, which are the names the server sends.
+    ///
     private enum CodingKeys: String, CodingKey {
         case features
         case localFeatures = "features-local"

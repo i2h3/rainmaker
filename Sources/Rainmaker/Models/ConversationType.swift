@@ -10,7 +10,7 @@ import Foundation
 ///
 /// The kinds are those of the Talk app, whose raw values are neither consecutive nor self-explanatory, which is why they are modelled as cases rather than surfaced as the plain number the server sends.
 ///
-public enum ConversationType: Model, Decodable, Equatable {
+public enum ConversationType: Model, Hashable, Decodable {
     ///
     /// A conversation between the authenticated user and exactly one other person, equalling the raw representation as `1`.
     ///

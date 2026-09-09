@@ -158,6 +158,19 @@ import Testing
         #expect(object["type"] as? Int == 99)
     }
 
+    @Test("Membership Level Encodes As Its Case Name")
+    func membershipLevel() throws {
+        let levels = try JSONDecoder().decode([MembershipLevel].self, from: Data("[9, 42]".utf8))
+        #expect(levels == [.owner, .other(42)])
+
+        let data = try JSONEncoder().encode(levels)
+        let array = try #require(try JSONSerialization.jsonObject(with: data) as? [Any])
+
+        // The raw number the server sends says nothing on its own, so a known level encodes as the name of its case, while a level this library cannot name keeps the number rather than losing it.
+        #expect(array.first as? String == "owner")
+        #expect(array.last as? Int == 42)
+    }
+
     @Test("Nested Activity Models Encode Under Their Property Names")
     func nestedActivityModels() throws {
         let payload = """
@@ -180,6 +193,6 @@ import Testing
         #expect(Set(richObject.keys) == ["type", "id", "name", "path", "link", "other"])
 
         let preview = try #require((object["previews"] as? [[String: Any]])?.first)
-        #expect(Set(preview.keys) == ["link", "source", "mimeType", "isMimeTypeIcon", "fileId", "view", "filename", "filePath"])
+        #expect(Set(preview.keys) == ["link", "source", "mimeType", "isMimeTypeIcon", "fileId", "view", "fileName", "filePath"])
     }
 }

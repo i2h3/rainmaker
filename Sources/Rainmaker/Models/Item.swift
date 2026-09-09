@@ -6,11 +6,11 @@ import Foundation
 ///
 /// Represents a file system item, directories and files alike.
 ///
-public struct Item: Model, Identifiable, CustomStringConvertible, CustomDebugStringConvertible {
+public struct Item: Model, Hashable, Identifiable, CustomStringConvertible, CustomDebugStringConvertible {
     ///
     /// Information about comments related to an Item.
     ///
-    public struct Comments: Model {
+    public struct Comments: Model, Hashable {
         ///
         /// The relative path on the server.
         ///

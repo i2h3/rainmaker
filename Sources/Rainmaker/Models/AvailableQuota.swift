@@ -6,7 +6,7 @@ import Foundation
 ///
 /// Amount of available bytes in the folder.
 ///
-public enum AvailableQuota: Model {
+public enum AvailableQuota: Model, Hashable {
     ///
     /// A defined number of bytes left available.
     ///
@@ -45,6 +45,11 @@ public enum AvailableQuota: Model {
         }
     }
 
+    ///
+    /// Encode the named cases as readable strings and the value-carrying case as the plain number of bytes.
+    ///
+    /// The magic numbers the server uses for the named cases are therefore not reproduced in the encoded form, which is meant to be read rather than sent back to a server.
+    ///
     public func encode(to encoder: any Encoder) throws {
         var container = encoder.singleValueContainer()
 

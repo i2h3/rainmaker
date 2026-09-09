@@ -6,7 +6,7 @@ import Foundation
 ///
 /// A single WebSocket connection, defined as a mockable protocol so the `notify_push` transport can be tested without a live server.
 ///
-/// This mirrors the subset of `URLSessionWebSocketTask` the transport needs; ``URLSession`` vends the production implementation through ``WebSocketConnecting``.
+/// This mirrors the subset of `URLSessionWebSocketTask` the transport needs; `URLSession` vends the production implementation through ``WebSocketConnecting``.
 ///
 public protocol WebSocketChannel: Sendable {
     ///

@@ -12,7 +12,7 @@ import Foundation
 ///
 /// The server sends more about a page than is modelled here. `filePathString` is omitted because it is a display string the web interface builds by joining the components of ``filePath`` with `" - "`, which a client can do itself and differently. `collectiveNameWithEmoji` is omitted because this endpoint leaves it empty. So are `trashTimestamp`, because the listing returns non-trashed pages only, and `shareToken`, because sharing individual pages is out of scope.
 ///
-public struct CollectivePage: Model, Identifiable, CustomStringConvertible, CustomDebugStringConvertible, Decodable {
+public struct CollectivePage: Model, Hashable, Identifiable, CustomStringConvertible, CustomDebugStringConvertible, Decodable {
     ///
     /// The server-assigned identifier of the page, which is the identifier of its file.
     ///
@@ -56,7 +56,7 @@ public struct CollectivePage: Model, Identifiable, CustomStringConvertible, Cust
     ///
     /// The folder of the whole collective, relative to the account's files, e.g. `".Kollektive/Corporate"`. `nil` when the server does not report it.
     ///
-    /// Together with ``filePath`` and ``fileName`` this is the complete location of the page's file in the account's files, which is what makes the Markdown reachable over WebDAV, for example through ``Server/enumerate(at:recursively:)``. It is not a fixed name and not even a visible one: its first component defaults to a hidden folder whose name is derived from the account's locale, so a German account ends up with `".Kollektive"`. Asking the server rather than assuming is therefore the only way to reach a page's file, which is the same reason ``NotesSettings/notesPath`` exists.
+    /// Together with ``filePath`` and ``fileName`` this is the complete location of the page's file in the account's files, which is what makes the Markdown reachable over WebDAV, for example through ``Server/enumerate(at:recursively:)->[Item]``. It is not a fixed name and not even a visible one: its first component defaults to a hidden folder whose name is derived from the account's locale, so a German account ends up with `".Kollektive"`. Asking the server rather than assuming is therefore the only way to reach a page's file, which is the same reason ``NotesSettings/notesPath`` exists.
     ///
     public let collectivePath: String?
 
@@ -129,6 +129,9 @@ public struct CollectivePage: Model, Identifiable, CustomStringConvertible, Cust
     ///
     public let lastEditorDisplayName: String?
 
+    ///
+    /// The keys a page is decoded from, which are the names the server sends. Encoding uses the separate encoding keys below so that the server's naming does not leak into the encoded form.
+    ///
     private enum CodingKeys: String, CodingKey {
         case id
         case title

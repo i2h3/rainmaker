@@ -12,7 +12,7 @@ import Foundation
 ///
 /// The server advertises whether it supports this at all under the ``Activity`` capability's `"rich-strings"` entry.
 ///
-public struct ActivityRichText: Model, Decodable, CustomStringConvertible, CustomDebugStringConvertible {
+public struct ActivityRichText: Model, Hashable, Decodable, CustomStringConvertible, CustomDebugStringConvertible {
     ///
     /// The sentence with a placeholder in braces for every referenced object, e.g. `"You changed {file}"`.
     ///

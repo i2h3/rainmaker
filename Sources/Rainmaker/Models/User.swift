@@ -4,7 +4,7 @@
 ///
 /// A simple user description as used in file system information.
 ///
-public struct User: Model, Identifiable {
+public struct User: Model, Hashable, Identifiable {
     ///
     /// The user account identifier unique on the server.
     ///

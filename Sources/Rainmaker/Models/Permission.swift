@@ -17,13 +17,44 @@ public enum Permission: Character, Model {
     ///
     case createFile = "C"
 
+    ///
+    /// Permission to delete the item.
+    ///
     case delete = "D"
+
+    ///
+    /// Permission to move the item to another directory.
+    ///
     case move = "V"
+
+    ///
+    /// The item is a mount point, e.g. an external storage or a share mounted into the account's files.
+    ///
     case mounted = "M"
+
+    ///
+    /// Permission to rename the item.
+    ///
     case rename = "N"
+
+    ///
+    /// Permission to read the item, which the server abbreviates as `G` for get.
+    ///
     case read = "G"
+
+    ///
+    /// Permission to share the item with others.
+    ///
     case share = "R"
+
+    ///
+    /// The item is shared with the account rather than owned by it.
+    ///
     case shared = "S"
+
+    ///
+    /// Permission to update the content of a file.
+    ///
     case write = "W"
 
     var description: String {

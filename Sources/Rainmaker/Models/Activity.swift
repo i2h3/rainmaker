@@ -12,6 +12,9 @@ import Foundation
 /// All fields are kept optional so that a server which omits one of them still decodes successfully.
 ///
 public struct Activity: Capability {
+    ///
+    /// The name of the object the server advertises this capability under, which is the identifier of the activity app.
+    ///
     public static let key = "activity"
 
     ///
@@ -21,6 +24,9 @@ public struct Activity: Capability {
     ///
     public let apiV2: [String]?
 
+    ///
+    /// The keys this capability is decoded from, which are the names the server sends.
+    ///
     private enum CodingKeys: String, CodingKey {
         case apiV2 = "apiv2"
     }

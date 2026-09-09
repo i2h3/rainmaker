@@ -8,7 +8,7 @@ import Foundation
 ///
 /// See the [files_lock](https://github.com/nextcloud/files_lock) server app for further information.
 ///
-public enum Lock: Model {
+public enum Lock: Model, Hashable {
     ///
     /// User manually locked the item.
     ///

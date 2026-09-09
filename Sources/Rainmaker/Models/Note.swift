@@ -13,7 +13,7 @@ import Foundation
 ///
 /// A note the server could not read is still listed rather than omitted, and the response still succeeds. Such a note carries ``hasError``, and its ``content`` is a message about the failure instead of the note's text. Anything which stores what it retrieves has to check that before writing, or it replaces a perfectly good local copy with an error message.
 ///
-public struct Note: Model, Identifiable, CustomStringConvertible, CustomDebugStringConvertible, Decodable {
+public struct Note: Model, Hashable, Identifiable, CustomStringConvertible, CustomDebugStringConvertible, Decodable {
     ///
     /// The server-assigned identifier of the note, unique per account.
     ///
@@ -87,6 +87,9 @@ public struct Note: Model, Identifiable, CustomStringConvertible, CustomDebugStr
     ///
     public let modification: Date
 
+    ///
+    /// The keys a note is decoded from, which are the names the server sends. Encoding uses the separate encoding keys below so that the server's naming does not leak into the encoded form.
+    ///
     private enum CodingKeys: String, CodingKey {
         case id
         case entityTag = "etag"

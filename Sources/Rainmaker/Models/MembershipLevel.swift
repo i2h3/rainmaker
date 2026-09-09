@@ -10,7 +10,7 @@ import Foundation
 ///
 /// The levels are those of the Teams app a collective is backed by, whose raw values are neither consecutive nor self-explanatory, which is why they are modelled as cases rather than surfaced as the plain number the server sends.
 ///
-public enum MembershipLevel: Model, Decodable, Equatable {
+public enum MembershipLevel: Model, Hashable, Decodable {
     ///
     /// No membership at all, equalling the raw representation as `0`.
     ///

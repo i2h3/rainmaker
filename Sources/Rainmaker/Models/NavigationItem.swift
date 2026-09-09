@@ -9,7 +9,7 @@ import Foundation
 /// These are the server apps (e.g. Files, Photos, Activity) which a client can surface in its own
 /// navigation. The ``href`` is a path relative to the server address.
 ///
-public struct NavigationItem: Model, Identifiable, Decodable {
+public struct NavigationItem: Model, Hashable, Identifiable, Decodable {
     ///
     /// The unique identifier of the app, e.g. `"files"`.
     ///
@@ -65,6 +65,9 @@ public struct NavigationItem: Model, Identifiable, Decodable {
     ///
     public let isDefault: Bool
 
+    ///
+    /// The keys a navigation item is decoded from, which are the names the server sends. Encoding uses the separate encoding keys below so that the server's naming does not leak into the encoded form.
+    ///
     private enum CodingKeys: String, CodingKey {
         case id
         case order

@@ -12,6 +12,9 @@ import Foundation
 /// All fields are kept optional so that a server which omits one of them still decodes successfully.
 ///
 public struct Notes: Capability {
+    ///
+    /// The name of the object the server advertises this capability under, which is the identifier of the notes app.
+    ///
     public static let key = "notes"
 
     ///
@@ -69,7 +72,7 @@ public struct Notes: Capability {
     ///
     /// The path of the folder the notes are stored in, relative to the account's files, e.g. `"Notes"`.
     ///
-    /// The folder is what makes notes reachable over WebDAV as well, e.g. through ``Server/enumerate(at:recursively:)``.
+    /// The folder is what makes notes reachable over WebDAV as well, e.g. through ``Server/enumerate(at:recursively:)->[Item]``.
     /// It tracks the user's setting rather than reporting a fixed default, so it is the same value ``NotesSettings/notesPath`` reports and spares a client which fetched the capabilities anyway a second request.
     ///
     public let notesPath: String?
@@ -83,6 +86,9 @@ public struct Notes: Capability {
         Self.supports(apiVersions: apiVersion ?? [])
     }
 
+    ///
+    /// The keys this capability is decoded from, which are the names the server sends.
+    ///
     private enum CodingKeys: String, CodingKey {
         case apiVersion = "api_version"
         case version

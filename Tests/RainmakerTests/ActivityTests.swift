@@ -117,7 +117,7 @@ import Testing
 
         let preview = try #require(item.previews.first)
         #expect(preview.fileId == 72)
-        #expect(preview.filename == "Readme.md")
+        #expect(preview.fileName == "Readme.md")
         #expect(preview.filePath == "/admin/files/Readme.md")
         #expect(preview.mimeType == "text/markdown")
         #expect(preview.isMimeTypeIcon == false)

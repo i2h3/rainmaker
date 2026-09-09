@@ -12,6 +12,9 @@ import Foundation
 /// ``url`` and ``background`` are kept as strings on purpose: depending on server configuration they may be empty or, in the case of ``background``, hold a color value rather than a link.
 ///
 public struct Theming: Capability {
+    ///
+    /// The name of the object the server advertises this capability under, which is the identifier of the theming app.
+    ///
     public static let key = "theming"
 
     ///

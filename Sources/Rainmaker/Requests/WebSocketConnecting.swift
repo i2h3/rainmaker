@@ -6,7 +6,7 @@ import Foundation
 ///
 /// The ability to open a ``WebSocketChannel`` for a request, defined as a mockable protocol so the `notify_push` transport can be tested without a live server.
 ///
-/// This is the WebSocket counterpart to ``Requesting`` and is satisfied in production by ``URLSession``.
+/// This is the WebSocket counterpart to ``Requesting`` and is satisfied in production by `URLSession`.
 ///
 public protocol WebSocketConnecting: Sendable {
     ///

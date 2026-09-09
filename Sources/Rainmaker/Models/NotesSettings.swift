@@ -6,7 +6,7 @@ import Foundation
 ///
 /// The settings the notes app keeps for the authenticated user.
 ///
-/// Retrieved through ``Server/notesSettings()``. These describe where and how the app stores notes, which a client needs to know because notes are ordinary files: ``notesPath`` is what makes them reachable over WebDAV, for example through ``Server/enumerate(at:recursively:)``, and ``fileSuffix`` is the extension the app gives a note it creates.
+/// Retrieved through ``Server/notesSettings()``. These describe where and how the app stores notes, which a client needs to know because notes are ordinary files: ``notesPath`` is what makes them reachable over WebDAV, for example through ``Server/enumerate(at:recursively:)->[Item]``, and ``fileSuffix`` is the extension the app gives a note it creates.
 ///
 /// The app resolves both lazily and persists them the first time it is asked about notes, so asking the server is the only reliable way to learn them. ``Notes/notesPath`` advertises the same path alongside the capabilities, which spares a second request to a client which fetched those anyway.
 ///

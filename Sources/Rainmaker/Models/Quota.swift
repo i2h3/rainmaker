@@ -6,7 +6,7 @@ import Foundation
 ///
 /// Storage restrictions and usage information per directory.
 ///
-public struct Quota: Model {
+public struct Quota: Model, Hashable {
     ///
     /// Available bytes in the directory.
     ///

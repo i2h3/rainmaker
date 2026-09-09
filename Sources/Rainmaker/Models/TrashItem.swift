@@ -8,7 +8,7 @@ import Foundation
 ///
 /// Trashed items are listed through ``Server/trash()`` and can be restored to their original location with ``Server/restore(_:)-(String)`` or removed altogether by emptying the trash bin with ``Server/emptyTrash()``.
 ///
-public struct TrashItem: Model, Identifiable, CustomStringConvertible, CustomDebugStringConvertible {
+public struct TrashItem: Model, Hashable, Identifiable, CustomStringConvertible, CustomDebugStringConvertible {
     ///
     /// The opaque identifier of the trashed item within the trash bin.
     ///

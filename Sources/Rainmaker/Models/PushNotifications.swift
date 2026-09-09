@@ -12,6 +12,9 @@ import Foundation
 /// All fields are kept optional so that a server which omits one of them still decodes successfully.
 ///
 public struct PushNotifications: Capability {
+    ///
+    /// The name of the object the server advertises this capability under, which is the identifier of the `notify_push` app.
+    ///
     public static let key = "notify_push"
 
     ///

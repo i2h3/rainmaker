@@ -14,7 +14,7 @@ import Foundation
 ///
 /// The server sends more about a collective than is modelled here. The fields describing a public share of it (`isPageShare`, `sharePageId` and `shareEditable`) are omitted because this endpoint never populates them: only the public share flow, which is out of scope, does. So is `trashTimestamp`, because the listing returns non-trashed collectives only. The per-user interface preferences (`userPageOrder`, `userShowMembers`, `userShowRecentPages` and `userFavoritePages`) are omitted as settings of the web interface rather than properties of the collective, and the permission thresholds (`editPermissionLevel`, `sharePermissionLevel`) as well as `pageMode` because ``canEdit`` and ``canShare`` already answer what a client asks them for.
 ///
-public struct Collective: Model, Identifiable, CustomStringConvertible, CustomDebugStringConvertible, Decodable {
+public struct Collective: Model, Hashable, Identifiable, CustomStringConvertible, CustomDebugStringConvertible, Decodable {
     ///
     /// The server-assigned identifier of the collective, unique per server.
     ///
@@ -77,6 +77,9 @@ public struct Collective: Model, Identifiable, CustomStringConvertible, CustomDe
     ///
     public let shareToken: String?
 
+    ///
+    /// The keys a collective is decoded from, which are the names the server sends. Encoding uses the separate encoding keys below so that the server's naming does not leak into the encoded form.
+    ///
     private enum CodingKeys: String, CodingKey {
         case id
         case name

@@ -23,6 +23,36 @@ This is the only method currently supported.
 
 - ``Server``
 
+### Files
+
+Browse, download, upload and reorganize the files of an account over WebDAV.
+
+- ``Server/enumerate(at:recursively:)->AsyncThrowingStream<Item,Error>``
+- ``Server/enumerate(at:recursively:)->[Item]``
+- ``Server/info(_:)``
+- ``Server/download(_:to:force:)``
+- ``Server/upload(_:to:force:)``
+- ``Server/createDirectory(_:)``
+- ``Server/delete(_:)``
+- ``Server/move(_:to:overwrite:)``
+
+### Trash Bin
+
+List, restore and permanently remove deleted items, which the server keeps in a per-account trash bin whose availability is advertised through the ``Trashing`` capability.
+
+- ``Server/trash()``
+- ``Server/restore(_:)-(String)``
+- ``Server/restore(_:)-(TrashItem)``
+- ``Server/emptyTrash()``
+
+### Authentication
+
+Obtain an app password through the server's login flow and revoke it again once it is no longer needed.
+
+- ``Server/login()``
+- ``Server/poll(_:token:)``
+- ``Server/deleteAppPassword()``
+
 ### Data Models
 
 - ``AvailableQuota``
@@ -30,8 +60,8 @@ This is the only method currently supported.
 - ``Lock``
 - ``LoginFlow``
 - ``LoginResult``
-- ``Quota``
 - ``Permission``
+- ``Quota``
 - ``TrashItem``
 - ``User``
 
@@ -40,6 +70,7 @@ This is the only method currently supported.
 Observe server-side changes over the `notify_push` WebSocket when available, falling back to polling otherwise, through a single stream of re-fetch hints.
 
 - ``Server/events(_:)``
+- ``Server/events(_:pollInterval:)``
 - ``ServerEvent``
 - ``ServerSubject``
 - ``ServerEventOptions``
@@ -94,7 +125,7 @@ Pages are returned flat and in the server's order; their hierarchy is reconstruc
 ### Talk
 
 Retrieve the conversations of an account and the image of a single one of them, which is what a client needs to surface conversations without taking part in them.
-The Talk app is not part of a Nextcloud installation, and whether it is available is advertised through the ``Talk`` capability, which unlike every other capability covered here is visible to anonymous clients as well.
+The Talk app is not part of a Nextcloud installation, and whether it is available is advertised through the ``Talk`` capability, which, unlike the ``Notes``, ``Notifications`` and ``Activity`` capabilities, is visible to anonymous clients as well.
 Conversations come back in the server's own order, which is no order at all, so a client presenting a list sorts them by ``Conversation/lastActivity`` itself.
 The image of a conversation is whatever the server resolved it to, from an uploaded picture to an icon it generated, and is commonly an SVG document rather than a bitmap.
 Each explicit avatar fetch bypasses the local HTTP cache.
@@ -117,6 +148,7 @@ List the server apps, such as Files, Photos and Activity, which the server adver
 
 ### Capabilities
 
+- ``Server/capabilities()``
 - ``CapabilitySet``
 - ``Capability``
 - ``Activity``
