@@ -66,6 +66,15 @@ import Testing
         #expect(notes.notesPath?.isEmpty == false)
         #expect(capabilities.contains(Notes.self))
 
+        // Talk is likewise installed on the recording containers on demand. Its features are named flags rather than an API version, because it versions its endpoints in their paths instead.
+        let talk = try #require(try capabilities.get(Talk.self))
+        #expect(talk.version?.isEmpty == false)
+        #expect(talk.features?.isEmpty == false)
+        #expect(talk.localFeatures?.isEmpty == false)
+        #expect(talk.supports("conversation-v4"))
+        #expect(talk.supports("no-such-talk-feature") == false)
+        #expect(capabilities.contains(Talk.self))
+
         #expect(capabilities.version.string == serverVersion.rawValue)
         #expect(capabilities.version.major > 0)
     }
@@ -85,6 +94,11 @@ import Testing
         #expect(capabilities.contains(Activity.self) == false)
         #expect(try capabilities.get(Notes.self) == nil)
         #expect(capabilities.contains(Notes.self) == false)
+
+        // Talk is the exception: unlike every other app covered here it advertises itself to anonymous clients as well, so its presence says the app is installed rather than that this client may use it.
+        let talk = try #require(try capabilities.get(Talk.self))
+        #expect(talk.supports("conversation-v4"))
+        #expect(capabilities.contains(Talk.self))
 
         #expect(capabilities.version.string == serverVersion.rawValue)
     }

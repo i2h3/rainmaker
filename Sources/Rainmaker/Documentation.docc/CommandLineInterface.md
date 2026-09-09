@@ -18,6 +18,7 @@ SUBCOMMANDS:
   activity-filters        List the filters the server offers to narrow the activity stream down with. Requires authentication and the server's activity app.
   capabilities            Fetch the capabilities advertised by a server. Authentication is optional.
   collectives             List the collectives of the authenticated user and their pages. Requires authentication and the server's collectives app.
+  conversations           List the Talk conversations of the authenticated user and retrieve their images. Requires authentication and the server's Talk app.
   create-directory        Create a directory on the server.
   delete                  Delete a file or directory from the server.
   delete-app-password     Delete the app password currently used to authenticate, ending the session on the server side.
@@ -31,6 +32,7 @@ SUBCOMMANDS:
   notes-settings          Show where the notes app stores the notes of the authenticated user. Requires authentication and the server's notes app.
   notifications           List the notifications queued for the authenticated user. Requires authentication and the server's notifications app.
   poll                    Poll the status of a previously initiated login flow.
+  trash                   Manage the server trash bin.
   upload                  Upload a file or directory to a folder on the server.
   watch                   Observe server-side changes over notify_push (or polling when unavailable) and print each event. Runs until interrupted.
 

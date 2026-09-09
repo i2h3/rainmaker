@@ -23,12 +23,19 @@
         ///
         case serverNotReady(subject: String, reason: String)
 
+        ///
+        /// The Talk conversation the conversation fixtures are recorded against could not be created.
+        ///
+        case conversationSeedingFailed
+
         var description: String {
             switch self {
                 case .verificationFailed:
                     "The replay-verify pass failed: the recorded fixtures do not reproduce passing tests without a server. Inspect the test output above and, for any failing test, add its precondition in FixtureProvisioner.applyPrecondition(forTest:)."
                 case let .serverNotReady(subject: subject, reason: reason):
                     "Gave up waiting for \(subject): \(reason)."
+                case .conversationSeedingFailed:
+                    "The Talk conversation the conversation fixtures are recorded against could not be created. Check that the Talk app is installed and enabled for the account being recorded."
                 case let .appInstallationFailed(app):
                     "The \"\(app)\" app could not be installed into the container. It is fetched from the Nextcloud app store, so check that the store is reachable and that it offers a release compatible with the server version being recorded."
             }

@@ -25,8 +25,11 @@
         ///
         /// Excluded are suites that never touch the network (request-factory and fixture self-tests) and those whose fixtures are hand-authored with synthetic, version-independent values that a live server cannot reproduce: `TrashTests` (asserts fixed trash identifiers and deletion timestamps), `PollTests` (a successful poll needs a completed browser flow, and it targets the canonical address rather than the container), `NotificationsTests` (the queued notifications depend on server state a plain baseline does not produce) , `ActivityTests` (the recorded activities depend on the same, and the end of the stream, the previews and an absent activity app cannot be provoked on a live container) and `CollectivesTests` (the collectives app is not part of a Nextcloud installation, and installing it mounts a folder of its own into the account's files, which both changes the listings `ListingTests` records and makes the forced baseline reset of ``FixtureProvisioner/reset()`` treat that mount as an orphan to delete). Those are carried forward across versions instead.
         ///
+        /// `ConversationsTests` records although the Talk app it needs is not part of a Nextcloud installation either, because Talk keeps its conversations outside the account's files and mounts nothing into them, so neither `ListingTests` nor the baseline reset notices it. See ``installedApps``.
+        ///
         static let recordableSuites: Set<String> = [
             "CapabilitiesTests",
+            "ConversationsTests",
             "CreateDirectoryTests",
             "DeleteTests",
             "DownloadTests",
@@ -40,15 +43,27 @@
         ]
 
         ///
-        /// The app installed on every deployed container, because `NotesTests` cannot record anything without it.
+        /// The identifier of the notes app, which `NotesTests` cannot record anything without.
         ///
-        /// The notes app is not part of a Nextcloud installation, so without this the endpoints behind ``Server/notes()`` would not exist and the suite would capture nothing but a not found response. Recording therefore depends on the Nextcloud app store being reachable, which serves the newest release compatible with the server version deployed.
+        /// It is named on its own rather than only as part of ``installedApps`` because what follows its installation is a lookup specific to it, namely ``resolveNotesFolder(on:)``.
         ///
-        /// It is declared through ``NextcloudConfiguration/enabledApps``, so ``NextcloudContainerManager/deploy(configuration:)`` installs and enables it before returning, under the app store allowance of ``NextcloudContainerManager/defaultAppInstallationTimeout``. Everything after deployment can therefore assume the app is already answering.
+        static let notesApp = "notes"
+
         ///
-        /// Naming a single app rather than a list is deliberate: what follows the installation is a lookup specific to this app, so a list would only pretend to generalize.
+        /// The identifier of the Talk app, which `ConversationsTests` cannot record anything without.
         ///
-        static let installedApp = "notes"
+        /// Talk is the app's presented name while `spreed` is the identifier it has always had internally, which is also the key it advertises its ``Talk`` capability under.
+        ///
+        static let talkApp = "spreed"
+
+        ///
+        /// The apps installed on every deployed container, because the suites covering them cannot record anything without them.
+        ///
+        /// Neither the notes app nor the Talk app is part of a Nextcloud installation, so without this the endpoints behind ``Server/notes()`` and ``Server/conversations()`` would not exist and those suites would capture nothing but a not found response. Recording therefore depends on the Nextcloud app store being reachable, which serves the newest release compatible with the server version deployed. That also means the fixtures of those two suites track a release of their app rather than a release of the server, which is why their assertions rest on state ``FixtureProvisioner`` seeds instead of on whatever the app creates by itself.
+        ///
+        /// They are declared through ``NextcloudConfiguration/enabledApps``, so ``NextcloudContainerManager/deploy(configuration:)`` installs and enables them before returning, under the app store allowance of ``NextcloudContainerManager/defaultAppInstallationTimeout``. Everything after deployment can therefore assume both apps are already answering, which each of them is nevertheless probed for.
+        ///
+        static let installedApps = [notesApp, talkApp]
 
         ///
         /// How long to keep retrying a readiness probe before giving up.
@@ -62,7 +77,7 @@
         ///
         static let disabledApps = [
             "bruteforcesettings",
-            // Disabling the dashboard makes "files" the user's default app (the default `defaultapp` order is "dashboard,files"), which `NavigationTests` asserts on.
+            // Disabling the dashboard takes it out of the running for the user's default app, which the default `defaultapp` order of "dashboard,files" would otherwise give it. Which app ends up default is asserted by `NavigationTests`; since Talk joined ``installedApps`` that is Talk, which registers itself ahead of everything else with a negative navigation order.
             "dashboard",
             "firstrunwizard",
             "nextcloud_announcements",
@@ -122,7 +137,7 @@
         ///
         private func record(version: String, tests: [String]) async throws {
             log("Deploying nextcloud:\(version)…")
-            let container = try await NextcloudContainerManager.deploy(configuration: NextcloudConfiguration(tag: version, disabledApps: Self.disabledApps, enabledApps: [Self.installedApp]))
+            let container = try await NextcloudContainerManager.deploy(configuration: NextcloudConfiguration(tag: version, disabledApps: Self.disabledApps, enabledApps: Self.installedApps))
             log("Container ready at http://localhost:\(container.port) (id \(container.id.prefix(12))).")
 
             do {
@@ -132,8 +147,11 @@
                 // Provisioning is the first thing to touch WebDAV, so this is where the wait for it belongs.
                 _ = try await waitUntil("the account's WebDAV endpoint") { try await server.info("/") }
 
+                // The Talk app is probed the same way, because its own endpoint is what the conversation fixtures depend on and it answers at its own pace.
+                _ = try await waitUntil("the \(Self.talkApp) app") { try await server.conversations() }
+
                 let notesFolder = try await resolveNotesFolder(on: server)
-                log("The \(Self.installedApp) app stores notes in \"\(notesFolder)\".")
+                log("The \(Self.notesApp) app stores notes in \"\(notesFolder)\".")
 
                 let baselineDirectory = FileManager.default.temporaryDirectory.appendingPathComponent("rainmaker-baseline-\(version)")
                 let provisioner = FixtureProvisioner(server: server, baselineDirectory: baselineDirectory, notesFolder: notesFolder)
@@ -250,7 +268,7 @@
         /// It is retried because ``NextcloudContainerManager/deploy(configuration:)`` returning means the app is installed and enabled, not that the running web server serves it yet. The first request after a deployment has been observed answering with a not found error for a moment, so what is waited out here is that window rather than the installation, which the deployment already covered.
         ///
         private func resolveNotesFolder(on server: Server) async throws -> String {
-            try await waitUntil("the \(Self.installedApp) app") { try await server.notesSettings().notesPath }
+            try await waitUntil("the \(Self.notesApp) app") { try await server.notesSettings().notesPath }
         }
 
         ///
