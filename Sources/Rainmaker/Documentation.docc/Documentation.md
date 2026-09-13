@@ -98,6 +98,19 @@ Whether and how many notifications are pending follows from the returned array, 
 - ``Server/notifications()``
 - ``NotificationItem``
 
+### User Avatars
+
+Retrieve the picture a Nextcloud user is represented by, which is what a client needs to put a face beside the people an activity stream or a conversation names.
+
+The server answers with an image for every user it knows, drawing one from their initials when that user uploaded none, so an absent picture is not reported as an absent response.
+``UserAvatar/isCustom`` is the only thing that distinguishes the two, and a client with a monogram style of its own has to consult it or it will draw over the server's placeholder rather than in place of it.
+Only two sizes are served, which is what ``AvatarSize`` models: the endpoint rounds any other value to one of them.
+Each fetch bypasses the local HTTP cache, and the endpoint publishes no version marker, so cache images on a bounded lifetime and key entries by server, account, user, size and appearance.
+
+- ``Server/userAvatar(_:size:darkTheme:)``
+- ``UserAvatar``
+- ``AvatarSize``
+
 ### Notes
 
 Retrieve the notes of an account, either all of them at once or, for a client keeping its own copy, only those the server recorded a change for since a given moment.

@@ -1615,6 +1615,82 @@ extension Server: Serving {
     }
 
     ///
+    /// Retrieve the avatar of a single Nextcloud user.
+    ///
+    /// The server always answers with an image for a user it knows, drawing one from their initials when they uploaded none, so an empty result is not how an absent picture is reported — ``UserAvatar/isCustom`` is. A client with a monogram of its own must consult it, or it will show the server's placeholder in place of its own.
+    ///
+    /// Only two sizes exist, which is what ``AvatarSize`` models: the endpoint rounds any other value to one of them and logs the request as deprecated.
+    ///
+    /// Each call bypasses the local HTTP cache, because the server permits caching these responses for a day even when the picture changes sooner. Cache the returned image between displays and refresh it on a bounded lifetime, keying entries by server, user, size and appearance. The endpoint publishes no version marker for an avatar, so there is nothing cheaper to compare against.
+    ///
+    /// This is a front page route rather than an OCS or app one, and the server marks it as public. Credentials are required here regardless: an instance may be configured to refuse anonymous requests outright, and asking as the signed-in account is what makes the call behave the same on every instance rather than only on the permissive ones.
+    ///
+    /// - Parameters:
+    ///     - userId: The identifier of the user to retrieve the avatar of, which is their login name rather than their display name.
+    ///     - size: Which of the two served sizes to ask for. Defaults to ``AvatarSize/small``.
+    ///     - darkTheme: Whether to retrieve the variant meant for a dark appearance. Defaults to `false`.
+    ///
+    /// - Returns: The image bytes together with their MIME type and whether the user chose the picture themselves.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
+    ///     - ``RainmakerError/notFound`` when no such user exists or the server refused to resolve one. The server answers `404` for both, so they are deliberately not told apart.
+    ///     - ``RainmakerError/unexpectedStatus(code:)`` for any other non-success response.
+    ///     - ``RainmakerError/responseDecodingFailed(reason:)`` when the server does not state the type of the image it sent.
+    ///     - Any other error that might occur during retrieval.
+    ///
+    public func userAvatar(_ userId: String, size: AvatarSize = .small, darkTheme: Bool = false) async throws -> UserAvatar {
+        try requireCredentials()
+        logger.debug("Fetching the avatar of user \(userId)...")
+
+        // The dark variant has a sub-route of its own, exactly as the Talk conversation avatar does, and is preferred for the same reason: a path tells the two responses apart wherever requests are keyed by their URL.
+        var path = "avatar/\(userId)/\(size.rawValue)"
+
+        if darkTheme {
+            path += "/dark"
+        }
+
+        var request = makeRequest(for: address.appendingCompatibility(path: path, directoryHint: .notDirectory), method: .get)
+
+        // The server caches these responses for a day. The caller decides when to refresh an image, so do not reuse an older response from URLSession's cache.
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+
+        // The response is an image rather than a JSON payload, so the type every other request announces would be a lie.
+        request.setValue("*/*", forHTTPHeaderField: "Accept")
+
+        // This route is not served through OCS, so credentials are attached here rather than by a request builder which does it on the caller's behalf.
+        if let user, let password {
+            let encodedCredentials = Data("\(user):\(password)".utf8).base64EncodedString()
+            request.setValue("Basic \(encodedCredentials)", forHTTPHeaderField: "Authorization")
+        }
+
+        let (data, urlResponse) = try await session.data(for: request)
+
+        guard let response = urlResponse as? HTTPURLResponse else {
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to cast URLResponse to HTTPURLResponse.")
+        }
+
+        // The endpoint answers the same way for a user which does not exist and one the server declined to resolve, so both surface as a not found error.
+        if response.status == .notFound {
+            throw RainmakerError.notFound
+        }
+
+        guard response.status == .ok else {
+            throw RainmakerError.unexpectedStatus(code: response.statusCode)
+        }
+
+        // Without a stated type the bytes cannot be turned into an image, and guessing would be worse than reporting the gap.
+        guard let contentType = response.value(forHTTPHeaderField: "Content-Type") else {
+            throw RainmakerError.responseDecodingFailed(reason: "The server did not state the type of the user avatar it sent.")
+        }
+
+        // An absent marker is read as a generated avatar, which is the safe direction: a client drawing its own monogram then draws it, rather than presenting the server's placeholder as somebody's photograph.
+        let isCustom = response.value(forHTTPHeaderField: "X-NC-IsCustomAvatar") == "1"
+
+        return UserAvatar(data: data, contentType: contentType, isCustom: isCustom)
+    }
+
+    ///
     /// List the collectives the authenticated user is a member of.
     ///
     /// Collectives are the shared, Markdown-based wikis of the [Collectives](https://apps.nextcloud.com/apps/collectives) app which, like the notes app, is not part of a Nextcloud installation and has to be installed separately.

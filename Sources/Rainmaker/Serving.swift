@@ -112,6 +112,11 @@ protocol Serving: Sendable {
     func conversationAvatar(_ token: String, darkTheme: Bool) async throws -> ConversationAvatar
 
     ///
+    /// Retrieve the avatar of a single Nextcloud user.
+    ///
+    func userAvatar(_ userId: String, size: AvatarSize, darkTheme: Bool) async throws -> UserAvatar
+
+    ///
     /// List the collectives the authenticated user is a member of.
     ///
     func collectives() async throws -> [Collective]
