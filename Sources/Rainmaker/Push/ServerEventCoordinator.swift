@@ -53,6 +53,18 @@ struct ServerEventCoordinator {
     var initialBackoff: TimeInterval = 1
 
     ///
+    /// How long each WebSocket connection waits between liveness pings, matching the server's own 30 second ping interval by default.
+    ///
+    /// This is configurable so tests can exercise the ping loop without waiting for it.
+    ///
+    var pingInterval: TimeInterval = 30
+
+    ///
+    /// How long a liveness ping may wait for its pong before the connection is considered dead and reconnected.
+    ///
+    var pongTimeout: TimeInterval = 10
+
+    ///
     /// Run the subscription until the consumer stops it or an unrecoverable authentication failure occurs.
     ///
     /// - Parameters:
@@ -136,7 +148,7 @@ struct ServerEventCoordinator {
         var request = URLRequest(url: endpoint)
         request.setValue(server.userAgent, forHTTPHeaderField: "User-Agent")
 
-        let connection = PushNotificationsConnection(webSocket: server.webSocket, request: request, user: user, password: password, subjects: pushedSubjects, listenFileIDs: options.listenFileIDs, logger: logger)
+        let connection = PushNotificationsConnection(webSocket: server.webSocket, request: request, user: user, password: password, subjects: pushedSubjects, listenFileIDs: options.listenFileIDs, logger: logger, pingInterval: pingInterval, pongTimeout: pongTimeout)
         let backstopInterval = options.backstopPollInterval
         let pollInterval = options.pollInterval
 

@@ -7,7 +7,7 @@ import os
 ///
 /// One lifetime of a `notify_push` WebSocket connection: it authenticates, then maps incoming frames to ``ServerEvent`` values yielded into a stream until the connection ends.
 ///
-/// It is a value type carrying only immutable, `Sendable` inputs and therefore needs no isolation of its own; ``ServerEventCoordinator`` owns the reconnection state and decides when to open a new connection.
+/// It is a value type carrying only `Sendable` inputs it never mutates and therefore needs no isolation of its own; ``ServerEventCoordinator`` owns the reconnection state and decides when to open a new connection.
 ///
 struct PushNotificationsConnection {
     ///
@@ -24,11 +24,6 @@ struct PushNotificationsConnection {
         ///
         case disconnected(wasAuthenticated: Bool)
     }
-
-    ///
-    /// How long to wait between liveness pings, matching the server's own 30 second ping interval.
-    ///
-    private static let pingInterval: TimeInterval = 30
 
     ///
     /// The connector vending the underlying channel.
@@ -66,6 +61,20 @@ struct PushNotificationsConnection {
     let logger: Logger
 
     ///
+    /// How long to wait between liveness pings, matching the server's own 30 second ping interval by default.
+    ///
+    /// This is configurable so tests can exercise the ping loop without waiting for it.
+    ///
+    var pingInterval: TimeInterval = 30
+
+    ///
+    /// How long a liveness ping may wait for its pong before the connection is considered dead and closed, so ``ServerEventCoordinator`` reconnects.
+    ///
+    /// The framework is known to sometimes never report a ping's outcome at all, which without this limit would silently end liveness checking for the rest of the connection.
+    ///
+    var pongTimeout: TimeInterval = 10
+
+    ///
     /// Open the connection, authenticate, and pump events into `continuation` until the connection ends.
     ///
     /// - Parameters:
@@ -78,31 +87,39 @@ struct PushNotificationsConnection {
         let channel = webSocket.channel(for: request)
         channel.resume()
 
-        var authenticated = false
+        let logger = logger
 
-        do {
-            try await channel.send(user)
-            try await channel.send(password)
-            try await authenticate(on: channel)
-            authenticated = true
-            logger.debug("notify_push connection authenticated")
+        // Neither URLSession's send() nor its receive() observes task cancellation, so a cancelled subscription has to close the channel itself, which is what ends whichever of them is outstanding, during authentication as much as afterwards.
+        try await withTaskCancellationHandler {
+            var authenticated = false
 
-            if listenFileIDs {
-                try await channel.send("listen notify_file_id")
+            do {
+                try await channel.send(user)
+                try await channel.send(password)
+                try await authenticate(on: channel)
+                authenticated = true
+                logger.debug("notify_push connection authenticated")
+
+                if listenFileIDs {
+                    try await channel.send("listen notify_file_id")
+                }
+
+                continuation.yield(.connected)
+                try await pump(channel: channel, into: continuation)
+
+                // The pump only returns by throwing; reaching here means the read loop ended without error, which is still a disconnect.
+                channel.cancel()
+                throw Failure.disconnected(wasAuthenticated: true)
+            } catch let failure as Failure {
+                channel.cancel()
+                throw failure
+            } catch {
+                channel.cancel()
+                throw Failure.disconnected(wasAuthenticated: authenticated)
             }
-
-            continuation.yield(.connected)
-            try await pump(channel: channel, into: continuation)
-
-            // The pump only returns by throwing; reaching here means the read loop ended without error, which is still a disconnect.
+        } onCancel: {
+            logger.debug("Closing notify_push connection of a cancelled subscription")
             channel.cancel()
-            throw Failure.disconnected(wasAuthenticated: true)
-        } catch let failure as Failure {
-            channel.cancel()
-            throw failure
-        } catch {
-            channel.cancel()
-            throw Failure.disconnected(wasAuthenticated: authenticated)
         }
     }
 
@@ -134,24 +151,30 @@ struct PushNotificationsConnection {
     }
 
     ///
-    /// Run the read loop and the liveness ping loop concurrently until either ends, which ends the connection.
+    /// Run the read loop and the liveness ping loop concurrently until either ends, which ends the connection and closes the channel.
     ///
     private func pump(channel: any WebSocketChannel, into continuation: AsyncThrowingStream<ServerEvent, Error>.Continuation) async throws {
         try await withThrowingTaskGroup(of: Void.self) { group in
             let subjects = subjects
             let logger = logger
+            let pingInterval = pingInterval
+            let pongTimeout = pongTimeout
 
             group.addTask {
                 try await Self.read(from: channel, subjects: subjects, into: continuation, logger: logger)
             }
 
             group.addTask {
-                try await Self.ping(on: channel)
+                try await Self.ping(on: channel, interval: pingInterval, timeout: pongTimeout)
             }
 
-            // The first task to finish or throw ends the session; cancel the other and surface the outcome.
+            // The first task to finish or throw ends the session and its outcome is surfaced. Closing the channel right away, rather than once the group has drained, is what ends the other task, because neither URLSession's receive() nor its pong handler observes task cancellation. Cancelling first lets the ping the channel still has outstanding be told apart from a repeated report of one that already ended.
+            defer {
+                group.cancelAll()
+                channel.cancel()
+            }
+
             try await group.next()
-            group.cancelAll()
         }
     }
 
@@ -175,12 +198,33 @@ struct PushNotificationsConnection {
     }
 
     ///
-    /// Send a liveness ping on the given interval, throwing when a pong fails to arrive.
+    /// Send a liveness ping on the given interval, throwing when the channel reports a pong as failed or none arrives within the given timeout.
     ///
-    private static func ping(on channel: any WebSocketChannel) async throws {
+    private static func ping(on channel: any WebSocketChannel, interval: TimeInterval, timeout: TimeInterval) async throws {
         while true {
-            try await Task.sleep(nanoseconds: UInt64(pingInterval * 1_000_000_000))
-            try await channel.sendPing()
+            try await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
+
+            try await withThrowingTaskGroup(of: Void.self) { group in
+                group.addTask {
+                    try await channel.sendPing()
+                }
+
+                group.addTask {
+                    // Cancellation must end this sleep with an error rather than fall through, or a ping answered in time would close the channel below.
+                    try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+
+                    // Closing the channel is what ends a ping which does not observe cancellation, since this group waits for it before it can report the timeout.
+                    channel.cancel()
+                    throw URLError(.timedOut)
+                }
+
+                // Whichever task ends first decides the ping, and the other one is cancelled.
+                defer {
+                    group.cancelAll()
+                }
+
+                try await group.next()
+            }
         }
     }
 

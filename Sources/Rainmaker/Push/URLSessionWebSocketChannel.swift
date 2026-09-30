@@ -2,17 +2,25 @@
 // SPDX-License-Identifier: MIT
 
 import Foundation
+import os
 
 ///
 /// The production ``WebSocketChannel`` backed by a `URLSessionWebSocketTask`.
 ///
 /// It is `@unchecked Sendable` because it wraps a `URLSessionWebSocketTask`, whose send, receive, ping and cancel operations are safe to call from concurrent tasks, mirroring the reasoning behind ``Server``'s `nonisolated(unsafe)` file manager.
 ///
+/// The one callback it bridges itself, the pong handler, goes through a ``PendingPing``, because the framework may call that handler more than once for a single ping or not at all.
+///
 final class URLSessionWebSocketChannel: WebSocketChannel, @unchecked Sendable {
     ///
     /// The underlying task performing the connection.
     ///
     private let task: URLSessionWebSocketTask
+
+    ///
+    /// The logger recording what ``PendingPing`` drops of the pong handler's outcomes.
+    ///
+    private let logger = Logger(category: "URLSessionWebSocketChannel")
 
     ///
     /// Wrap the given task.
@@ -46,14 +54,8 @@ final class URLSessionWebSocketChannel: WebSocketChannel, @unchecked Sendable {
     }
 
     func sendPing() async throws {
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            task.sendPing { error in
-                if let error {
-                    continuation.resume(throwing: error)
-                } else {
-                    continuation.resume()
-                }
-            }
+        try await PendingPing(logger: logger).wait { handler in
+            task.sendPing(pongReceiveHandler: handler)
         }
     }
 

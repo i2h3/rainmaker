@@ -34,12 +34,15 @@ public protocol WebSocketChannel: Sendable {
     ///
     /// Send a ping and wait for its pong.
     ///
-    /// - Throws: When the pong is not received, which the transport treats as a dead connection.
+    /// - Throws: When the pong is not received, which the transport treats as a dead connection, or `CancellationError` when the calling task is cancelled first.
     ///
     func sendPing() async throws
 
     ///
-    /// Close the channel.
+    /// Close the channel, which ends any outstanding ``receive()``, ``send(_:)`` and ``sendPing()`` with an error.
+    ///
+    /// The transport relies on this to end a session and to end a ping whose pong does not arrive in time, because a conformer's receiving, sending and pinging need not observe task cancellation.
+    /// It is called more than once per connection, possibly concurrently, so it must be safe to repeat.
     ///
     func cancel()
 }

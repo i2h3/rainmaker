@@ -42,14 +42,14 @@ import Testing
     ///
     /// Build the event stream through a coordinator configured with tiny retry and backoff timing so the tests run quickly.
     ///
-    private func makeStream(server: Server, options: ServerEventOptions) -> AsyncThrowingStream<ServerEvent, Error> {
+    private func makeStream(server: Server, options: ServerEventOptions, pingInterval: TimeInterval = 30, pongTimeout: TimeInterval = 10) -> AsyncThrowingStream<ServerEvent, Error> {
         AsyncThrowingStream { continuation in
             guard server.user != nil, server.password != nil else {
                 continuation.finish(throwing: RainmakerError.credentialsRequired)
                 return
             }
 
-            let coordinator = ServerEventCoordinator(server: server, options: options, logger: Logger(subsystem: "RainmakerTests", category: "ServerEvents"), maximumAuthenticationAttempts: 2, authenticationRetryInterval: 0.02, rediscoverInterval: 0.3, backoffCeiling: 0.05, initialBackoff: 0.01)
+            let coordinator = ServerEventCoordinator(server: server, options: options, logger: Logger(subsystem: "RainmakerTests", category: "ServerEvents"), maximumAuthenticationAttempts: 2, authenticationRetryInterval: 0.02, rediscoverInterval: 0.3, backoffCeiling: 0.05, initialBackoff: 0.01, pingInterval: pingInterval, pongTimeout: pongTimeout)
             let task = Task {
                 await coordinator.run(into: continuation)
             }
@@ -60,9 +60,6 @@ import Testing
         }
     }
 
-    ///
-    /// Collect the first `count` events, guarded by a timeout so a stalled stream fails the test instead of hanging.
-    ///
     ///
     /// Collect the given number of events from a stream, failing the test rather than hanging it if they never arrive.
     ///
@@ -127,6 +124,91 @@ import Testing
         // The first socket delivers one hint then drops; the coordinator reconnects and emits another connected reconcile signal.
         let events = try await firstEvents(4, from: stream)
         #expect(events == [.connected, .notifications, .connected, .notifications])
+    }
+
+    @Test("Closes The Socket When The Consumer Stops")
+    func closesTheSocketWhenTheConsumerStops() async throws {
+        let channel = MockWebSocketChannel(frames: [.text("authenticated")], ignoresTaskCancellation: true)
+        let server = makeServer(session: MockRequesting(string: capabilities(pushing: ["notifications"])), webSocket: MockWebSocketConnecting(channels: [channel]))
+        let stream = makeStream(server: server, options: ServerEventOptions(subjects: [.notifications], pollInterval: 100, emitConnectedOnStart: false))
+        let connected = LockedValue(false)
+
+        let consumer = Task {
+            for try await event in stream where event == .connected {
+                connected.set(true)
+            }
+        }
+
+        try #require(try await eventually { connected.get() })
+
+        // The channel keeps receiving through a stop like URLSession does, so only closing it ends the session.
+        consumer.cancel()
+        #expect(try await eventually { channel.closure.isClosed })
+    }
+
+    @Test("Closes The Socket When The Consumer Stops During Authentication")
+    func closesTheSocketWhenTheConsumerStopsDuringAuthentication() async throws {
+        let channel = MockWebSocketChannel(frames: [], ignoresTaskCancellation: true)
+        let server = makeServer(session: MockRequesting(string: capabilities(pushing: ["notifications"])), webSocket: MockWebSocketConnecting(channels: [channel]))
+        let stream = makeStream(server: server, options: ServerEventOptions(subjects: [.notifications], pollInterval: 100, emitConnectedOnStart: false))
+
+        let consumer = Task {
+            for try await _ in stream {}
+        }
+
+        // The server never confirms authentication, so the session waits in its handshake when the consumer stops.
+        try #require(try await eventually { await channel.sentFrames() == ["admin", "admin"] })
+        consumer.cancel()
+        #expect(try await eventually { channel.closure.isClosed })
+    }
+
+    @Test("Reconnects When A Pong Never Arrives")
+    func reconnectsWhenAPongNeverArrives() async throws {
+        let silent = MockWebSocketChannel(frames: [.text("authenticated")], ignoresTaskCancellation: true, pingBehavior: .never)
+        let answering = MockWebSocketChannel(frames: [.text("authenticated")])
+        let server = makeServer(session: MockRequesting(string: capabilities(pushing: ["notifications"])), webSocket: MockWebSocketConnecting(channels: [silent, answering]))
+        let stream = makeStream(server: server, options: ServerEventOptions(subjects: [.notifications], pollInterval: 100, emitConnectedOnStart: false), pingInterval: 0.02, pongTimeout: 0.05)
+
+        // The first socket stays open but never answers a ping, so the timeout closes it and the coordinator reconnects.
+        let events = try await firstEvents(2, from: stream)
+        #expect(events == [.connected, .connected])
+        #expect(silent.closure.isClosed)
+    }
+
+    @Test("Reconnects When A Pong Never Arrives Although The Ping Ignores Cancellation")
+    func reconnectsWhenAPongNeverArrivesAlthoughThePingIgnoresCancellation() async throws {
+        let silent = MockWebSocketChannel(frames: [.text("authenticated")], ignoresTaskCancellation: true, pingBehavior: .neverIgnoringCancellation)
+        let answering = MockWebSocketChannel(frames: [.text("authenticated")])
+        let server = makeServer(session: MockRequesting(string: capabilities(pushing: ["notifications"])), webSocket: MockWebSocketConnecting(channels: [silent, answering]))
+        let stream = makeStream(server: server, options: ServerEventOptions(subjects: [.notifications], pollInterval: 100, emitConnectedOnStart: false), pingInterval: 0.02, pongTimeout: 0.05)
+
+        // Only closing the channel ends a ping like this one, so that is what the timeout has to do.
+        let events = try await firstEvents(2, from: stream)
+        #expect(events == [.connected, .connected])
+        #expect(silent.closure.isClosed)
+    }
+
+    @Test("Keeps The Socket Open While Pongs Arrive")
+    func keepsTheSocketOpenWhilePongsArrive() async throws {
+        let channel = MockWebSocketChannel(frames: [.text("authenticated")])
+        let server = makeServer(session: MockRequesting(string: capabilities(pushing: ["notifications"])), webSocket: MockWebSocketConnecting(channels: [channel]))
+        let stream = makeStream(server: server, options: ServerEventOptions(subjects: [.notifications], pollInterval: 100, emitConnectedOnStart: false), pingInterval: 0.01, pongTimeout: 5)
+        let events = LockedValue<[ServerEvent]>([])
+
+        let consumer = Task {
+            for try await event in stream {
+                events.withValue { $0.append(event) }
+            }
+        }
+
+        defer {
+            consumer.cancel()
+        }
+
+        // The timeout is far above any scheduling delay, so only a ping answered in time being treated as lost would end the session.
+        try #require(try await eventually { await channel.pingCount() >= 5 })
+        #expect(channel.closure.isClosed == false)
+        #expect(events.get() == [.connected])
     }
 
     @Test("Falls Back To Polling After Repeated Auth Rejection")
