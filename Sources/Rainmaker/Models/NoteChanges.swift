@@ -6,7 +6,7 @@ import Foundation
 ///
 /// The notes which changed since a given moment, together with the identifiers of those which did not, and what the server said about the response itself.
 ///
-/// This is what ``Server/notes(changedSince:)`` and ``Server/notes(changedSince:ifChangedFrom:)`` return. The server answers such a request with the full content of every note it recorded a change for since the given moment and reduces every other note to its identifier alone, which is why the two arrive separately here. Both together are the complete set of notes the account has, so a note whose identifier appears in neither was deleted on the server.
+/// This is what ``Server/notes(changedSince:)`` and ``Server/notes(changedSince:ifChangedFrom:)`` return, and what each chunk of ``Server/notes(changedSince:chunkSize:continuingAfter:)``, ``Server/notes(changedSince:chunkSize:ifChangedFrom:)`` and ``Server/noteChunks(changedSince:chunkSize:)`` is. The server answers such a request with the full content of every note it recorded a change for since the given moment and reduces every other note to its identifier alone, which is why the two arrive separately here. Both together are the complete set of notes the account has, so a note whose identifier appears in neither was deleted on the server.
 ///
 /// The moment to pass on the next call is ``lastModified``, which is the server's own clock rather than the device's. The first synchronization passes `Date.distantPast` instead, which prunes nothing and therefore also yields a ``lastModified`` to continue from:
 ///
@@ -40,7 +40,7 @@ import Foundation
 ///
 /// The moment must never come from a note's ``Note/modification`` date, because the server prunes by when it noticed a change rather than by the date of the note: a note may be from 2020, but when the server only found it today it is not pruned. See ``Server/notes(changedSince:)``.
 ///
-/// The server can also split such a response into chunks, each of which but the last carries a ``chunkCursor`` to continue from and the ``pendingCount`` of notes still to come. Only the last chunk lists the identifiers of the notes not sent in full, those sent by the earlier chunks included, which is why ``isComplete`` has to be checked before deriving deletions, and why ``lastModified`` is only worth remembering once the last chunk was applied.
+/// The server can also split such a response into chunks when asked to by ``Server/notes(changedSince:chunkSize:continuingAfter:)`` or ``Server/noteChunks(changedSince:chunkSize:)``, each of which but the last carries a ``chunkCursor`` to continue from and the ``pendingCount`` of notes still to come. Only the last chunk lists the identifiers of the notes not sent in full, those sent by the earlier chunks included, which is why ``isComplete`` has to be checked before deriving deletions, and why ``lastModified`` is only worth remembering once the last chunk was applied.
 ///
 public struct NoteChanges: Model, Hashable {
     ///
@@ -80,7 +80,7 @@ public struct NoteChanges: Model, Hashable {
     public let entityTag: String?
 
     ///
-    /// The opaque position to continue a chunked retrieval from, read from the `X-Notes-Chunk-Cursor` header of the response.
+    /// The opaque position to continue a chunked retrieval from, read from the `X-Notes-Chunk-Cursor` header of the response, which ``Server/notes(changedSince:chunkSize:continuingAfter:)`` takes to retrieve the next chunk.
     ///
     /// This is `nil` for the last chunk and for a response which was not split into chunks at all, which is what ``isComplete`` reports.
     /// Its format is the notes app's business, so it is meant to be handed back as it is rather than to be read.

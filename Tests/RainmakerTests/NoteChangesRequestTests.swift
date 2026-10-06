@@ -216,4 +216,312 @@ import Testing
 
         #expect(session.requests.isEmpty)
     }
+
+    // MARK: - Chunks
+
+    ///
+    /// Read the query items of a captured request, which is where the chunk parameters travel.
+    ///
+    private func queryItems(of request: URLRequest) throws -> [URLQueryItem] {
+        let url = try #require(request.url)
+        let components = try #require(URLComponents(url: url, resolvingAgainstBaseURL: false))
+
+        return components.queryItems ?? []
+    }
+
+    ///
+    /// Read the value of one query item of a captured request, or `nil` when it was not sent.
+    ///
+    private func queryValue(_ name: String, of request: URLRequest) -> String? {
+        let components = request.url.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false) }
+
+        return components?.queryItems?.first { $0.name == name }?.value
+    }
+
+    ///
+    /// Build a responder which answers a pass of three chunks the way the notes app does, keyed on the cursor each request continues from.
+    ///
+    /// The first two chunks carry one note in full each, a cursor and the number of notes still pending, while the last one carries the third note in full and the identifiers of all the others, those sent by the earlier chunks included.
+    ///
+    private func makeThreeChunkResponder(failingAt failingCursor: String? = nil) -> MockRequesting.Responder {
+        let headers = completeHeaders
+
+        return { request in
+            let components = request.url.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false) }
+            let cursor = components?.queryItems?.first { $0.name == "chunkCursor" }?.value
+
+            if let failingCursor, cursor == failingCursor {
+                return (Data(#"{"errorType":"Exception"}"#.utf8), 500, ["X-Notes-API-Versions": "0.2, 1.3, 1.4"])
+            }
+
+            var chunkHeaders = headers
+            let body: String
+
+            switch cursor {
+                case nil:
+                    body = #"[{"id":1,"etag":"a1","readonly":false,"modified":1700000000,"title":"One","category":"","content":"1","favorite":false,"error":false,"errorType":""}]"#
+                    chunkHeaders["X-Notes-Chunk-Cursor"] = "1700000000-1699999001-1"
+                    chunkHeaders["X-Notes-Chunk-Pending"] = "2"
+
+                case "1700000000-1699999001-1":
+                    body = #"[{"id":2,"etag":"a2","readonly":false,"modified":1700000000,"title":"Two","category":"","content":"2","favorite":false,"error":false,"errorType":""}]"#
+                    chunkHeaders["X-Notes-Chunk-Cursor"] = "1700000000-1699999002-2"
+                    chunkHeaders["X-Notes-Chunk-Pending"] = "1"
+
+                default:
+                    body = #"[{"id":3,"etag":"a3","readonly":false,"modified":1700000000,"title":"Three","category":"","content":"3","favorite":false,"error":false,"errorType":""},{"id":1},{"id":2},{"id":4}]"#
+            }
+
+            return (Data(body.utf8), 200, chunkHeaders)
+        }
+    }
+
+    @Test("The First Chunk Sends The Moment And The Chunk Size Only")
+    func firstChunkQuery() async throws {
+        let session = MockRequesting(string: payload, headerFields: completeHeaders)
+        _ = try await makeServer(session: session).notes(changedSince: changedSince, chunkSize: 25)
+
+        let request = try #require(session.requests.first)
+        let url = try #require(request.url)
+
+        // A new pass has nothing to continue from, and a category is never asked for because it would also narrow the identifiers deletions are derived from.
+        #expect(try queryItems(of: request) == [URLQueryItem(name: "pruneBefore", value: "1700000000"), URLQueryItem(name: "chunkSize", value: "25")])
+        #expect(url.path == "/index.php/apps/notes/api/v1/notes")
+        #expect(request.httpMethod == "GET")
+        #expect(request.cachePolicy == .reloadIgnoringLocalCacheData)
+        #expect(request.value(forHTTPHeaderField: "If-None-Match") == nil)
+    }
+
+    @Test("A Following Chunk Sends The Cursor")
+    func followingChunkQuery() async throws {
+        let session = MockRequesting(string: payload, headerFields: completeHeaders)
+        _ = try await makeServer(session: session).notes(changedSince: changedSince, chunkSize: 25, continuingAfter: "1700000000-1699999999-7")
+
+        let request = try #require(session.requests.first)
+
+        // The cursor is handed back exactly as the server sent it, along with the same moment the pass started with.
+        #expect(try queryItems(of: request) == [URLQueryItem(name: "pruneBefore", value: "1700000000"), URLQueryItem(name: "chunkSize", value: "25"), URLQueryItem(name: "chunkCursor", value: "1700000000-1699999999-7")])
+    }
+
+    @Test("The Chunk Size Is At Least One", arguments: [(0, "1"), (-5, "1"), (Int.min, "1"), (1, "1"), (200, "200")])
+    func chunkSizeClamping(_ requested: Int, _ sent: String) async throws {
+        let session = MockRequesting(string: payload, headerFields: completeHeaders)
+        let server = makeServer(session: session)
+
+        _ = try await server.notes(changedSince: changedSince, chunkSize: requested)
+        _ = try await server.notes(changedSince: changedSince, chunkSize: requested, ifChangedFrom: "c649e503")
+
+        // The server takes zero as a request not to split the response at all, which a caller asking for chunks did not ask for.
+        #expect(session.requests.count == 2)
+        #expect(session.requests.allSatisfy { queryValue("chunkSize", of: $0) == sent })
+    }
+
+    @Test("An Unchunked Request Sends No Chunk Parameters")
+    func unchunkedQuery() async throws {
+        let session = MockRequesting(string: payload, headerFields: completeHeaders)
+        _ = try await makeServer(session: session).notes(changedSince: changedSince)
+
+        let request = try #require(session.requests.first)
+        #expect(try queryItems(of: request) == [URLQueryItem(name: "pruneBefore", value: "1700000000")])
+    }
+
+    @Test("The Conditional First Chunk Sends The Entity Tag Quoted And No Cursor")
+    func conditionalFirstChunk() async throws {
+        let session = MockRequesting(string: payload, headerFields: completeHeaders)
+        let changes = try await makeServer(session: session).notes(changedSince: changedSince, chunkSize: 10, ifChangedFrom: #"W/"c649e503de046daca1b998c2e52b2a94""#)
+
+        let request = try #require(session.requests.first)
+
+        #expect(request.value(forHTTPHeaderField: "If-None-Match") == #""c649e503de046daca1b998c2e52b2a94""#)
+        #expect(try queryItems(of: request) == [URLQueryItem(name: "pruneBefore", value: "1700000000"), URLQueryItem(name: "chunkSize", value: "10")])
+        #expect(changes?.changed.map(\.id) == [7])
+    }
+
+    @Test("The Conditional First Chunk Reports Not Modified As Nil")
+    func conditionalFirstChunkNotModified() async throws {
+        let session = MockRequesting(string: "", statusCode: 304, headerFields: ["X-Notes-API-Versions": "0.2, 1.3, 1.4"])
+        let changes = try await makeServer(session: session).notes(changedSince: changedSince, chunkSize: 10, ifChangedFrom: "c649e503de046daca1b998c2e52b2a94")
+
+        #expect(changes == nil)
+    }
+
+    @Test("Not Modified Is Unexpected For An Unconditional Chunk")
+    func notModifiedChunk() async throws {
+        let server = makeServer(session: MockRequesting(string: "", statusCode: 304, headerFields: ["X-Notes-API-Versions": "0.2, 1.3, 1.4"]))
+
+        await #expect(throws: RainmakerError.unexpectedStatus(code: 304)) {
+            _ = try await server.notes(changedSince: changedSince, chunkSize: 10, continuingAfter: "1700000000-1699999999-7")
+        }
+    }
+
+    @Test("Chunks Require Credentials")
+    func chunksRequireCredentials() async throws {
+        let session = MockRequesting(responder: makeThreeChunkResponder())
+        let server = Server(address: serverAddress, password: nil, user: nil, session: session, userAgent: "RainmakerTests")
+
+        await #expect(throws: RainmakerError.credentialsRequired) {
+            _ = try await server.notes(changedSince: changedSince, chunkSize: 1)
+        }
+
+        await #expect(throws: RainmakerError.credentialsRequired) {
+            _ = try await server.notes(changedSince: changedSince, chunkSize: 1, ifChangedFrom: "c649e503")
+        }
+
+        await #expect(throws: RainmakerError.credentialsRequired) {
+            for try await _ in server.noteChunks(changedSince: changedSince, chunkSize: 1) {}
+        }
+
+        #expect(session.requests.isEmpty)
+    }
+
+    // MARK: - Stream Of Chunks
+
+    @Test("The Stream Follows The Cursors Until The Last Chunk")
+    func streamFollowsCursors() async throws {
+        let session = MockRequesting(responder: makeThreeChunkResponder())
+        var chunks = [NoteChanges]()
+
+        for try await chunk in makeServer(session: session).noteChunks(changedSince: changedSince, chunkSize: 1) {
+            chunks.append(chunk)
+        }
+
+        // One element per chunk, in the order the server sent them, finishing after the one which lists every note.
+        #expect(chunks.map { $0.changed.map(\.id) } == [[1], [2], [3]])
+        #expect(chunks.map(\.isComplete) == [false, false, true])
+        #expect(chunks.map(\.pendingCount) == [2, 1, nil])
+
+        // Only the last chunk carries the identifiers, and those of the notes the earlier chunks sent are among them.
+        #expect(chunks.map(\.unchanged) == [[], [], [1, 2, 4]])
+
+        // Every request continues from the cursor of the chunk before, with the same moment and chunk size, and none asks for a category.
+        let requests = session.requests
+        #expect(requests.map { queryValue("chunkCursor", of: $0) } == [nil, "1700000000-1699999001-1", "1700000000-1699999002-2"])
+        #expect(requests.allSatisfy { queryValue("pruneBefore", of: $0) == "1700000000" })
+        #expect(requests.allSatisfy { queryValue("chunkSize", of: $0) == "1" })
+        #expect(requests.allSatisfy { queryValue("category", of: $0) == nil })
+    }
+
+    @Test("The Stream Of A Single Chunk Finishes After It")
+    func streamSingleChunk() async throws {
+        let session = MockRequesting(string: payload, headerFields: completeHeaders)
+        var chunks = [NoteChanges]()
+
+        for try await chunk in makeServer(session: session).noteChunks(changedSince: changedSince, chunkSize: 100) {
+            chunks.append(chunk)
+        }
+
+        // A pass whose changes fit into one chunk consists of nothing but the complete one.
+        #expect(chunks.count == 1)
+        #expect(chunks.first?.isComplete == true)
+        #expect(session.requests.count == 1)
+    }
+
+    @Test("The Stream Finishes By Throwing An Error Mid-Pass")
+    func streamErrorMidPass() async throws {
+        let session = MockRequesting(responder: makeThreeChunkResponder(failingAt: "1700000000-1699999001-1"))
+        let chunks = LockedValue([NoteChanges]())
+
+        await #expect(throws: RainmakerError.unexpectedStatus(code: 500)) {
+            for try await chunk in makeServer(session: session).noteChunks(changedSince: changedSince, chunkSize: 1) {
+                chunks.withValue { $0.append(chunk) }
+            }
+        }
+
+        // The chunk received before the error stays usable, and its cursor is what continues the pass later.
+        #expect(chunks.get().map(\.chunkCursor) == ["1700000000-1699999001-1"])
+        #expect(session.requests.count == 2)
+    }
+
+    @Test("The Stream Requests Nothing After The Consumer Stops")
+    func streamStopsWithConsumer() async throws {
+        let session = MockRequesting(responder: makeThreeChunkResponder())
+
+        for try await chunk in makeServer(session: session).noteChunks(changedSince: changedSince, chunkSize: 1) {
+            #expect(chunk.isComplete == false)
+            break
+        }
+
+        // The next chunk is only requested when the consumer asks for it, so leaving the loop leaves the remaining chunks unrequested.
+        #expect(session.requests.count == 1)
+    }
+
+    @Test("The Stream Requests Nothing After Its Task Was Cancelled")
+    func streamStopsWhenCancelled() async {
+        let session = MockRequesting(responder: makeThreeChunkResponder())
+        let server = makeServer(session: session)
+
+        let consumer = Task {
+            var count = 0
+
+            for try await _ in server.noteChunks(changedSince: changedSince, chunkSize: 1) {
+                count += 1
+                withUnsafeCurrentTask { $0?.cancel() }
+            }
+
+            return count
+        }
+
+        // A cancellation between two chunks ends the stream quietly, which is why a consumer checks whether the last chunk is complete, and it must not request another chunk either way.
+        let result = await consumer.result
+
+        if case let .failure(error) = result {
+            #expect(error is CancellationError)
+        }
+
+        #expect(session.requests.count == 1)
+    }
+
+    @Test("Cancelling The Stream's Task Cancels The Request In Flight")
+    func streamCancelsRequestInFlight() async throws {
+        let session = SuspendingRequesting(answering: 1, through: MockRequesting(responder: makeThreeChunkResponder()))
+        let server = Server(address: serverAddress, password: "admin", user: "admin", session: session, userAgent: "RainmakerTests")
+        let received = LockedValue(0)
+
+        let consumer = Task {
+            for try await _ in server.noteChunks(changedSince: changedSince, chunkSize: 1) {
+                received.withValue { $0 += 1 }
+            }
+        }
+
+        // The first chunk is answered, while the request for the second one stays in flight until its task is cancelled.
+        #expect(try await eventually { session.suspendedCount == 1 })
+        consumer.cancel()
+
+        // The request runs within the consumer's task, so cancelling that task ends the request, which then ends the stream.
+        let result = await consumer.result
+
+        #expect(throws: URLError.self) {
+            try result.get()
+        }
+
+        #expect(try await eventually { session.suspendedCount == 0 })
+        #expect(received.get() == 1)
+        #expect(session.receivedCount == 2)
+    }
+
+    @Test("The Stream Stops When The Cursor Does Not Advance")
+    func streamStopsOnRepeatedCursor() async throws {
+        var headers = completeHeaders
+        headers["X-Notes-Chunk-Cursor"] = "1700000000-1699999001-1"
+        headers["X-Notes-Chunk-Pending"] = "2"
+
+        // A server which ignores the cursor answers every request with the first chunk again, which would never end.
+        let session = MockRequesting(string: payload, headerFields: headers)
+        let chunks = LockedValue(0)
+
+        await #expect {
+            for try await _ in makeServer(session: session).noteChunks(changedSince: changedSince, chunkSize: 1) {
+                chunks.withValue { $0 += 1 }
+            }
+        } throws: { error in
+            guard case RainmakerError.responseDecodingFailed = error else {
+                return false
+            }
+
+            return true
+        }
+
+        #expect(chunks.get() == 1)
+        #expect(session.requests.count == 2)
+    }
 }

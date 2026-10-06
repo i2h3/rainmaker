@@ -142,6 +142,21 @@ protocol Serving: Sendable {
     func notes(changedSince: Date, ifChangedFrom entityTag: String) async throws -> NoteChanges?
 
     ///
+    /// Retrieve one chunk of the notes of the authenticated user which changed since a given moment, either the first one of a pass or the one following a given cursor.
+    ///
+    func notes(changedSince: Date, chunkSize: Int, continuingAfter cursor: String?) async throws -> NoteChanges
+
+    ///
+    /// Retrieve the first chunk of the notes of the authenticated user which changed since a given moment, unless the answer would be the same as the one a given entity tag was taken from.
+    ///
+    func notes(changedSince: Date, chunkSize: Int, ifChangedFrom entityTag: String) async throws -> NoteChanges?
+
+    ///
+    /// Retrieve every chunk of one pass over the notes of the authenticated user which changed since a given moment, in order, as a stream.
+    ///
+    func noteChunks(changedSince: Date, chunkSize: Int) -> AsyncThrowingStream<NoteChanges, Error>
+
+    ///
     /// Look up the settings the notes app keeps for the authenticated user.
     ///
     func notesSettings() async throws -> NotesSettings
