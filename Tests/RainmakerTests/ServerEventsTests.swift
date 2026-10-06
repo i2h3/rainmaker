@@ -10,6 +10,7 @@ import Testing
 /// End-to-end behavior of ``Serving/events(_:)``: transport selection, frame delivery, polling fallback, reconnection, and authentication failures.
 ///
 /// These drive the coordinator with mock transports and tiny timing so no network or live server is involved.
+/// The tests which expect a WebSocket to be opened are enabled only where ``ServerEventCoordinator/platformSupportsWebSocket`` is `true`, because the automatic transport polls on watchOS, which a test of its own covers there.
 ///
 @Suite("Server Events") struct ServerEventsTests {
     // MARK: - Fixtures
@@ -42,14 +43,14 @@ import Testing
     ///
     /// Build the event stream through a coordinator configured with tiny retry and backoff timing so the tests run quickly.
     ///
-    private func makeStream(server: Server, options: ServerEventOptions, pingInterval: TimeInterval = 30, pongTimeout: TimeInterval = 10) -> AsyncThrowingStream<ServerEvent, Error> {
+    private func makeStream(server: Server, options: ServerEventOptions, pingInterval: TimeInterval = 30, pongTimeout: TimeInterval = 10, rediscoverInterval: TimeInterval = 0.3, maximumConnectionFailures: Int = 3) -> AsyncThrowingStream<ServerEvent, Error> {
         AsyncThrowingStream { continuation in
             guard server.user != nil, server.password != nil else {
                 continuation.finish(throwing: RainmakerError.credentialsRequired)
                 return
             }
 
-            let coordinator = ServerEventCoordinator(server: server, options: options, logger: Logger(subsystem: "RainmakerTests", category: "ServerEvents"), maximumAuthenticationAttempts: 2, authenticationRetryInterval: 0.02, rediscoverInterval: 0.3, backoffCeiling: 0.05, initialBackoff: 0.01, pingInterval: pingInterval, pongTimeout: pongTimeout)
+            let coordinator = ServerEventCoordinator(server: server, options: options, logger: Logger(subsystem: "RainmakerTests", category: "ServerEvents"), maximumAuthenticationAttempts: 2, maximumConnectionFailures: maximumConnectionFailures, authenticationRetryInterval: 0.02, rediscoverInterval: rediscoverInterval, backoffCeiling: 0.05, initialBackoff: 0.01, pingInterval: pingInterval, pongTimeout: pongTimeout)
             let task = Task {
                 await coordinator.run(into: continuation)
             }
@@ -92,7 +93,7 @@ import Testing
         #expect(events == [.connected, .notifications, .notifications])
     }
 
-    @Test("Delivers Pushed Notifications")
+    @Test("Delivers Pushed Notifications", .enabled(if: ServerEventCoordinator.platformSupportsWebSocket))
     func deliversPushedNotifications() async throws {
         let channel = MockWebSocketChannel(frames: [.text("authenticated"), .text("notify_notification")])
         let server = makeServer(session: MockRequesting(string: capabilities(pushing: ["notifications"])), webSocket: MockWebSocketConnecting(channels: [channel]))
@@ -103,7 +104,7 @@ import Testing
         #expect(await channel.sentFrames() == ["admin", "admin"])
     }
 
-    @Test("Delivers Pushed File Identifiers")
+    @Test("Delivers Pushed File Identifiers", .enabled(if: ServerEventCoordinator.platformSupportsWebSocket))
     func deliversPushedFileIdentifiers() async throws {
         let channel = MockWebSocketChannel(frames: [.text("authenticated"), .text("notify_file_id [10,20]")])
         let server = makeServer(session: MockRequesting(string: capabilities(pushing: ["files"])), webSocket: MockWebSocketConnecting(channels: [channel]))
@@ -114,7 +115,7 @@ import Testing
         #expect(await channel.sentFrames() == ["admin", "admin", "listen notify_file_id"])
     }
 
-    @Test("Reconnects And Reconciles")
+    @Test("Reconnects And Reconciles", .enabled(if: ServerEventCoordinator.platformSupportsWebSocket))
     func reconnectsAndReconciles() async throws {
         let first = MockWebSocketChannel(frames: [.text("authenticated"), .text("notify_notification")], closesWhenExhausted: true)
         let second = MockWebSocketChannel(frames: [.text("authenticated"), .text("notify_notification")])
@@ -126,7 +127,7 @@ import Testing
         #expect(events == [.connected, .notifications, .connected, .notifications])
     }
 
-    @Test("Closes The Socket When The Consumer Stops")
+    @Test("Closes The Socket When The Consumer Stops", .enabled(if: ServerEventCoordinator.platformSupportsWebSocket))
     func closesTheSocketWhenTheConsumerStops() async throws {
         let channel = MockWebSocketChannel(frames: [.text("authenticated")], ignoresTaskCancellation: true)
         let server = makeServer(session: MockRequesting(string: capabilities(pushing: ["notifications"])), webSocket: MockWebSocketConnecting(channels: [channel]))
@@ -146,7 +147,7 @@ import Testing
         #expect(try await eventually { channel.closure.isClosed })
     }
 
-    @Test("Closes The Socket When The Consumer Stops During Authentication")
+    @Test("Closes The Socket When The Consumer Stops During Authentication", .enabled(if: ServerEventCoordinator.platformSupportsWebSocket))
     func closesTheSocketWhenTheConsumerStopsDuringAuthentication() async throws {
         let channel = MockWebSocketChannel(frames: [], ignoresTaskCancellation: true)
         let server = makeServer(session: MockRequesting(string: capabilities(pushing: ["notifications"])), webSocket: MockWebSocketConnecting(channels: [channel]))
@@ -162,7 +163,7 @@ import Testing
         #expect(try await eventually { channel.closure.isClosed })
     }
 
-    @Test("Reconnects When A Pong Never Arrives")
+    @Test("Reconnects When A Pong Never Arrives", .enabled(if: ServerEventCoordinator.platformSupportsWebSocket))
     func reconnectsWhenAPongNeverArrives() async throws {
         let silent = MockWebSocketChannel(frames: [.text("authenticated")], ignoresTaskCancellation: true, pingBehavior: .never)
         let answering = MockWebSocketChannel(frames: [.text("authenticated")])
@@ -175,7 +176,7 @@ import Testing
         #expect(silent.closure.isClosed)
     }
 
-    @Test("Reconnects When A Pong Never Arrives Although The Ping Ignores Cancellation")
+    @Test("Reconnects When A Pong Never Arrives Although The Ping Ignores Cancellation", .enabled(if: ServerEventCoordinator.platformSupportsWebSocket))
     func reconnectsWhenAPongNeverArrivesAlthoughThePingIgnoresCancellation() async throws {
         let silent = MockWebSocketChannel(frames: [.text("authenticated")], ignoresTaskCancellation: true, pingBehavior: .neverIgnoringCancellation)
         let answering = MockWebSocketChannel(frames: [.text("authenticated")])
@@ -188,7 +189,7 @@ import Testing
         #expect(silent.closure.isClosed)
     }
 
-    @Test("Keeps The Socket Open While Pongs Arrive")
+    @Test("Keeps The Socket Open While Pongs Arrive", .enabled(if: ServerEventCoordinator.platformSupportsWebSocket))
     func keepsTheSocketOpenWhilePongsArrive() async throws {
         let channel = MockWebSocketChannel(frames: [.text("authenticated")])
         let server = makeServer(session: MockRequesting(string: capabilities(pushing: ["notifications"])), webSocket: MockWebSocketConnecting(channels: [channel]))
@@ -211,7 +212,7 @@ import Testing
         #expect(events.get() == [.connected])
     }
 
-    @Test("Falls Back To Polling After Repeated Auth Rejection")
+    @Test("Falls Back To Polling After Repeated Auth Rejection", .enabled(if: ServerEventCoordinator.platformSupportsWebSocket))
     func fallsBackToPollingAfterAuthRejection() async throws {
         let rejecting = { MockWebSocketChannel(frames: [.text("err: Invalid credentials")], closesWhenExhausted: true) }
         let server = makeServer(session: MockRequesting(string: capabilities(pushing: ["notifications"])), webSocket: MockWebSocketConnecting(channels: [rejecting(), rejecting()]))
@@ -222,7 +223,7 @@ import Testing
         #expect(events == [.connected, .notifications])
     }
 
-    @Test("Ends On Unauthorized Discovery")
+    @Test("Ends On Unauthorized Discovery", .enabled(if: ServerEventCoordinator.platformSupportsWebSocket))
     func endsOnUnauthorizedDiscovery() async throws {
         let server = makeServer(session: MockRequesting(string: "unauthorized", statusCode: 401), webSocket: MockWebSocketConnecting(channels: []))
         let stream = makeStream(server: server, options: ServerEventOptions(subjects: [.notifications], emitConnectedOnStart: false))
@@ -231,6 +232,83 @@ import Testing
             _ = try await firstEvents(1, from: stream)
         }
     }
+
+    @Test("Falls Back To Polling After Repeated Connection Failures", .enabled(if: ServerEventCoordinator.platformSupportsWebSocket))
+    func fallsBackToPollingAfterRepeatedConnectionFailures() async throws {
+        let failing = { MockWebSocketChannel(frames: [], closesWhenExhausted: true) }
+        let connector = MockWebSocketConnecting(channels: [failing(), failing(), failing()])
+        let server = makeServer(session: MockRequesting(string: capabilities(pushing: ["notifications"])), webSocket: connector)
+        let stream = makeStream(server: server, options: ServerEventOptions(subjects: [.notifications], pollInterval: 0.03), rediscoverInterval: 30)
+
+        // Every socket drops before it authenticates, so after the third failure the coordinator polls instead of reconnecting forever, and the long window keeps it from trying the socket again while the test looks.
+        let events = try await firstEvents(2, from: stream)
+        #expect(events == [.connected, .notifications])
+        #expect(connector.openedChannelCount == 3)
+    }
+
+    @Test("Authenticated Connection Resets The Connection Failure Count", .enabled(if: ServerEventCoordinator.platformSupportsWebSocket))
+    func authenticatedConnectionResetsTheConnectionFailureCount() async throws {
+        let failing = { MockWebSocketChannel(frames: [], closesWhenExhausted: true) }
+        let dropping = MockWebSocketChannel(frames: [.text("authenticated")], closesWhenExhausted: true)
+        let delivering = MockWebSocketChannel(frames: [.text("authenticated"), .text("notify_notification")])
+        let connector = MockWebSocketConnecting(channels: [failing(), failing(), dropping, failing(), failing(), delivering])
+        let server = makeServer(session: MockRequesting(string: capabilities(pushing: ["notifications"])), webSocket: connector)
+
+        // The poll interval is far above the timeout of the test, so falling back to polling would stall the stream rather than deliver a hint which could pass for a pushed one.
+        let stream = makeStream(server: server, options: ServerEventOptions(subjects: [.notifications], pollInterval: 100, emitConnectedOnStart: false), rediscoverInterval: 100)
+
+        // Two failures precede and follow the connection which authenticated, so only resetting the count there keeps the coordinator on the socket.
+        let events = try await firstEvents(3, from: stream)
+        #expect(events == [.connected, .connected, .notifications])
+        #expect(connector.openedChannelCount == 6)
+    }
+
+    @Test("An Authentication Rejection Resets The Connection Failure Count", .enabled(if: ServerEventCoordinator.platformSupportsWebSocket))
+    func authenticationRejectionResetsTheConnectionFailureCount() async throws {
+        let failing = { MockWebSocketChannel(frames: [], closesWhenExhausted: true) }
+        let rejecting = MockWebSocketChannel(frames: [.text("err: Invalid credentials")], closesWhenExhausted: true)
+        let delivering = MockWebSocketChannel(frames: [.text("authenticated"), .text("notify_notification")])
+        let connector = MockWebSocketConnecting(channels: [failing(), failing(), rejecting, failing(), failing(), delivering])
+        let server = makeServer(session: MockRequesting(string: capabilities(pushing: ["notifications"])), webSocket: connector)
+
+        // The poll interval is far above the timeout of the test, so falling back to polling would stall the stream rather than deliver a hint which could pass for a pushed one.
+        let stream = makeStream(server: server, options: ServerEventOptions(subjects: [.notifications], pollInterval: 100, emitConnectedOnStart: false), rediscoverInterval: 100)
+
+        // The rejected socket reached the server, so the failures before and after it are not three in a row and the coordinator stays on the socket.
+        let events = try await firstEvents(2, from: stream)
+        #expect(events == [.connected, .notifications])
+        #expect(connector.openedChannelCount == 6)
+    }
+
+    @Test("Polls Only When Asked To")
+    func pollsOnlyWhenAskedTo() async throws {
+        let session = MockRequesting(string: capabilities(pushing: ["notifications"]))
+        let connector = MockWebSocketConnecting(channels: [MockWebSocketChannel(frames: [.text("authenticated"), .text("notify_notification")])])
+        let server = makeServer(session: session, webSocket: connector)
+        let stream = makeStream(server: server, options: ServerEventOptions(subjects: [.notifications], pollInterval: 0.03, transport: .polling))
+
+        // The server advertises notify_push, but the polling transport neither asks for the capabilities nor opens a socket.
+        let events = try await firstEvents(3, from: stream)
+        #expect(events == [.connected, .notifications, .notifications])
+        #expect(session.requests.isEmpty)
+        #expect(connector.openedChannelCount == 0)
+    }
+
+    #if os(watchOS)
+        @Test("Automatic Transport Polls On watchOS")
+        func automaticTransportPollsOnWatchOS() async throws {
+            let session = MockRequesting(string: capabilities(pushing: ["notifications"]))
+            let connector = MockWebSocketConnecting(channels: [MockWebSocketChannel(frames: [.text("authenticated"), .text("notify_notification")])])
+            let server = makeServer(session: session, webSocket: connector)
+            let stream = makeStream(server: server, options: ServerEventOptions(subjects: [.notifications], pollInterval: 0.03))
+
+            // The server advertises notify_push, but watchOS does not let the app rely on a socket, so the automatic transport polls without asking for the capabilities.
+            let events = try await firstEvents(3, from: stream)
+            #expect(events == [.connected, .notifications, .notifications])
+            #expect(session.requests.isEmpty)
+            #expect(connector.openedChannelCount == 0)
+        }
+    #endif
 
     @Test("Ends Without Credentials")
     func endsWithoutCredentials() async throws {

@@ -6,7 +6,7 @@ import Foundation
 import Testing
 
 ///
-/// About how ``Server/notes()`` and ``Server/notes(changedSince:)`` build their request, how they enforce the minimum notes API version, and how they decode the two shapes the server answers with.
+/// About how ``Server/notes()`` and ``Server/notes(changedSince:)`` build their request, how they enforce the minimum notes API version, how the statuses of the notes API map onto ``RainmakerError``, and how they decode the two shapes the server answers with.
 ///
 /// These tests deliberately do not use the fixture tree: ``FixtureLocator`` keys fixtures by HTTP method and URL path only, so a replayed test still finds its fixture when the query string is wrong or missing entirely and therefore cannot prove anything about it. A capturing ``MockRequesting`` is used instead, which also makes it possible to serve responses a live baseline cannot be made to produce, such as those of a server without the notes app, one running an app too old to be supported, or one answering a success with something other than notes.
 ///
@@ -121,21 +121,45 @@ import Testing
 
     @Test("Settings Decode And Ignore What Is Not Modelled")
     func settingsDecoding() async throws {
-        // The `noteMode` field is what a live server sends beyond what the API documents, so it has to be ignored rather than break the lookup.
-        let payload = #"{"notesPath":"Notizen","fileSuffix":".md","noteMode":"rich"}"#
+        // A field a future release of the notes app may add beyond what this library models has to be ignored rather than break the lookup.
+        let payload = #"{"notesPath":"Notizen","fileSuffix":".md","noteMode":"rich","futureSetting":42}"#
         let settings = try await makeServer(body: payload).notesSettings()
 
         #expect(settings.notesPath == "Notizen")
         #expect(settings.fileSuffix == ".md")
+        #expect(settings.noteMode == .rich)
     }
 
     // MARK: - Availability And Version
 
-    @Test("Unavailable App Is Not Found")
+    @Test("Unavailable App Is Reported As Such")
     func unavailableApp() async throws {
-        let server = makeServer(body: "<!DOCTYPE html><html><body>Not found</body></html>", statusCode: 404)
+        let server = makeServer(body: "<!DOCTYPE html><html><body>Not found</body></html>", statusCode: 404, headerFields: [:])
 
-        // Without the notes app installed and enabled the route does not exist at all.
+        // Without the notes app installed and enabled the route does not exist at all, and the server answers on its own behalf without the header the app adds. Reporting that as a missing note would make a client keeping its own copy delete its notes because the app went away.
+        await #expect(throws: RainmakerError.appUnavailable(app: "notes")) {
+            _ = try await server.notes()
+        }
+    }
+
+    @Test("Unavailable App Is Reported As Such By Every Notes Feature")
+    func unavailableAppEverywhere() async throws {
+        let server = makeServer(body: "", statusCode: 404, headerFields: [:])
+
+        await #expect(throws: RainmakerError.appUnavailable(app: "notes")) {
+            _ = try await server.notes(changedSince: Date(timeIntervalSince1970: 1_600_000_000))
+        }
+
+        await #expect(throws: RainmakerError.appUnavailable(app: "notes")) {
+            _ = try await server.notesSettings()
+        }
+    }
+
+    @Test("Missing Note Is Not Found")
+    func missingNote() async throws {
+        let server = makeServer(body: #"{"message":"Note does not exist"}"#, statusCode: 404)
+
+        // A not found status the notes app sends itself carries its header and concerns the subject of the request rather than the app.
         await #expect(throws: RainmakerError.notFound) {
             _ = try await server.notes()
         }
@@ -143,8 +167,8 @@ import Testing
 
     @Test("App Older Than The Minimum API Version Is Rejected")
     func outdatedApp() async throws {
-        let server = makeServer(body: emptyList, headerFields: ["X-Notes-API-Versions": "0.2, 1.2"])
-        let expected = RainmakerError.unsupportedAPIVersion(app: "notes", required: "1.3", advertised: ["0.2", "1.2"])
+        let server = makeServer(body: emptyList, headerFields: ["X-Notes-API-Versions": "0.2, 1.3"])
+        let expected = RainmakerError.unsupportedAPIVersion(app: "notes", required: "1.4", advertised: ["0.2", "1.3"])
 
         // An app which answers but predates the required API version is reported as such rather than as a missing app, because updating it is what a client should tell the user to do.
         await #expect(throws: expected) {
@@ -152,20 +176,41 @@ import Testing
         }
     }
 
-    @Test("Missing Version Header Is Rejected")
+    @Test("Missing Version Header Is A Decoding Failure")
     func missingVersionHeader() async throws {
         let server = makeServer(body: emptyList, headerFields: [:])
-        let expected = RainmakerError.unsupportedAPIVersion(app: "notes", required: "1.3", advertised: [])
 
-        // Every response of a supported app advertises its API versions, so their absence means the app cannot be relied upon.
-        await #expect(throws: expected) {
+        // Every response of the notes app advertises its API versions, so a success without them was not sent by the app at all and says nothing about its version.
+        await #expect {
             _ = try await server.notes()
+        } throws: { error in
+            guard case RainmakerError.responseDecodingFailed = error else {
+                return false
+            }
+
+            return true
+        }
+    }
+
+    @Test("A Login Page Of A Proxy Is A Decoding Failure")
+    func proxyLoginPage() async throws {
+        let server = makeServer(body: "<!DOCTYPE html><html><body>Log in</body></html>", headerFields: [:])
+
+        // An authenticating proxy or a maintenance page answers on the notes app's behalf without its header, which must not be reported as an outdated app the user would be told to update.
+        await #expect {
+            _ = try await server.notes()
+        } throws: { error in
+            guard case RainmakerError.responseDecodingFailed = error else {
+                return false
+            }
+
+            return true
         }
     }
 
     @Test("The Minimum API Version Is Accepted")
     func minimumVersion() async throws {
-        let server = makeServer(body: emptyList, headerFields: ["X-Notes-API-Versions": "0.2, 1.3"])
+        let server = makeServer(body: emptyList, headerFields: ["X-Notes-API-Versions": "0.2, 1.4"])
 
         // The requirement is a floor, so an app serving exactly it has to work.
         await #expect(throws: Never.self) {
@@ -176,7 +221,7 @@ import Testing
     @Test("A Newer Major API Version Alone Does Not Satisfy The Requirement")
     func newerMajorVersion() async throws {
         let server = makeServer(body: emptyList, headerFields: ["X-Notes-API-Versions": "2.0"])
-        let expected = RainmakerError.unsupportedAPIVersion(app: "notes", required: "1.3", advertised: ["2.0"])
+        let expected = RainmakerError.unsupportedAPIVersion(app: "notes", required: "1.4", advertised: ["2.0"])
 
         // A future major version is a different API with its own base path, so it must not silently pass a check meant for this one.
         await #expect(throws: expected) {
@@ -187,7 +232,7 @@ import Testing
     @Test("The Requirement Is Enforced On The Settings Lookup Too")
     func outdatedAppOnSettings() async throws {
         let server = makeServer(body: #"{"notesPath":"Notes","fileSuffix":".md"}"#, headerFields: ["X-Notes-API-Versions": "0.2"])
-        let expected = RainmakerError.unsupportedAPIVersion(app: "notes", required: "1.3", advertised: ["0.2"])
+        let expected = RainmakerError.unsupportedAPIVersion(app: "notes", required: "1.4", advertised: ["0.2"])
 
         await #expect(throws: expected) {
             _ = try await server.notesSettings()
@@ -197,7 +242,7 @@ import Testing
     @Test("The Requirement Is Enforced On Incremental Retrieval Too")
     func outdatedAppOnIncrementalRetrieval() async throws {
         let server = makeServer(body: emptyList, headerFields: ["X-Notes-API-Versions": "0.2"])
-        let expected = RainmakerError.unsupportedAPIVersion(app: "notes", required: "1.3", advertised: ["0.2"])
+        let expected = RainmakerError.unsupportedAPIVersion(app: "notes", required: "1.4", advertised: ["0.2"])
 
         await #expect(throws: expected) {
             _ = try await server.notes(changedSince: Date(timeIntervalSince1970: 1_600_000_000))
@@ -211,20 +256,120 @@ import Testing
         }
 
         #expect(try notes(advertising: #""0.2","1.3","1.4""#).isSupported)
-        #expect(try notes(advertising: #""0.2","1.3""#).isSupported)
         #expect(try notes(advertising: #""1.4""#).isSupported)
+        #expect(try notes(advertising: #""0.2","1.3""#).isSupported == false)
         #expect(try notes(advertising: #""0.2","1.2""#).isSupported == false)
         #expect(try notes(advertising: #""2.0""#).isSupported == false)
         #expect(try notes(advertising: "").isSupported == false)
 
         // A version scheme this library does not know about must not make an otherwise supported server look unsupported.
-        #expect(try notes(advertising: #""nonsense","1.3""#).isSupported)
+        #expect(try notes(advertising: #""nonsense","1.4""#).isSupported)
 
         // A patch component the server does not send today would still have to read as supported.
-        #expect(try notes(advertising: #""1.3.1""#).isSupported)
-        #expect(try notes(advertising: #""1.2.9""#).isSupported == false)
+        #expect(try notes(advertising: #""1.4.1""#).isSupported)
+        #expect(try notes(advertising: #""1.3.9""#).isSupported == false)
 
-        #expect(Notes.minimumAPIVersion == "1.3")
+        #expect(Notes.minimumAPIVersion == "1.4")
+    }
+
+    // MARK: - Status Mapping
+
+    @Test("Statuses The Notes App Sends Itself Carry Its Meaning", arguments: [
+        (403, RainmakerError.readOnly),
+        (423, RainmakerError.locked),
+        (507, RainmakerError.insufficientStorage),
+    ])
+    func statusWithHeader(statusCode: Int, expected: RainmakerError) async throws {
+        let server = makeServer(body: #"{"message":"Failure"}"#, statusCode: statusCode)
+
+        // Only a response the notes app sends itself carries its header, so only then does the status say something about a note.
+        await #expect(throws: expected) {
+            _ = try await server.notes()
+        }
+    }
+
+    @Test("Statuses Without The Notes App Header Stay Unexpected", arguments: [403, 412, 423, 507])
+    func statusWithoutHeader(statusCode: Int) async throws {
+        let server = makeServer(body: "<!DOCTYPE html><html><body>Failure</body></html>", statusCode: statusCode, headerFields: [:])
+
+        // A proxy or the server itself answering on the app's behalf says nothing about notes, so the status is passed on as it is.
+        await #expect(throws: RainmakerError.unexpectedStatus(code: statusCode)) {
+            _ = try await server.notes()
+        }
+    }
+
+    @Test("A Conflict Carries The Current Note")
+    func conflictWithNote() async throws {
+        let payload = #"{"id":7,"etag":"9cf1","readonly":false,"modified":1700000000,"title":"Current","category":"","content":"text","favorite":false,"error":false,"errorType":""}"#
+        let server = makeServer(body: payload, statusCode: 412)
+
+        // The notes app sends the note as it currently is along with the conflict, which is what a client resolves it with.
+        await #expect {
+            _ = try await server.notes()
+        } throws: { error in
+            guard case let RainmakerError.noteConflict(current: note) = error else {
+                return false
+            }
+
+            return note.id == 7 && note.entityTag == "9cf1" && note.title == "Current"
+        }
+    }
+
+    @Test("A Conflict Without A Note Stays Unexpected")
+    func conflictWithoutNote() async throws {
+        let server = makeServer(body: #"{"message":"Failure"}"#, statusCode: 412)
+
+        await #expect(throws: RainmakerError.unexpectedStatus(code: 412)) {
+            _ = try await server.notes()
+        }
+    }
+
+    @Test("A Method The Endpoint Does Not Route Is Not Allowed", arguments: [true, false])
+    func methodNotAllowed(withHeader: Bool) async throws {
+        let server = makeServer(body: "", statusCode: 405, headerFields: withHeader ? supportedHeaders : [:])
+
+        // The server answers this before the notes app is involved, so the header is not there to gate it.
+        await #expect(throws: RainmakerError.methodNotAllowed) {
+            _ = try await server.notes()
+        }
+    }
+
+    @Test("Not Modified Is Unexpected For An Unconditional Request")
+    func notModifiedUnconditionally() async throws {
+        let server = makeServer(body: "", statusCode: 304)
+
+        await #expect(throws: RainmakerError.unexpectedStatus(code: 304)) {
+            _ = try await server.notes()
+        }
+    }
+
+    @Test("Rejected Credentials Stay Unexpected")
+    func rejectedCredentials() async throws {
+        let server = makeServer(body: #"{"message":"Current user is not logged in"}"#, statusCode: 401, headerFields: [:])
+
+        // The event stream recognizes rejected credentials by exactly this error, so it must not be mapped onto anything else.
+        await #expect(throws: RainmakerError.unexpectedStatus(code: 401)) {
+            _ = try await server.notes()
+        }
+    }
+
+    @Test("Requests Ignore The Local Cache")
+    func requestsIgnoreLocalCache() async throws {
+        let headerFields = supportedHeaders
+
+        let session = MockRequesting { request in
+            let body = request.url?.path.hasSuffix("/settings") == true ? #"{"notesPath":"Notes","fileSuffix":".md"}"# : "[]"
+            return (Data(body.utf8), 200, headerFields)
+        }
+
+        let server = makeServer(session: session)
+        _ = try await server.notes()
+        _ = try await server.notes(changedSince: Date(timeIntervalSince1970: 1_700_000_000))
+        _ = try await server.notesSettings()
+
+        // A response answered from a URLCache would hide what the server answers now, and a session shared between accounts could even be answered with another account's notes.
+        #expect(session.requests.count == 3)
+        #expect(session.requests.allSatisfy { $0.cachePolicy == .reloadIgnoringLocalCacheData })
     }
 
     // MARK: - Decoding
@@ -233,7 +378,7 @@ import Testing
     func malformedResponse() async throws {
         let server = makeServer(body: "<!DOCTYPE html><html><body>Log in</body></html>")
 
-        // This endpoint carries no OCS envelope whose status could vouch for the payload, so a success response with something else entirely, such as a login page served by a proxy, has to surface as a library error rather than as an opaque Foundation one.
+        // This endpoint carries no OCS envelope whose status could vouch for the payload, so a success response which carries the notes app's header but a body other than notes has to surface as a library error rather than as an opaque Foundation one.
         await #expect {
             _ = try await server.notes()
         } throws: { error in

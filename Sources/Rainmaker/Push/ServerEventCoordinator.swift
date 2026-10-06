@@ -5,9 +5,11 @@ import Foundation
 import os
 
 ///
-/// Drives a single ``Server/events(_:)`` subscription: it discovers whether the server offers `notify_push`, prefers the WebSocket when it does, and otherwise polls, transparently switching and reconnecting so a consumer sees one uninterrupted stream of ``ServerEvent`` values.
+/// Drives a single ``Server/events(_:)`` subscription: with the ``ServerEventTransport/automatic`` transport it discovers whether the server offers `notify_push`, prefers the WebSocket when it does, and otherwise polls, transparently switching and reconnecting so a consumer sees one uninterrupted stream of ``ServerEvent`` values.
 ///
 /// Every event is a re-fetch hint, so the polling fallback simply synthesizes the same hints on a timer that the WebSocket would deliver on change. This is why the two transports are interchangeable from the consumer's point of view.
+/// With the ``ServerEventTransport/polling`` transport, and on platforms where ``platformSupportsWebSocket`` is `false`, it only polls and never asks for the capabilities or opens a ``PushNotificationsConnection``.
+/// Each WebSocket session is reduced to a ``SessionOutcome``, which decides between reconnecting, retrying the authentication and polling for ``rediscoverInterval`` before looking at the capabilities again.
 ///
 struct ServerEventCoordinator {
     ///
@@ -31,6 +33,14 @@ struct ServerEventCoordinator {
     /// This is configurable so tests can exercise the give-up-and-poll path quickly.
     ///
     var maximumAuthenticationAttempts = 3
+
+    ///
+    /// How many consecutive WebSocket connections may end before they authenticated, reported as ``SessionOutcome/disconnected(wasAuthenticated:)`` with `false`, before polling for ``rediscoverInterval`` and then looking at the capabilities again.
+    ///
+    /// Without this limit an advertised endpoint the client cannot reach, for example behind a proxy which does not forward WebSocket upgrades, would be retried forever with a growing backoff and no events in between. A connection which authenticated resets the count, and so do an authentication rejection, which proves that the socket reached the server, and falling back to polling for any reason, so the count only covers consecutive failures to connect.
+    /// This is configurable so tests can exercise the fallback quickly.
+    ///
+    var maximumConnectionFailures = 3
 
     ///
     /// How long to wait after a WebSocket authentication rejection before retrying the socket.
@@ -65,6 +75,19 @@ struct ServerEventCoordinator {
     var pongTimeout: TimeInterval = 10
 
     ///
+    /// Whether the platform lets an app rely on a WebSocket connection, which decides whether the ``ServerEventTransport/automatic`` transport considers `notify_push` at all.
+    ///
+    /// It is `false` on watchOS, where the system only grants such connections in narrow circumstances, such as an active audio streaming session, as Apple's technote TN3135 on low-level networking on watchOS describes, and `true` everywhere else.
+    ///
+    static var platformSupportsWebSocket: Bool {
+        #if os(watchOS)
+            false
+        #else
+            true
+        #endif
+    }
+
+    ///
     /// Run the subscription until the consumer stops it or an unrecoverable authentication failure occurs.
     ///
     /// - Parameters:
@@ -80,8 +103,20 @@ struct ServerEventCoordinator {
             continuation.yield(.connected)
         }
 
+        guard options.transport == .automatic, Self.platformSupportsWebSocket else {
+            logger.debug("Polling only, without notify_push")
+
+            while Task.isCancelled == false {
+                await pollWindow(subjects: options.subjects, interval: options.pollInterval, window: rediscoverInterval, into: continuation)
+            }
+
+            continuation.finish()
+            return
+        }
+
         var backoffSeconds = initialBackoff
         var authenticationAttempts = 0
+        var connectionFailures = 0
 
         while Task.isCancelled == false {
             let capabilities: CapabilitySet?
@@ -103,6 +138,8 @@ struct ServerEventCoordinator {
 
             guard let target else {
                 logger.debug("notify_push unavailable; polling")
+                connectionFailures = 0
+                backoffSeconds = initialBackoff
                 await pollWindow(subjects: options.subjects, interval: options.pollInterval, window: rediscoverInterval, into: continuation)
                 continue
             }
@@ -113,11 +150,14 @@ struct ServerEventCoordinator {
 
             switch outcome {
                 case .authenticationRejected:
+                    // The socket reached the server, so this ends a run of connections which failed to connect.
+                    connectionFailures = 0
                     authenticationAttempts += 1
                     logger.notice("notify_push authentication rejected (attempt \(authenticationAttempts) of \(maximumAuthenticationAttempts))")
 
                     if authenticationAttempts >= maximumAuthenticationAttempts {
                         authenticationAttempts = 0
+                        backoffSeconds = initialBackoff
                         await pollWindow(subjects: options.subjects, interval: options.pollInterval, window: rediscoverInterval, into: continuation)
                     } else {
                         try? await Task.sleep(nanoseconds: UInt64(authenticationRetryInterval * 1_000_000_000))
@@ -128,6 +168,17 @@ struct ServerEventCoordinator {
 
                     if wasAuthenticated {
                         backoffSeconds = initialBackoff
+                        connectionFailures = 0
+                    } else {
+                        connectionFailures += 1
+                    }
+
+                    if connectionFailures >= maximumConnectionFailures {
+                        logger.notice("notify_push connection failed \(connectionFailures) times in a row; polling until retry")
+                        connectionFailures = 0
+                        backoffSeconds = initialBackoff
+                        await pollWindow(subjects: options.subjects, interval: options.pollInterval, window: rediscoverInterval, into: continuation)
+                        continue
                     }
 
                     let jittered = backoffSeconds * Double.random(in: 0.8 ... 1.2)
@@ -216,8 +267,11 @@ struct ServerEventCoordinator {
     ///
     /// Emit the given subjects' hints at the given interval for at most the given window, then return so the caller can re-discover capabilities.
     ///
+    /// With nothing to poll, because there are no subjects or the interval is not positive, it waits out the window instead, so that a caller looping over it does not spin.
+    ///
     private func pollWindow(subjects: Set<ServerSubject>, interval: TimeInterval, window: TimeInterval, into continuation: AsyncThrowingStream<ServerEvent, Error>.Continuation) async {
         guard interval > 0, subjects.isEmpty == false else {
+            try? await Task.sleep(nanoseconds: UInt64(max(window, 0) * 1_000_000_000))
             return
         }
 
@@ -289,36 +343,4 @@ struct ServerEventCoordinator {
 
         return false
     }
-}
-
-// MARK: - Helpers
-
-///
-/// The outcome of one WebSocket session, telling ``ServerEventCoordinator`` how to proceed.
-///
-enum SessionOutcome {
-    ///
-    /// The server rejected authentication, so the socket should be retried a bounded number of times before falling back to polling.
-    ///
-    case authenticationRejected
-
-    ///
-    /// The socket dropped. `wasAuthenticated` is `true` when it had connected successfully first, which resets the reconnection backoff.
-    ///
-    case disconnected(wasAuthenticated: Bool)
-}
-
-///
-/// The resolved WebSocket endpoint and the subset of requested subjects the server actually pushes.
-///
-struct PushTarget {
-    ///
-    /// The `wss://` (or accepted `ws://`) endpoint to connect to.
-    ///
-    let endpoint: URL
-
-    ///
-    /// The requested subjects the server advertises over `notify_push`.
-    ///
-    let subjects: Set<ServerSubject>
 }

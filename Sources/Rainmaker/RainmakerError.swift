@@ -8,6 +8,15 @@ import Foundation
 ///
 public enum RainmakerError: Error, Equatable, CustomStringConvertible {
     ///
+    /// A server app the intended action depends on is not available on the server, for example because it is not installed or disabled.
+    ///
+    /// Carries the identifier of the app, e.g. `"notes"` for the features built on ``Notes``.
+    /// The notes features report this when an endpoint of the notes app answers with a not found status the app itself did not send, which is what the server does for the routes of an app it does not serve. It is kept apart from ``notFound``, which those features reserve for a note or an attachment that does not exist, so that a client keeping its own copy of notes never takes a missing app for notes which were deleted. The exception is the retrieval of an attachment through ``Server/attachment(at:ofNote:)`` and ``Server/downloadAttachment(at:ofNote:to:force:)``, which reports an absent app as ``notFound`` as well, because the notes app answers every failure of that request with the same bare not found status; the ``Notes`` capability tells the cases apart.
+    /// A server whose `index.php` routing is broken or whose reverse proxy swallows the route answers the same way, so those causes cannot be told apart from the response alone.
+    ///
+    case appUnavailable(app: String)
+
+    ///
     /// The intended action requires credentials like user name and password but they were not given.
     ///
     case credentialsRequired
@@ -33,9 +42,48 @@ public enum RainmakerError: Error, Equatable, CustomStringConvertible {
     case fileAlreadyExists(URL)
 
     ///
+    /// The server does not have enough storage left for the account to save what was sent.
+    ///
+    /// The notes features report this when the notes app answers with the status `507` itself, for example when a note or an attachment would exceed the account's quota.
+    ///
+    case insufficientStorage
+
+    ///
+    /// The server could not perform the intended action because the file it concerns is locked, for example while another client is writing it.
+    ///
+    /// The notes features report this when the notes app answers with the status `423` itself, which it only does after it has already retried for several seconds, so a client should back off rather than retry right away.
+    ///
+    case locked
+
+    ///
+    /// The server does not support the HTTP method of the request on the requested endpoint.
+    ///
+    /// The notes features report this for an endpoint which an older release of the notes app does not offer for that method, which the server answers with the status `405` before the app is even involved.
+    ///
+    case methodNotAllowed
+
+    ///
+    /// A note was not changed because it changed on the server since the entity tag the change was based on.
+    ///
+    /// ``Server/updateNote(_:title:category:content:modification:isFavorite:ifMatching:)`` reports this when it was given an entity tag which no longer matches the note, in which case nothing was changed.
+    /// Carries the note as it currently is on the server, which the notes app sends along with the status `412`, so a client can resolve the conflict without a further request.
+    /// Its ``Note/entityTag`` is what a retried change has to be based on.
+    ///
+    case noteConflict(current: Note)
+
+    ///
     /// Whatever you were looking for is not there.
     ///
+    /// The notes features report this when the notes app itself answers that a note or an attachment does not exist, and ``appUnavailable(app:)`` when the app is not there at all, except for ``Server/attachment(at:ofNote:)`` and ``Server/downloadAttachment(at:ofNote:to:force:)``, which report every failure including an absent app as this case, see there.
+    ///
     case notFound
+
+    ///
+    /// The intended change was refused because the subject is read-only for the authenticated user.
+    ///
+    /// The notes features report this when the notes app answers with the status `403` itself, for example for a note shared without write access, see ``Note/isReadOnly``.
+    ///
+    case readOnly
 
     ///
     /// The response most likely was not in the expected format or structure.
@@ -69,6 +117,8 @@ public enum RainmakerError: Error, Equatable, CustomStringConvertible {
     ///
     public var description: String {
         switch self {
+            case let .appUnavailable(app: app):
+                "The \"\(app)\" app is not available on the server."
             case .credentialsRequired:
                 "Credentials required"
             case let .destinationExists(url):
@@ -79,8 +129,18 @@ public enum RainmakerError: Error, Equatable, CustomStringConvertible {
                 "The item at \(url.compatibilityPath()) could not be enumerated: \(error)"
             case let .fileAlreadyExists(url):
                 "A file already exists at: \(url.compatibilityPath())"
+            case .insufficientStorage:
+                "There is not enough storage left on the server."
+            case .locked:
+                "The subject is locked on the server."
+            case .methodNotAllowed:
+                "The server does not allow this method on the endpoint."
+            case let .noteConflict(current: note):
+                "The note \(note.id) changed on the server in the meantime."
             case .notFound:
                 "Not found."
+            case .readOnly:
+                "The subject is read-only."
             case let .responseDecodingFailed(reason: reason):
                 reason
             case let .sourceChanged(url):

@@ -49,8 +49,10 @@ List, restore and permanently remove deleted items, which the server keeps in a 
 ### Authentication
 
 Obtain an app password through the server's login flow and revoke it again once it is no longer needed.
+``Server/poll(_:)`` returns `nil` while the user has not completed the flow and throws only for real failures, so a client polling it can tell an unreachable server from a pending flow, while the deprecated ``Server/poll(_:token:)`` throws in both cases.
 
 - ``Server/login()``
+- ``Server/poll(_:)``
 - ``Server/poll(_:token:)``
 - ``Server/deleteAppPassword()``
 
@@ -69,12 +71,14 @@ Obtain an app password through the server's login flow and revoke it again once 
 ### Observing Changes
 
 Observe server-side changes over the `notify_push` WebSocket when available, falling back to polling otherwise, through a single stream of re-fetch hints.
+The ``ServerEventTransport/polling`` transport polls only and never opens a socket, and watchOS always polls.
 
 - ``Server/events(_:)``
 - ``Server/events(_:pollInterval:)``
 - ``ServerEvent``
 - ``ServerSubject``
 - ``ServerEventOptions``
+- ``ServerEventTransport``
 
 ### Activity Stream
 
@@ -106,6 +110,7 @@ The server answers with an image for every user it knows, drawing one from their
 ``UserAvatar/isCustom`` is the only thing that distinguishes the two, and a client with a monogram style of its own has to consult it or it will draw over the server's placeholder rather than in place of it.
 Only two sizes are served, which is what ``AvatarSize`` models: the endpoint rounds any other value to one of them.
 Each fetch bypasses the local HTTP cache, and the endpoint publishes no version marker, so cache images on a bounded lifetime and key entries by server, account, user, size and appearance.
+The avatar of the authenticated account is keyed by its identifier, which ``Server/currentUser()`` returns, rather than by the name it logs in with.
 
 - ``Server/userAvatar(_:size:darkTheme:)``
 - ``UserAvatar``
@@ -114,15 +119,67 @@ Each fetch bypasses the local HTTP cache, and the endpoint publishes no version 
 ### Notes
 
 Retrieve the notes of an account, either all of them at once or, for a client keeping its own copy, only those the server recorded a change for since a given moment.
+Such an incremental retrieval also reports the server's own moment to continue from next time as ``NoteChanges/lastModified`` and an entity tag with which ``Server/notes(changedSince:ifChangedFrom:)`` learns without a transfer that nothing changed.
+A client which must not hold every changed note at once retrieves them in chunks of a bounded size instead, one at a time or as a stream of the chunks of one pass, of which only the last one says which notes still exist.
+A client which does not need the text of the notes lists them as summaries instead, which carry everything else and spare the transfer of every note's text, in the same incremental, conditional and chunked ways.
+A single note is retrieved by its identifier, also conditionally on its entity tag, which spares the transfer of its content while it did not change.
+Notes are created, changed and deleted one at a time, and a change can be made conditional on the entity tag of the copy it is based on, so that a note changed elsewhere in the meantime is reported as ``RainmakerError/noteConflict(current:)`` together with its current state rather than overwritten.
 Whether the app providing them is installed at all is advertised through the ``Notes`` capability, which matters more here than elsewhere because the notes app is not part of a Nextcloud installation, and which also reports whether it is new enough to be usable.
-Notes are ordinary files, so ``NotesSettings`` says where to find them when reaching for them over WebDAV instead.
+Notes are ordinary files, so ``NotesSettings`` says where to find them when reaching for them over WebDAV instead, and ``Note/path`` says where exactly the file of each note is.
+Those settings can be changed as well, which may change which notes the server lists, so a client keeping its own copy retrieves them anew afterwards.
+Files such as images are attached to a note by uploading them, which returns the path a note's content references them by, relative to the folder of the note's category, and they are retrieved by that path into memory or streamed into a local file.
+Some behaviours of the notes app are tied to its release rather than to its API version, which ``Notes/isAppVersion(atLeast:)`` and the helpers built on it, such as ``Notes/supportsAttachmentDeletion``, tell apart: only release 6.1.0 and newer keep the attachments of a note in a folder of their own and can delete them.
+An attachment is retrieved bypassing the local HTTP cache, but a session still stores the response in its `URLCache`, so a session shared by several accounts or handling private files is best configured without one, see ``Server/init(address:password:user:session:webSocket:userAgent:)``.
+An absent notes app is reported as ``RainmakerError/appUnavailable(app:)`` rather than as ``RainmakerError/notFound``, which is reserved for a note that does not exist, so a client keeping its own copy never mistakes a missing app for deleted notes, except when retrieving an attachment, which reports every failure including an absent app as ``RainmakerError/notFound``.
+The two articles below put these calls together, one for a client keeping its own copy of the notes and one for single actions such as those of Shortcuts.
 
+- <doc:SynchronizingNotes>
+- <doc:UsingNotesFromAppIntents>
 - ``Server/notes()``
 - ``Server/notes(changedSince:)``
+- ``Server/notes(changedSince:ifChangedFrom:)``
+- ``Server/notes(changedSince:chunkSize:continuingAfter:)``
+- ``Server/notes(changedSince:chunkSize:ifChangedFrom:)``
+- ``Server/noteChunks(changedSince:chunkSize:)``
+- ``Server/noteSummaries(changedSince:)``
+- ``Server/noteSummaries(changedSince:ifChangedFrom:)``
+- ``Server/noteSummaries(changedSince:chunkSize:continuingAfter:)``
+- ``Server/noteSummaries(changedSince:chunkSize:ifChangedFrom:)``
+- ``Server/noteSummaryChunks(changedSince:chunkSize:)``
+- ``Server/note(_:)``
+- ``Server/note(_:ifChangedFrom:)``
+- ``Server/createNote(title:category:content:modification:isFavorite:)``
+- ``Server/updateNote(_:title:category:content:modification:isFavorite:ifMatching:)``
+- ``Server/deleteNote(_:)``
+- ``Server/attachment(at:ofNote:)``
+- ``Server/downloadAttachment(at:ofNote:to:force:)``
+- ``Server/addAttachment(_:toNote:fileName:)-(URL,Int,String?)``
+- ``Server/addAttachment(_:toNote:fileName:)-(Data,Int,String)``
+- ``Server/deleteAttachment(at:ofNote:)``
 - ``Server/notesSettings()``
+- ``Server/updateNotesSettings(notesPath:fileSuffix:noteMode:showsHiddenFiles:loadsRecentNoteOnStartUp:)``
 - ``Note``
 - ``NoteChanges``
+- ``NoteSummary``
+- ``NoteSummaryChanges``
+- ``ShareType``
 - ``NotesSettings``
+- ``NoteMode``
+- ``NoteAttachment``
+- ``NoteAttachmentFile``
+
+### Note Content
+
+Predict what the notes app makes of a note's title and category, and reference attachments from a note's Markdown content the way the Nextcloud Text app does, without asking the server.
+These are pure functions which need neither a ``Server`` nor a connection, so a single action such as one of Shortcuts can prepare a request with them or interpret a note's content.
+The notes API never derives a title from the content, so ``NoteTitle/derive(fromContent:)`` is how a client gives a note the title the web interface would give it.
+The server still has the last word, so a caller adopts the ``Note/title`` and ``Note/category`` it returns, which may for example carry a number appended to avoid a clash.
+An attachment added through ``Server/addAttachment(_:toNote:fileName:)-(URL,Int,String?)`` only becomes part of the note once its content references it, and the Text app deletes files in the note's attachment folder which the content does not reference, so the reference has to be encoded exactly as ``NoteAttachmentReference/markdown(alt:path:)`` encodes it.
+
+- ``NoteTitle``
+- ``NoteCategory``
+- ``NoteAttachmentReference``
+- ``NoteAttachmentPath``
 
 ### Collectives
 
@@ -153,6 +210,16 @@ Keep separate cached images for each server, account, conversation token and app
 - ``ConversationType``
 - ``ConversationAvatar``
 
+### Current User
+
+Look up the account a ``Server`` authenticates as.
+Its identifier is not necessarily the name it logs in with, because a server can accept an email address or a login attribute of an LDAP directory as the login name, which is what ``Server/user`` and ``LoginResult/name`` hold.
+``User/id`` is the identifier the server keys the account by, and it is what ``Server/userAvatar(_:size:darkTheme:)`` expects for the authenticated account.
+The WebDAV paths of this library are still built from ``Server/user``, so they only work for accounts whose login name is their identifier.
+
+- ``Server/currentUser()``
+- ``User``
+
 ### Apps Navigation
 
 List the server apps, such as Files, Photos and Activity, which the server advertises to the authenticated user so that a client can surface them in its own navigation.
@@ -177,6 +244,10 @@ List the server apps, such as Files, Photos and Activity, which the server adver
 
 ### Handling Errors
 
+Every error this library raises on its own is a ``RainmakerError``.
+The notes features map the statuses the notes app answers with onto dedicated cases, such as ``RainmakerError/readOnly``, ``RainmakerError/locked``, ``RainmakerError/insufficientStorage`` and ``RainmakerError/noteConflict(current:)``, but only when the response actually comes from that app, while anything a proxy or the server answers on its behalf stays ``RainmakerError/unexpectedStatus(code:)``.
+An absent notes app is ``RainmakerError/appUnavailable(app:)``, an outdated one ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)``, and a request the installed release does not offer at all, such as deleting an attachment before release 6.1.0, ``RainmakerError/methodNotAllowed``.
+
 - ``RainmakerError``
 
 ### Building Custom Requests
@@ -184,6 +255,7 @@ List the server apps, such as Files, Photos and Activity, which the server adver
 If the built in features of Rainmaker do not suffice for your use case, you can use the following methods to build your own on top.
 This is useful for API endpoints not covered by Rainmaker.
 In example a third-party Nextcloud server app.
+The names and values of query items are passed as they are and percent-encoded by the factories, including `+`, `&`, `=` and `#`, so a value such as `a+b` reaches the server as `a+b` rather than as `a b`.
 
 - ``Server/makeAppRequest(for:method:queryItems:)``
 - ``Server/makeOCSRequest(for:method:queryItems:)``

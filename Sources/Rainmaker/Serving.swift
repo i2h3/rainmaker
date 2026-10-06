@@ -97,6 +97,11 @@ protocol Serving: Sendable {
     func navigation() async throws -> [NavigationItem]
 
     ///
+    /// Fetch the identifier and the display name of the account this server authenticates as.
+    ///
+    func currentUser() async throws -> User
+
+    ///
     /// List the notifications currently queued for the authenticated user.
     ///
     func notifications() async throws -> [NotificationItem]
@@ -137,9 +142,109 @@ protocol Serving: Sendable {
     func notes(changedSince: Date) async throws -> NoteChanges
 
     ///
+    /// List the notes of the authenticated user which changed since a given moment, unless the answer would be the same as the one a given entity tag was taken from.
+    ///
+    func notes(changedSince: Date, ifChangedFrom entityTag: String) async throws -> NoteChanges?
+
+    ///
+    /// Retrieve one chunk of the notes of the authenticated user which changed since a given moment, either the first one of a pass or the one following a given cursor.
+    ///
+    func notes(changedSince: Date, chunkSize: Int, continuingAfter cursor: String?) async throws -> NoteChanges
+
+    ///
+    /// Retrieve the first chunk of the notes of the authenticated user which changed since a given moment, unless the answer would be the same as the one a given entity tag was taken from.
+    ///
+    func notes(changedSince: Date, chunkSize: Int, ifChangedFrom entityTag: String) async throws -> NoteChanges?
+
+    ///
+    /// Retrieve every chunk of one pass over the notes of the authenticated user which changed since a given moment, in order, as a stream.
+    ///
+    func noteChunks(changedSince: Date, chunkSize: Int) -> AsyncThrowingStream<NoteChanges, Error>
+
+    ///
+    /// List the notes of the authenticated user which changed since a given moment without their text, together with the identifiers of those which did not.
+    ///
+    func noteSummaries(changedSince: Date) async throws -> NoteSummaryChanges
+
+    ///
+    /// List the notes of the authenticated user which changed since a given moment without their text, unless the answer would be the same as the one a given entity tag was taken from.
+    ///
+    func noteSummaries(changedSince: Date, ifChangedFrom entityTag: String) async throws -> NoteSummaryChanges?
+
+    ///
+    /// Retrieve one chunk of the notes of the authenticated user which changed since a given moment without their text, either the first one of a pass or the one following a given cursor.
+    ///
+    func noteSummaries(changedSince: Date, chunkSize: Int, continuingAfter cursor: String?) async throws -> NoteSummaryChanges
+
+    ///
+    /// Retrieve the first chunk of the notes of the authenticated user which changed since a given moment without their text, unless the answer would be the same as the one a given entity tag was taken from.
+    ///
+    func noteSummaries(changedSince: Date, chunkSize: Int, ifChangedFrom entityTag: String) async throws -> NoteSummaryChanges?
+
+    ///
+    /// Retrieve every chunk of one pass over the notes of the authenticated user which changed since a given moment without their text, in order, as a stream.
+    ///
+    func noteSummaryChunks(changedSince: Date, chunkSize: Int) -> AsyncThrowingStream<NoteSummaryChanges, Error>
+
+    ///
+    /// Retrieve a single note of the authenticated user by its identifier.
+    ///
+    func note(_ id: Int) async throws -> Note
+
+    ///
+    /// Retrieve a single note of the authenticated user by its identifier, unless it is still the one a given entity tag was taken from.
+    ///
+    func note(_ id: Int, ifChangedFrom entityTag: String) async throws -> Note?
+
+    ///
+    /// Create a note for the authenticated user and return it as the server stored it.
+    ///
+    func createNote(title: String, category: String, content: String, modification: Date?, isFavorite: Bool) async throws -> Note
+
+    ///
+    /// Change a note of the authenticated user and return it as the server stored it, optionally only if it is still the one a given entity tag was taken from.
+    ///
+    func updateNote(_ id: Int, title: String?, category: String?, content: String?, modification: Date?, isFavorite: Bool?, ifMatching entityTag: String?) async throws -> Note
+
+    ///
+    /// Delete a note of the authenticated user.
+    ///
+    func deleteNote(_ id: Int) async throws
+
+    ///
+    /// Retrieve a file a note refers to, such as an image embedded into it, into memory.
+    ///
+    func attachment(at path: String, ofNote noteId: Int) async throws -> NoteAttachment
+
+    ///
+    /// Retrieve a file a note refers to, such as an image embedded into it, into a local file.
+    ///
+    func downloadAttachment(at path: String, ofNote noteId: Int, to destination: URL, force: Bool) async throws -> NoteAttachmentFile
+
+    ///
+    /// Attach a local file to a note of the authenticated user and return the path the server stored it at.
+    ///
+    func addAttachment(_ source: URL, toNote noteId: Int, fileName: String?) async throws -> String
+
+    ///
+    /// Attach the given bytes as a file to a note of the authenticated user and return the path the server stored it at.
+    ///
+    func addAttachment(_ data: Data, toNote noteId: Int, fileName: String) async throws -> String
+
+    ///
+    /// Delete a file attached to a note of the authenticated user.
+    ///
+    func deleteAttachment(at path: String, ofNote noteId: Int) async throws
+
+    ///
     /// Look up the settings the notes app keeps for the authenticated user.
     ///
     func notesSettings() async throws -> NotesSettings
+
+    ///
+    /// Change the settings the notes app keeps for the authenticated user and return them as the server stored them.
+    ///
+    func updateNotesSettings(notesPath: String?, fileSuffix: String?, noteMode: NoteMode?, showsHiddenFiles: Bool?, loadsRecentNoteOnStartUp: Bool?) async throws -> NotesSettings
 
     ///
     /// Retrieve one page of the activity stream the server records for the authenticated user.
@@ -157,12 +262,17 @@ protocol Serving: Sendable {
     func events(_ options: ServerEventOptions) -> AsyncThrowingStream<ServerEvent, Error>
 
     ///
-    /// Look up the login flow information.
+    /// Begin a login flow, which yields an app password once the user granted access in a browser.
     ///
     func login() async throws -> LoginFlow
 
     ///
-    /// Poll the status of a login flow.
+    /// Check once whether the user completed a login flow, returning `nil` while it is pending.
+    ///
+    func poll(_ flow: LoginFlow) async throws -> LoginResult?
+
+    ///
+    /// Poll the status of a login flow, throwing while it is pending, which is deprecated on ``Server`` in favour of ``poll(_:)`` and kept here undeprecated so that the tests of its unchanged behaviour compile without warnings.
     ///
     func poll(_ endpoint: URL, token: String) async throws -> LoginResult
 

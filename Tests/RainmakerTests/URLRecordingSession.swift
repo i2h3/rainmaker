@@ -86,8 +86,14 @@ public actor URLRecordingSession: Requesting {
         let (data, urlResponse) = try await session.upload(for: request, fromFile: fileURL, delegate: delegate)
         let (method, url, response) = try Self.components(of: request, urlResponse)
 
-        // The response body of an upload carries no payload relevant to the client, so only the headers are recorded, matching what ``URLTestSession`` replays.
-        try record(method: method, url: url, response: response, body: nil, bodyExtension: nil)
+        // Most uploads, such as those over WebDAV, are answered without a body, and their fixtures keep having none. A body which is not empty carries a payload the client reads, such as the path of an attachment of a note, so it is recorded under the extension the request's `Accept` header maps to, which is where ``URLTestSession`` replays it from.
+        if data.isEmpty == false, let acceptedType = request.allHTTPHeaderFields?["Accept"] {
+            let bodyExtension = try FixtureLocator.bodyExtension(forAcceptHeader: acceptedType)
+            let body = canonicalizer.canonicalizedBody(data, pathExtension: bodyExtension, requestURL: url)
+            try record(method: method, url: url, response: response, body: body, bodyExtension: bodyExtension)
+        } else {
+            try record(method: method, url: url, response: response, body: nil, bodyExtension: nil)
+        }
 
         return (data, urlResponse)
     }
@@ -118,7 +124,7 @@ public actor URLRecordingSession: Requesting {
         let requestDirectory = locator.requestDirectory(in: testDirectory, method: method, url: url)
         try FileManager.default.createDirectory(atPath: requestDirectory.percentEncodedPath, withIntermediateDirectories: true)
 
-        let headersData = canonicalizer.headersText(statusCode: response.statusCode, headerFields: response.allHeaderFields)
+        let headersData = canonicalizer.headersText(statusCode: response.statusCode, headerFields: response.allHeaderFields, requestURL: url)
         let headersPath = locator.headersFile(in: requestDirectory).percentEncodedPath
 
         guard FileManager.default.createFile(atPath: headersPath, contents: headersData) else {

@@ -21,9 +21,27 @@ final class MockWebSocketConnecting: WebSocketConnecting, @unchecked Sendable {
     private let channels: [MockWebSocketChannel]
 
     ///
-    /// The index of the next channel to vend.
+    /// The index of the next scripted channel to vend.
     ///
     private var index = 0
+
+    ///
+    /// How many channels were vended so far, counting those vended after the scripted ones ran out.
+    ///
+    private var vended = 0
+
+    ///
+    /// How many channels ``channel(for:)`` was asked for so far, which a test checks to prove that no WebSocket was opened at all or that a connection was attempted a given number of times.
+    ///
+    var openedChannelCount: Int {
+        lock.lock()
+
+        defer {
+            lock.unlock()
+        }
+
+        return vended
+    }
 
     ///
     /// Create a connector vending the given channels in order.
@@ -38,6 +56,8 @@ final class MockWebSocketConnecting: WebSocketConnecting, @unchecked Sendable {
     func channel(for _: URLRequest) -> any WebSocketChannel {
         lock.lock()
         defer { lock.unlock() }
+
+        vended += 1
 
         guard index < channels.count else {
             return MockWebSocketChannel(frames: [])

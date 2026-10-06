@@ -18,6 +18,21 @@ public final class Server {
     static let activityLimits = 1 ... 200
 
     ///
+    /// The path of the notes app's REST API relative to ``appsAddress``, which every notes endpoint except those for attachments is resolved against.
+    ///
+    /// The `v1` segment selects the major version of the API, while the minor version the installed app serves is only learned from the `X-Notes-API-Versions` header of each response and checked against ``Notes/minimumAPIVersion``.
+    /// Endpoints for attachments are resolved against ``notesAttachmentAPIRoot`` instead.
+    ///
+    static let notesAPIRoot = "notes/api/v1/"
+
+    ///
+    /// The path of the notes app's attachment endpoints relative to ``appsAddress``, which differs from ``notesAPIRoot`` in naming the minor version as well.
+    ///
+    /// Releases of the notes app before 6.1 route their attachment endpoints only below the `v1.4` segment and answer the same paths below `v1` with an error, while every release advertising API version 1.4 accepts this one.
+    ///
+    static let notesAttachmentAPIRoot = "notes/api/v1.4/"
+
+    ///
     /// The chunk size ``upload(_:to:force:chunkSize:)`` uses when the caller does not choose one, which is 10 MiB.
     ///
     /// This matches the default of the official desktop client. It keeps a single request well below what reverse proxies commonly cap request bodies at, see ``ChunkedUpload/maxSize``, while a file of many gigabytes still fits into the ten thousand chunks a transfer may consist of.
@@ -47,8 +62,30 @@ public final class Server {
 
     nonisolated(unsafe) let fileManager = FileManager.default
     let logger = Logger(category: "Server")
+
+    ///
+    /// The decoder every JSON response body is read with, shared across calls rather than created per endpoint.
+    ///
+    /// It is configured once in ``init(address:password:user:session:webSocket:userAgent:)`` and never changed afterwards, which is what keeps it safe to share across concurrent calls.
+    /// Its counterpart for request bodies is ``jsonEncoder``.
+    ///
     let jsonDecoder: JSONDecoder
+
+    ///
+    /// The encoder every JSON request body is written with, the counterpart of ``jsonDecoder`` for what is sent rather than what is received.
+    ///
+    /// It is configured once in ``init(address:password:user:session:webSocket:userAgent:)`` and never changed afterwards, for the same reason as ``jsonDecoder``.
+    /// The notes app is the first API this library sends JSON to, and the request bodies for it encode their dates themselves in the form that app expects, so the date strategy set here only keeps both directions consistent for whatever does not.
+    ///
+    let jsonEncoder: JSONEncoder
+
     let session: any Requesting
+
+    ///
+    /// Opens the `notify_push` WebSocket for ``events(_:)``, through which ``ServerEventCoordinator`` hands it to each ``PushNotificationsConnection``.
+    ///
+    /// It is never used with the ``ServerEventTransport/polling`` transport or on watchOS, where ``ServerEventCoordinator/platformSupportsWebSocket`` is `false`.
+    ///
     let webSocket: any WebSocketConnecting
 
     ///
@@ -62,7 +99,10 @@ public final class Server {
     public let password: String?
 
     ///
-    /// The Nextcloud user name used to identify as.
+    /// The Nextcloud login name used to identify as, together with ``password``.
+    ///
+    /// This is also what the WebDAV paths of this library are built from, which only works for accounts whose login name is their identifier.
+    /// A server can accept an email address or a login attribute of an LDAP directory as the login name instead, and ``currentUser()`` returns the identifier the server actually keys the account by.
     ///
     public let user: String?
 
@@ -128,53 +168,14 @@ public final class Server {
     ///
     /// Helper method which ensures this object was setup up with a user name and password.
     ///
+    /// It is internal rather than private because the extensions of ``Server`` in other files, such as the notes features in `Server+Notes.swift`, guard their calls with it as well.
+    ///
     /// - Throws: If this is called and the ``user`` or ``password`` are not defined.
     ///
-    private func requireCredentials() throws {
+    func requireCredentials() throws {
         guard user != nil, password != nil else {
             throw RainmakerError.credentialsRequired
         }
-    }
-
-    ///
-    /// Request an endpoint of the notes app's API and return its raw payload.
-    ///
-    /// This is what every notes feature shares: the base path, the mapping of an absent app onto a not found error, and the enforcement of ``Notes/minimumAPIVersion``.
-    ///
-    /// None of those endpoints answers with an OCS envelope, so unlike every other JSON endpoint in this library there is no `meta` status vouching for a payload. A success response carrying something else entirely, for example an HTML login or maintenance page served by a proxy, therefore has to surface as ``RainmakerError/responseDecodingFailed(reason:)`` rather than as an opaque Foundation error, which is why every caller wraps its decoding. The payload is left out of those messages so that note contents cannot leak into logs.
-    ///
-    /// - Parameters:
-    ///     - path: The path relative to the notes app's API root, e.g. `"notes"` or `"settings"`.
-    ///     - queryItems: The query parameters to append, in the order they should appear.
-    ///
-    private func notesAPIPayload(for path: String, queryItems: [URLQueryItem] = []) async throws -> Data {
-        let request = try makeAppRequest(for: "notes/api/v1/\(path)", method: .get, queryItems: queryItems)
-        let (data, urlResponse) = try await session.data(for: request)
-
-        guard let response = urlResponse as? HTTPURLResponse else {
-            throw RainmakerError.responseDecodingFailed(reason: "Failed to cast URLResponse to HTTPURLResponse.")
-        }
-
-        // The endpoint only exists while the notes app is installed and enabled, so its absence surfaces as a not found error. A notes app too old to serve this major version of the API is reported the same way.
-        if response.status == .notFound {
-            throw RainmakerError.notFound
-        }
-
-        guard response.status == .ok else {
-            throw RainmakerError.unexpectedStatus(code: response.statusCode)
-        }
-
-        // Every response of the notes API advertises which versions of it the installed app can serve, so the requirement is enforced from the response already in hand rather than by asking for the server's capabilities first.
-        let advertisedAPIVersions = (response.value(forHTTPHeaderField: "X-Notes-API-Versions") ?? "")
-            .split(separator: ",")
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { $0.isEmpty == false }
-
-        guard Notes.supports(apiVersions: advertisedAPIVersions) else {
-            throw RainmakerError.unsupportedAPIVersion(app: Notes.key, required: Notes.minimumAPIVersion, advertised: advertisedAPIVersions)
-        }
-
-        return data
     }
 
     ///
@@ -860,12 +861,26 @@ public final class Server {
     ///
     /// Create a new server object.
     ///
+    /// Every request authenticates itself and refuses cookies, so one session can be shared by the ``Server`` objects of several accounts. Requests which must not be answered from a cache, such as those of the notes features and the retrieval of avatars and of attachments through ``attachment(at:ofNote:)``, bypass the session's `URLCache`, but bypassing it does not keep the session from storing their responses in it. A session's cache is keyed by URL alone, while the same URL may stand for different files for different accounts, because the path of an attachment is resolved relative to the account's own folders, and the default configuration of `URLSession` keeps its cache on disk, where the attachments of private notes would outlive the session. A session shared by several accounts, or one which handles private files, should therefore keep no cache at all:
+    ///
+    /// ```swift
+    /// let configuration = URLSessionConfiguration.ephemeral
+    /// configuration.urlCache = nil
+    /// configuration.httpCookieStorage = nil
+    /// configuration.httpShouldSetCookies = false
+    ///
+    /// let session = URLSession(configuration: configuration)
+    /// let server = Server(address: address, password: password, user: user, session: session)
+    /// ```
+    ///
+    /// The ephemeral session this creates when none is given keeps its cache in memory only and is not shared with any other ``Server``.
+    ///
     /// - Parameters:
     ///     - address: HTTP address of the Nextcloud host.
     ///     - password: In most cases, this is the app password and not the account password.
     ///     - user: The Nextcloud user name used to identify as.
     ///     - session: A ``Requesting`` object (e.g. a `URLSession`) to use for network requests. Defaults to a new ephemeral `URLSession`.
-    ///     - webSocket: A ``WebSocketConnecting`` object (e.g. a `URLSession`) to open the `notify_push` WebSocket with, used by ``events(_:)``. It is a separate parameter from `session` only because a `URLSession` typed as `any Requesting` does not expose its WebSocket features. Defaults to a new ephemeral `URLSession`, matching `session`, since notify_push authenticates over the socket itself and needs no persistent cookie, credential, or cache storage.
+    ///     - webSocket: A ``WebSocketConnecting`` object (e.g. a `URLSession`) to open the `notify_push` WebSocket with, used by ``events(_:)`` with the ``ServerEventTransport/automatic`` transport on every platform but watchOS. It is a separate parameter from `session` only because a `URLSession` typed as `any Requesting` does not expose its WebSocket features. Defaults to a new ephemeral `URLSession`, matching `session`, since notify_push authenticates over the socket itself and needs no persistent cookie, credential, or cache storage.
     ///     - userAgent: The user agent to report as in HTTP request headers.
     ///
     public init(address: URL, password: String? = nil, user: String? = nil, session: any Requesting = URLSession(configuration: .ephemeral), webSocket: any WebSocketConnecting = URLSession(configuration: .ephemeral), userAgent: String = "Rainmaker") {
@@ -874,6 +889,10 @@ public final class Server {
 
         // Every JSON date the server sends is ISO 8601, so the strategy belongs on the shared decoder rather than on a throwaway one per endpoint. It is set once here and never changed afterwards, which keeps the decoder as safe to share across calls as it already was.
         jsonDecoder.dateDecodingStrategy = .iso8601
+
+        // The encoder mirrors the decoder for the same reasons, so a date round-trips in the form the server reads and writes elsewhere.
+        jsonEncoder = JSONEncoder()
+        jsonEncoder.dateEncodingStrategy = .iso8601
 
         self.password = password
         self.session = session
@@ -1357,17 +1376,48 @@ extension Server: Serving {
     }
 
     ///
-    /// Look up the login flow information.
+    /// Begin a login flow, which yields an app password once the user granted access in a browser.
     ///
-    /// - Returns: A set of properties to kick off the authentication which yields an app password.
+    /// This is the first step of the [login flow v2](https://docs.nextcloud.com/server/latest/developer_manual/client_apis/LoginFlow/index.html), which needs no credentials and is therefore available on a ``Server`` created without ``user`` and ``password``.
+    /// Present ``LoginFlow/entry`` to the user in a browser, then call ``poll(_:)`` with the returned ``LoginFlow`` repeatedly until it returns a ``LoginResult``.
+    /// The server forgets a flow 20 minutes after it began, so a client should stop polling by then and begin a new flow if the user still wants to log in.
+    ///
+    /// This is a single request which runs within the calling task, so cancelling that task cancels it.
+    ///
+    /// - Returns: The addresses and the token of the new login flow.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/notFound`` when the server answers that it does not know the endpoint, which is the case for an address which does not point to the root of a Nextcloud server.
+    ///     - ``RainmakerError/unexpectedStatus(code:)`` for any other status than `200`.
+    ///     - ``RainmakerError/responseDecodingFailed(reason:)`` when the server answers with something other than a login flow, for example the HTML page of a web server which is not Nextcloud.
     ///
     public func login() async throws -> LoginFlow {
         logger.debug("Fetching login information...")
 
         let url = address.appendingCompatibility(path: "index.php/login/v2", directoryHint: .notDirectory)
         let request = makeRequest(for: url, method: .post)
-        let (data, _) = try await session.data(for: request)
-        let dataTransferObject = try jsonDecoder.decode(LoginFlowResponse.self, from: data)
+        let (data, urlResponse) = try await session.data(for: request)
+
+        guard let response = urlResponse as? HTTPURLResponse else {
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to cast URLResponse to HTTPURLResponse.")
+        }
+
+        if response.status == .notFound {
+            throw RainmakerError.notFound
+        }
+
+        guard response.status == .ok else {
+            throw RainmakerError.unexpectedStatus(code: response.statusCode)
+        }
+
+        let dataTransferObject: LoginFlowResponse
+
+        do {
+            dataTransferObject = try jsonDecoder.decode(LoginFlowResponse.self, from: data)
+        } catch {
+            throw RainmakerError.responseDecodingFailed(reason: "The server did not answer with a login flow, so it is probably not a Nextcloud server.")
+        }
+
         return LoginFlow(endpoint: dataTransferObject.poll.endpoint, entry: dataTransferObject.login, token: dataTransferObject.poll.token)
     }
 
@@ -1455,6 +1505,54 @@ extension Server: Serving {
         }
 
         return envelope.ocs.data
+    }
+
+    ///
+    /// Fetch the identifier and the display name of the account this ``Server`` authenticates as.
+    ///
+    /// The identifier of an account is not necessarily the name it logs in with: a server can accept an email address or a login attribute of an LDAP directory as the login name, which is what ``user`` and ``LoginResult/name`` then hold, while the server keys the account by an identifier of its own.
+    /// That identifier is what ``User/id`` carries here, and it is what the server expects wherever it names an account, so pass it rather than the login name to ``userAvatar(_:size:darkTheme:)``.
+    /// The WebDAV paths of this library are still built from ``user`` and therefore only work for accounts whose login name is their identifier, which this method does not change.
+    ///
+    /// This is a single request without any state, so it can be called on its own, for example once after a login flow completed, and cancelling the calling task cancels it.
+    ///
+    /// - Returns: The account as a ``User`` with its identifier and its display name, which the server falls back to the identifier for when the account has no display name of its own.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
+    ///     - ``RainmakerError/unexpectedStatus(code:)`` for any non-success response, such as `401` when the server rejects the credentials.
+    ///     - ``RainmakerError/responseDecodingFailed(reason:)`` when the server answers with something other than the details of an account.
+    ///     - Any other error that might occur during retrieval.
+    ///
+    public func currentUser() async throws -> User {
+        try requireCredentials()
+        logger.debug("Fetching the current user...")
+
+        let request = try makeOCSRequest(for: "cloud/user", method: .get)
+        let (data, urlResponse) = try await session.data(for: request)
+
+        guard let response = urlResponse as? HTTPURLResponse else {
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to cast URLResponse to HTTPURLResponse.")
+        }
+
+        // Unlike the endpoints of optional apps, this one is part of every installation, so a missing route is not a condition of its own and every other status, the rejected credentials included, surfaces as such.
+        guard response.status == .ok else {
+            throw RainmakerError.unexpectedStatus(code: response.statusCode)
+        }
+
+        let envelope: CurrentUserResponse
+
+        do {
+            envelope = try jsonDecoder.decode(CurrentUserResponse.self, from: data)
+        } catch {
+            throw RainmakerError.responseDecodingFailed(reason: "The server did not answer with the details of the current user.")
+        }
+
+        guard envelope.ocs.meta.status == "ok" else {
+            throw RainmakerError.responseDecodingFailed(reason: "OCS request failed (\(envelope.ocs.meta.statuscode)): \(envelope.ocs.meta.message ?? "No message.")")
+        }
+
+        return User(id: envelope.ocs.data.id, displayName: envelope.ocs.data.displayname)
     }
 
     ///
@@ -1626,7 +1724,7 @@ extension Server: Serving {
     /// This is a front page route rather than an OCS or app one, and the server marks it as public. Credentials are required here regardless: an instance may be configured to refuse anonymous requests outright, and asking as the signed-in account is what makes the call behave the same on every instance rather than only on the permissive ones.
     ///
     /// - Parameters:
-    ///     - userId: The identifier of the user to retrieve the avatar of, which is their login name rather than their display name.
+    ///     - userId: The identifier of the user to retrieve the avatar of, which is neither their display name nor necessarily the name they log in with. For the authenticated account it is the ``User/id`` returned by ``currentUser()``, not ``user`` or ``LoginResult/name``.
     ///     - size: Which of the two served sizes to ask for. Defaults to ``AvatarSize/small``.
     ///     - darkTheme: Whether to retrieve the variant meant for a dark appearance. Defaults to `false`.
     ///
@@ -1786,125 +1884,6 @@ extension Server: Serving {
     }
 
     ///
-    /// List all notes of the authenticated user.
-    ///
-    /// Notes are provided by the server's notes app which, unlike most of what this library covers, is not part of a Nextcloud installation and has to be installed separately. Whether it is available can be checked in advance via the ``Notes`` capability, e.g. `try await capabilities().contains(Notes.self)`. When the app is unavailable the underlying endpoint does not exist and this call throws ``RainmakerError/notFound``.
-    ///
-    /// The very same not found error is what a server answers whose `index.php` routing is disabled or whose reverse proxy swallows the route, so those causes cannot be told apart from the response alone.
-    ///
-    /// An app which is installed but older than ``Notes/minimumAPIVersion`` is reported separately, as ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)``. That requirement is checked on every response, because the notes API advertises the versions it serves in a header of its own, and it can be checked in advance through ``Notes/isSupported``.
-    ///
-    /// The whole collection is retrieved in a single request, because the endpoint returns everything at once unless a chunk size is requested, which this deliberately does not do. Use ``notes(changedSince:)`` to retrieve only what changed since an earlier call.
-    ///
-    /// > Warning: Every note including its full content is fetched and held in memory at once, so what this costs grows with the size of the account's notes.
-    ///
-    /// A note the server could not read is listed like any other and does not fail the call. It carries ``Note/hasError`` and its ``Note/content`` is a message about the failure rather than the note's text, so anything which stores what it retrieves has to check that first.
-    ///
-    /// Credentials are required: notes are user-scoped and the underlying endpoint rejects unauthenticated requests.
-    ///
-    /// - Returns: The notes in the order returned by the server.
-    ///
-    /// - Throws:
-    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
-    ///     - ``RainmakerError/notFound`` when the notes app is not available on the server.
-    ///     - ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)`` when it is available but older than ``Notes/minimumAPIVersion``.
-    ///     - ``RainmakerError/responseDecodingFailed(reason:)`` when a success response does not carry a list of notes.
-    ///     - Any other error that might occur during retrieval.
-    ///
-    public func notes() async throws -> [Note] {
-        try requireCredentials()
-        logger.debug("Fetching notes...")
-
-        let data = try await notesAPIPayload(for: "notes")
-
-        do {
-            return try jsonDecoder.decode([Note].self, from: data)
-        } catch {
-            throw RainmakerError.responseDecodingFailed(reason: "Failed to decode the notes: \(error)")
-        }
-    }
-
-    ///
-    /// List the notes of the authenticated user which changed since a given moment, together with the identifiers of those which did not.
-    ///
-    /// This is the incremental counterpart of ``notes()`` for a client keeping its own copy of the notes: the server returns every note it recorded a change for at or after `changedSince` in full, and reduces every note it did not to its identifier alone. Both together are the complete set of notes the account has, which is what makes deletions detectable. See ``NoteChanges`` for how the two halves are meant to be applied.
-    ///
-    /// The moment is sent to the server as its `pruneBefore` parameter, converted to whole seconds since the Unix epoch. A moment at or before the epoch prunes nothing and therefore behaves like ``notes()``.
-    ///
-    /// > Warning: The server compares this moment against its own record of when it last noticed each note change, which is not the same as that note's ``Note/modification`` date. A note may be from 2020, but when the server only found it today it is not pruned from the response. Never pass a note's ``Note/modification`` back in as this moment; pass one measured on the same clock the server runs on instead, such as when the previous retrieval was made. The API defines the exact value to reuse as the `Last-Modified` header of the previous response, which is the server's own request time and which this library does not surface.
-    ///
-    /// Everything else, including how an unavailable app surfaces and how a note the server could not read is reported, matches ``notes()``.
-    ///
-    /// - Parameters:
-    ///     - changedSince: The moment to retrieve changes since, measured against the server's own record of when it last saw a note change rather than against ``Note/modification``.
-    ///
-    /// - Returns: The changed notes and the identifiers of the unchanged ones.
-    ///
-    /// - Throws:
-    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
-    ///     - ``RainmakerError/notFound`` when the notes app is not available on the server.
-    ///     - ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)`` when it is available but older than ``Notes/minimumAPIVersion``.
-    ///     - ``RainmakerError/responseDecodingFailed(reason:)`` when a success response does not carry a list of notes.
-    ///     - Any other error that might occur during retrieval.
-    ///
-    public func notes(changedSince: Date) async throws -> NoteChanges {
-        try requireCredentials()
-        logger.debug("Fetching notes changed since \(changedSince)...")
-
-        // A moment at or before the Unix epoch has no positive number of seconds to express it, and pruning before it would exclude nothing anyway, so the server is asked not to prune at all.
-        let pruneBefore = changedSince.wholeSecondsSince1970 ?? 0
-        let data = try await notesAPIPayload(for: "notes", queryItems: [URLQueryItem(name: "pruneBefore", value: String(pruneBefore))])
-        let entries: [NoteEntry]
-
-        do {
-            entries = try jsonDecoder.decode([NoteEntry].self, from: data)
-        } catch {
-            throw RainmakerError.responseDecodingFailed(reason: "Failed to decode the notes: \(error)")
-        }
-
-        var changed = [Note]()
-        var unchanged = [Int]()
-
-        for entry in entries {
-            switch entry {
-                case let .changed(note): changed.append(note)
-                case let .unchanged(id): unchanged.append(id)
-            }
-        }
-
-        return NoteChanges(changed: changed, unchanged: unchanged)
-    }
-
-    ///
-    /// Look up the settings the notes app keeps for the authenticated user.
-    ///
-    /// These say where the app stores notes and which extension it gives a new one, which matters because notes are ordinary files: the folder is not a fixed name but a value derived from the account's locale by default, so anything which wants to reach notes over WebDAV rather than through ``notes()`` has to ask for it rather than assume it. See ``NotesSettings``.
-    ///
-    /// The same requirement and the same failure modes as ``notes()`` apply, since this is the same app's API.
-    ///
-    /// - Returns: The notes app's settings for the authenticated user.
-    ///
-    /// - Throws:
-    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
-    ///     - ``RainmakerError/notFound`` when the notes app is not available on the server.
-    ///     - ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)`` when it is available but older than ``Notes/minimumAPIVersion``.
-    ///     - ``RainmakerError/responseDecodingFailed(reason:)`` when a success response does not carry the settings.
-    ///     - Any other error that might occur during retrieval.
-    ///
-    public func notesSettings() async throws -> NotesSettings {
-        try requireCredentials()
-        logger.debug("Fetching note settings...")
-
-        let data = try await notesAPIPayload(for: "settings")
-
-        do {
-            return try jsonDecoder.decode(NotesSettings.self, from: data)
-        } catch {
-            throw RainmakerError.responseDecodingFailed(reason: "Failed to decode the note settings: \(error)")
-        }
-    }
-
-    ///
     /// Retrieve one page of the activity stream the server records for the authenticated user.
     ///
     /// Activities are what the server logs about everything happening in an account: files being created, changed and shared, calendar events being scheduled, security relevant events and whatever else an installed app contributes. They are provided by the server's bundled activity app, which is not necessarily installed or enabled. Whether it is available can be checked in advance via the ``Activity`` capability, e.g. `try await capabilities().contains(Activity.self)`. When the app is unavailable the underlying endpoint does not exist and this call throws ``RainmakerError/notFound``.
@@ -2040,6 +2019,8 @@ extension Server: Serving {
     ///
     /// `queryItems` defaults to an empty array, so endpoints which are parameterized through the path alone are requested without naming it. Passing an empty array produces exactly the URL a call without any query would.
     ///
+    /// The names and values of `queryItems` are passed without any percent-encoding and reach the server exactly as given. Every character a query may not contain, such as `#`, is percent-encoded, and so are `+`, `&` and `=`, which a query may contain but which the server would read as a space or as delimiters, so that a value such as the file name `a+b.png` does not arrive as `a b.png`.
+    ///
     /// - Parameters:
     ///     - path: The path relative to the OCS root, e.g. `"apps/activity/api/v2/activity/all"`.
     ///     - method: The HTTP method to use.
@@ -2050,8 +2031,9 @@ extension Server: Serving {
         var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
 
         // The query is only assigned when there is one so that a request without query parameters produces a bare URL rather than one with a trailing question mark.
+        // Characters which are legal in a query but which the server reads as delimiters or as a space, such as `+`, are percent-encoded as well, so every value reaches the server as given.
         if queryItems.isEmpty == false {
-            components?.queryItems = queryItems
+            components?.setEncodedQueryItems(queryItems)
         }
 
         var request = makeRequest(for: components?.url ?? url, method: method)
@@ -2074,6 +2056,8 @@ extension Server: Serving {
     ///
     /// `queryItems` defaults to an empty array, so endpoints which are parameterized through the path alone are requested without naming it. Passing an empty array produces exactly the URL a call without any query would.
     ///
+    /// The names and values of `queryItems` are passed without any percent-encoding and reach the server exactly as given. Every character a query may not contain, such as `#`, is percent-encoded, and so are `+`, `&` and `=`, which a query may contain but which the server would read as a space or as delimiters, so that a value such as the file name `a+b.png` does not arrive as `a b.png`.
+    ///
     /// - Parameters:
     ///     - path: The path relative to the apps root (see ``Server/appsAddress``), e.g. `"notes/api/v1/notes"`.
     ///     - method: The HTTP method to use.
@@ -2084,8 +2068,9 @@ extension Server: Serving {
         var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
 
         // The query is only assigned when there is one so that a request without query parameters produces a bare URL rather than one with a trailing question mark.
+        // Characters which are legal in a query but which the server reads as delimiters or as a space, such as `+`, are percent-encoded as well, so every value reaches the server as given.
         if queryItems.isEmpty == false {
-            components?.queryItems = queryItems
+            components?.setEncodedQueryItems(queryItems)
         }
 
         var request = makeRequest(for: components?.url ?? url, method: method)
@@ -2112,18 +2097,70 @@ extension Server: Serving {
     }
 
     ///
+    /// Check once whether the user completed a login flow begun with ``login()``, and fetch its result if so.
+    ///
+    /// Call this repeatedly, for example every second, until it returns a ``LoginResult`` or the caller gives up.
+    /// The server answers a flow the user has not completed yet with the status `404` and an empty JSON array, for which this returns `nil` rather than throwing, so that a caller can tell a pending flow from a real failure.
+    /// A caller which treats every thrown error as pending, as a `try?` does, keeps polling a server which is unreachable or which rejects the request until it gives up, and never shows the user why.
+    ///
+    /// The server cannot tell a pending flow from one it does not know, so it answers a flow which expired, whose token is wrong or whose result was already fetched exactly like a pending one, and this returns `nil` for those as well.
+    /// The server forgets a flow 20 minutes after ``login()`` began it, and hands out its result only once, so a caller should bound its polling by such a time and stop polling after the first result.
+    ///
+    /// This is a single request which needs no credentials and runs within the calling task, so cancelling that task cancels it.
+    ///
+    /// - Parameters:
+    ///     - flow: The login flow as returned by ``login()``, of which only ``LoginFlow/endpoint`` and ``LoginFlow/token`` are used.
+    ///
+    /// - Returns: The credentials the user granted, or `nil` while the flow is pending.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/notFound`` when the server answers with the status `404` but without the empty JSON array, which means the endpoint does not exist rather than that the flow is pending.
+    ///     - ``RainmakerError/unexpectedStatus(code:)`` for any other status than `200` and `404`.
+    ///     - ``RainmakerError/responseDecodingFailed(reason:)`` when the server answers with the status `200` but without the credentials.
+    ///
+    public func poll(_ flow: LoginFlow) async throws -> LoginResult? {
+        let (data, urlResponse) = try await sendLoginPoll(to: flow.endpoint, token: flow.token)
+
+        guard let response = urlResponse as? HTTPURLResponse else {
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to cast URLResponse to HTTPURLResponse.")
+        }
+
+        if response.status == .notFound {
+            guard let pending = try? jsonDecoder.decode([String].self, from: data), pending.isEmpty else {
+                throw RainmakerError.notFound
+            }
+
+            return nil
+        }
+
+        guard response.status == .ok else {
+            throw RainmakerError.unexpectedStatus(code: response.statusCode)
+        }
+
+        let dataTransferObject: LoginResultResponse
+
+        do {
+            dataTransferObject = try jsonDecoder.decode(LoginResultResponse.self, from: data)
+        } catch {
+            throw RainmakerError.responseDecodingFailed(reason: "The server did not answer with the result of the login flow.")
+        }
+
+        return LoginResult(name: dataTransferObject.loginName, password: dataTransferObject.appPassword, server: dataTransferObject.server)
+    }
+
+    ///
     /// Poll the status of a login flow.
+    ///
+    /// Unlike ``poll(_:)``, this throws ``RainmakerError/responseDecodingFailed(reason:)`` while the flow is pending, which a caller cannot tell from a real failure, and it ignores the status of the response.
+    /// It is kept unchanged for existing callers.
     ///
     /// - Parameters:
     ///     - endpoint: The URL to poll on.
     ///     - token: The unique token of the login flow to check the status of.
     ///
+    @available(*, deprecated, renamed: "poll(_:)", message: "Use poll(_:) with the LoginFlow, which returns nil while the flow is pending instead of throwing.")
     public func poll(_ endpoint: URL, token: String) async throws -> LoginResult {
-        logger.debug("Polling \(endpoint.absoluteString)")
-
-        var request = makeRequest(for: endpoint, method: .post)
-        request.httpBody = "token=\(token)".data(using: .utf8)
-        let (data, _) = try await session.data(for: request)
+        let (data, _) = try await sendLoginPoll(to: endpoint, token: token)
         let stringRepresentation = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard stringRepresentation != "[]" else {
@@ -2132,6 +2169,25 @@ extension Server: Serving {
 
         let dataTransferObject = try jsonDecoder.decode(LoginResultResponse.self, from: data)
         return LoginResult(name: dataTransferObject.loginName, password: dataTransferObject.appPassword, server: dataTransferObject.server)
+    }
+
+    ///
+    /// Send the request which polls a login flow, shared by ``poll(_:)`` and its deprecated predecessor ``poll(_:token:)``.
+    ///
+    /// The token is sent as a form field, percent-encoded like a query item through `URLComponents.setEncodedQueryItems(_:)`, because the server reads the body as `application/x-www-form-urlencoded`.
+    /// The tokens the server hands out consist of letters and digits only, so the body is the same as before the encoding was added.
+    ///
+    private func sendLoginPoll(to endpoint: URL, token: String) async throws -> (Data, URLResponse) {
+        logger.debug("Polling \(endpoint.absoluteString)")
+
+        var form = URLComponents()
+        form.setEncodedQueryItems([URLQueryItem(name: "token", value: token)])
+
+        var request = makeRequest(for: endpoint, method: .post)
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.httpBody = Data((form.percentEncodedQuery ?? "").utf8)
+
+        return try await session.data(for: request)
     }
 
     ///
