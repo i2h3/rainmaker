@@ -41,13 +41,13 @@ extension Notes.Attachment {
         ///
         /// The local file to write the attachment to, if any.
         ///
-        @Option(help: "Local file to write the attachment to. Without it, only the type and size of the attachment are reported.")
+        @Option(help: "Local file to write the attachment to, which must not be a directory. Without it, only the type and size of the attachment are reported.")
         var output: String?
 
         ///
         /// Whether an existing file at ``output`` is replaced.
         ///
-        @Flag(help: "Replace the file given as --output when it exists.")
+        @Flag(help: "Replace the file given as --output when it exists; a directory is never replaced.")
         var force: Bool = false
 
         func run() async throws {

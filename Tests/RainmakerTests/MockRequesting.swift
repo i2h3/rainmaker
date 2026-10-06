@@ -38,6 +38,24 @@ final class MockRequesting: Requesting, @unchecked Sendable {
     private var capturedUploadSources = [URL]()
 
     ///
+    /// The temporary files downloads were handed over in so far, in order.
+    ///
+    private var capturedDownloadLocations = [URL]()
+
+    ///
+    /// The temporary files ``download(for:delegate:)`` handed over so far, in the order the downloads were issued, which a test checks to have been moved or removed by the caller, as ``Server/downloadAttachment(at:ofNote:to:force:)`` promises.
+    ///
+    var downloadLocations: [URL] {
+        lock.lock()
+
+        defer {
+            lock.unlock()
+        }
+
+        return capturedDownloadLocations
+    }
+
+    ///
     /// The local files this mock was asked to upload from so far, in the order the uploads were issued, which a test checks to have been removed after a staged upload.
     ///
     var uploadSources: [URL] {
@@ -104,7 +122,7 @@ final class MockRequesting: Requesting, @unchecked Sendable {
     ///
     /// Record a request, from a synchronous context because the lock may not be taken from an asynchronous one.
     ///
-    private func capture(_ request: URLRequest, uploadingFrom source: URL? = nil) {
+    private func capture(_ request: URLRequest, uploadingFrom source: URL? = nil, downloadingTo location: URL? = nil) {
         lock.lock()
 
         defer {
@@ -115,6 +133,10 @@ final class MockRequesting: Requesting, @unchecked Sendable {
 
         if let source {
             capturedUploadSources.append(source)
+        }
+
+        if let location {
+            capturedDownloadLocations.append(location)
         }
     }
 
@@ -133,11 +155,10 @@ final class MockRequesting: Requesting, @unchecked Sendable {
     }
 
     func download(for request: URLRequest, delegate _: (any URLSessionTaskDelegate)?) async throws -> (URL, URLResponse) {
-        capture(request)
-        let (body, response) = answer(request)
-
         // Like a download task, the body is handed over in a temporary file of its own, which the caller is expected to move or remove.
         let location = FileManager.default.temporaryDirectory.appendingPathComponent("MockRequesting-\(UUID().uuidString).download")
+        capture(request, downloadingTo: location)
+        let (body, response) = answer(request)
         try body.write(to: location)
 
         return (location, response)

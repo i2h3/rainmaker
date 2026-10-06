@@ -11,7 +11,7 @@ public enum RainmakerError: Error, Equatable, CustomStringConvertible {
     /// A server app the intended action depends on is not available on the server, for example because it is not installed or disabled.
     ///
     /// Carries the identifier of the app, e.g. `"notes"` for the features built on ``Notes``.
-    /// The notes features report this when an endpoint of the notes app answers with a not found status the app itself did not send, which is what the server does for the routes of an app it does not serve. It is kept apart from ``notFound``, which those features reserve for a note or an attachment that does not exist, so that a client keeping its own copy of notes never takes a missing app for notes which were deleted.
+    /// The notes features report this when an endpoint of the notes app answers with a not found status the app itself did not send, which is what the server does for the routes of an app it does not serve. It is kept apart from ``notFound``, which those features reserve for a note or an attachment that does not exist, so that a client keeping its own copy of notes never takes a missing app for notes which were deleted. The exception is the retrieval of an attachment through ``Server/attachment(at:ofNote:)`` and ``Server/downloadAttachment(at:ofNote:to:force:)``, which reports an absent app as ``notFound`` as well, because the notes app answers every failure of that request with the same bare not found status; the ``Notes`` capability tells the cases apart.
     /// A server whose `index.php` routing is broken or whose reverse proxy swallows the route answers the same way, so those causes cannot be told apart from the response alone.
     ///
     case appUnavailable(app: String)
@@ -74,7 +74,7 @@ public enum RainmakerError: Error, Equatable, CustomStringConvertible {
     ///
     /// Whatever you were looking for is not there.
     ///
-    /// The notes features report this only when the notes app itself answers that a note or an attachment does not exist, and ``appUnavailable(app:)`` when the app is not there at all.
+    /// The notes features report this when the notes app itself answers that a note or an attachment does not exist, and ``appUnavailable(app:)`` when the app is not there at all, except for ``Server/attachment(at:ofNote:)`` and ``Server/downloadAttachment(at:ofNote:to:force:)``, which report every failure including an absent app as this case, see there.
     ///
     case notFound
 

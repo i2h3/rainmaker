@@ -7,7 +7,7 @@ import Foundation
 ///
 /// A ``Requesting`` test double which answers a given number of requests through a ``MockRequesting`` and keeps every request after those in flight until the task which sent it is cancelled.
 ///
-/// Data requests and uploads count alike, while downloads are always answered.
+/// Data requests and uploads count alike, while downloads are answered unless ``suspendsDownloads`` says to count and suspend them as well.
 ///
 /// A ``MockRequesting`` answers synchronously, so it cannot prove that cancelling a task cancels the request that task is waiting for. This double can: a suspended request ends as a `URLSession` data task does when its task is cancelled, by throwing `URLError.cancelled`, and a request whose task is never cancelled never ends.
 ///
@@ -21,6 +21,11 @@ final class SuspendingRequesting: Requesting, @unchecked Sendable {
     /// The number of requests answered through ``answering`` before every further request is suspended.
     ///
     private let answeredCount: Int
+
+    ///
+    /// Whether downloads are counted and suspended like data requests and uploads rather than always answered, which a test of cancelling ``Server/downloadAttachment(at:ofNote:to:force:)`` needs.
+    ///
+    private let suspendsDownloads: Bool
 
     ///
     /// The number of requests received so far and the number of them currently suspended, which tests wait on through ``eventually(within:_:)``.
@@ -47,10 +52,12 @@ final class SuspendingRequesting: Requesting, @unchecked Sendable {
     /// - Parameters:
     ///     - answeredCount: The number of requests answered through `answering`.
     ///     - answering: The mock which answers those requests.
+    ///     - suspendsDownloads: Whether downloads count and are suspended like the other requests. Defaults to `false`.
     ///
-    init(answering answeredCount: Int, through answering: MockRequesting) {
+    init(answering answeredCount: Int, through answering: MockRequesting, suspendsDownloads: Bool = false) {
         self.answeredCount = answeredCount
         self.answering = answering
+        self.suspendsDownloads = suspendsDownloads
     }
 
     ///
@@ -74,7 +81,11 @@ final class SuspendingRequesting: Requesting, @unchecked Sendable {
     }
 
     func download(for request: URLRequest, delegate: (any URLSessionTaskDelegate)?) async throws -> (URL, URLResponse) {
-        try await answering.download(for: request, delegate: delegate)
+        guard suspendsDownloads, receive() else {
+            return try await answering.download(for: request, delegate: delegate)
+        }
+
+        try await suspend()
     }
 
     func upload(for request: URLRequest, fromFile fileURL: URL, delegate: (any URLSessionTaskDelegate)?) async throws -> (Data, URLResponse) {

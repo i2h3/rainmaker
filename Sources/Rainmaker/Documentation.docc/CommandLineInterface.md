@@ -45,6 +45,7 @@ SUBCOMMANDS:
 
 The `notes` command is a group of subcommands, of which `list` is the default, so `notes --changed-since` keeps working as before.
 Attachments are managed by the nested `notes attachment` group, and the settings of the notes app by the separate `notes-settings` command.
+In the plain output, a listing of changes ends with a `#cursor` line while more chunks follow, an `#etag` line and a `#last-modified` line in whole seconds since the Unix epoch, which are what `--cursor`, `--if-none-match` and `--changed-since` take for the next listing, while `notes get` writes the note's `#etag` line to standard error so that standard output stays the text of the note.
 
 ```plaintext
 $ swift run rainmaker-cli notes --help

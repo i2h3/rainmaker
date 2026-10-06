@@ -53,6 +53,8 @@ struct MultipartFormData {
     ///
     /// Write the body with the contents of a local file as its file field to the given location, copying through a buffer of the given size rather than reading the whole file into memory.
     ///
+    /// The copy checks for cancellation of the calling task before every pass, so cancelling ``Server/addAttachment(_:toNote:fileName:)-(URL,Int,String?)`` while it stages a large file stops the copy with `CancellationError` rather than finishing it first. The caller removes what was written up to then.
+    ///
     /// - Parameters:
     ///     - source: The local file whose contents become the file field.
     ///     - fieldName: The name of the form field, which the server looks the file up by.
@@ -68,7 +70,13 @@ struct MultipartFormData {
         }
 
         try write(fieldName: fieldName, fileName: fileName, to: destination) { output in
-            while let buffer = try input.read(upToCount: bufferSize), buffer.isEmpty == false {
+            while true {
+                try Task.checkCancellation()
+
+                guard let buffer = try input.read(upToCount: bufferSize), buffer.isEmpty == false else {
+                    break
+                }
+
                 try output.write(contentsOf: buffer)
             }
         }

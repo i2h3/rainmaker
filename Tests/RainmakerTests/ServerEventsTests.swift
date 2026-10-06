@@ -263,6 +263,23 @@ import Testing
         #expect(connector.openedChannelCount == 6)
     }
 
+    @Test("An Authentication Rejection Resets The Connection Failure Count", .enabled(if: ServerEventCoordinator.platformSupportsWebSocket))
+    func authenticationRejectionResetsTheConnectionFailureCount() async throws {
+        let failing = { MockWebSocketChannel(frames: [], closesWhenExhausted: true) }
+        let rejecting = MockWebSocketChannel(frames: [.text("err: Invalid credentials")], closesWhenExhausted: true)
+        let delivering = MockWebSocketChannel(frames: [.text("authenticated"), .text("notify_notification")])
+        let connector = MockWebSocketConnecting(channels: [failing(), failing(), rejecting, failing(), failing(), delivering])
+        let server = makeServer(session: MockRequesting(string: capabilities(pushing: ["notifications"])), webSocket: connector)
+
+        // The poll interval is far above the timeout of the test, so falling back to polling would stall the stream rather than deliver a hint which could pass for a pushed one.
+        let stream = makeStream(server: server, options: ServerEventOptions(subjects: [.notifications], pollInterval: 100, emitConnectedOnStart: false), rediscoverInterval: 100)
+
+        // The rejected socket reached the server, so the failures before and after it are not three in a row and the coordinator stays on the socket.
+        let events = try await firstEvents(2, from: stream)
+        #expect(events == [.connected, .notifications])
+        #expect(connector.openedChannelCount == 6)
+    }
+
     @Test("Polls Only When Asked To")
     func pollsOnlyWhenAskedTo() async throws {
         let session = MockRequesting(string: capabilities(pushing: ["notifications"]))

@@ -176,14 +176,35 @@ import Testing
         }
     }
 
-    @Test("Missing Version Header Is Rejected")
+    @Test("Missing Version Header Is A Decoding Failure")
     func missingVersionHeader() async throws {
         let server = makeServer(body: emptyList, headerFields: [:])
-        let expected = RainmakerError.unsupportedAPIVersion(app: "notes", required: "1.4", advertised: [])
 
-        // Every response of a supported app advertises its API versions, so their absence means the app cannot be relied upon.
-        await #expect(throws: expected) {
+        // Every response of the notes app advertises its API versions, so a success without them was not sent by the app at all and says nothing about its version.
+        await #expect {
             _ = try await server.notes()
+        } throws: { error in
+            guard case RainmakerError.responseDecodingFailed = error else {
+                return false
+            }
+
+            return true
+        }
+    }
+
+    @Test("A Login Page Of A Proxy Is A Decoding Failure")
+    func proxyLoginPage() async throws {
+        let server = makeServer(body: "<!DOCTYPE html><html><body>Log in</body></html>", headerFields: [:])
+
+        // An authenticating proxy or a maintenance page answers on the notes app's behalf without its header, which must not be reported as an outdated app the user would be told to update.
+        await #expect {
+            _ = try await server.notes()
+        } throws: { error in
+            guard case RainmakerError.responseDecodingFailed = error else {
+                return false
+            }
+
+            return true
         }
     }
 
@@ -357,7 +378,7 @@ import Testing
     func malformedResponse() async throws {
         let server = makeServer(body: "<!DOCTYPE html><html><body>Log in</body></html>")
 
-        // This endpoint carries no OCS envelope whose status could vouch for the payload, so a success response with something else entirely, such as a login page served by a proxy, has to surface as a library error rather than as an opaque Foundation one.
+        // This endpoint carries no OCS envelope whose status could vouch for the payload, so a success response which carries the notes app's header but a body other than notes has to surface as a library error rather than as an opaque Foundation one.
         await #expect {
             _ = try await server.notes()
         } throws: { error in

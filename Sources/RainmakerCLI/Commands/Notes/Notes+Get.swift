@@ -9,7 +9,7 @@ extension Notes {
     ///
     /// Single note retrieval subcommand, which calls `Server.note(_:)`, or `Server.note(_:ifChangedFrom:)` when given an entity tag.
     ///
-    /// The plain output is the content of the note alone, so it can be piped elsewhere as the text it is, while the JSON output carries every other value as well.
+    /// The plain output is the content of the note alone, so it can be piped elsewhere as the text it is, while its entity tag, which `--if-none-match` takes, goes to standard error as an `#etag` line. The JSON output carries every other value as well.
     ///
     struct Get: AsyncParsableCommand {
         static let configuration = CommandConfiguration(abstract: "Retrieve a single note of the authenticated user by its identifier.")
@@ -41,7 +41,7 @@ extension Notes {
         ///
         /// The entity tag of the copy at hand, which makes the retrieval conditional.
         ///
-        @Option(help: "Print 'Not modified.' instead of the note while it still carries this entity tag.")
+        @Option(help: "Print 'Not modified.' instead of the note while it still carries this entity tag, which a previous retrieval printed to standard error as its '#etag' line.")
         var ifNoneMatch: String?
 
         func run() async throws {
@@ -67,6 +67,9 @@ extension Notes {
                 case .json:
                     try print(Notes.encoded(note))
                 case .plain:
+                    // The entity tag goes to standard error, so that standard output stays the text of the note alone.
+                    FileHandle.standardError.write(Data("#etag \(note.entityTag)\n".utf8))
+
                     // The content is printed as it is, without a line break the note itself does not end with.
                     print(note.content, terminator: "")
             }

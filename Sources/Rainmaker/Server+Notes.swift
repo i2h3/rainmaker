@@ -9,7 +9,7 @@ public extension Server {
     ///
     /// Notes are provided by the server's notes app which, unlike most of what this library covers, is not part of a Nextcloud installation and has to be installed separately. Whether it is available can be checked in advance via the ``Notes`` capability, e.g. `try await capabilities().contains(Notes.self)`. When the app is unavailable the underlying endpoint does not exist and this call throws ``RainmakerError/appUnavailable(app:)`` for `"notes"`.
     ///
-    /// The very same error is what a server causes whose `index.php` routing is disabled or whose reverse proxy swallows the route, so those causes cannot be told apart from the response alone. It is deliberately not ``RainmakerError/notFound``, which the notes features reserve for a note that does not exist, so that a client keeping its own copy never takes a missing app for an account without notes.
+    /// The very same error is what a server causes whose `index.php` routing is disabled or whose reverse proxy swallows the route, so those causes cannot be told apart from the response alone. It is deliberately not ``RainmakerError/notFound``, which the notes features reserve for a note or an attachment that does not exist, so that a client keeping its own copy never takes a missing app for an account without notes. The one exception is the retrieval of an attachment through ``attachment(at:ofNote:)`` and ``downloadAttachment(at:ofNote:to:force:)``, which reports every failure including an absent app as ``RainmakerError/notFound``, see there.
     ///
     /// An app which is installed but older than ``Notes/minimumAPIVersion`` is reported separately, as ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)``. That requirement is checked on every response, because the notes API advertises the versions it serves in a header of its own, and it can be checked in advance through ``Notes/isSupported``.
     ///
@@ -495,8 +495,8 @@ public extension Server {
     ///     - ``RainmakerError/insufficientStorage`` when the account's quota leaves no room for the new note.
     ///     - ``RainmakerError/locked`` when a file the server has to write is locked, after the server already retried for several seconds.
     ///     - ``RainmakerError/appUnavailable(app:)`` when the notes app is not available on the server.
-    ///     - ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)`` when it is available but older than ``Notes/minimumAPIVersion``.
-    ///     - ``RainmakerError/responseDecodingFailed(reason:)`` when a success response does not carry a note.
+    ///     - ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)`` when it is available but older than ``Notes/minimumAPIVersion``. An outdated release still performs this change before its answer reveals the version, so when this error is thrown the note has already been created. Check ``Notes/isSupported`` first to avoid that.
+    ///     - ``RainmakerError/responseDecodingFailed(reason:)`` when a success response does not carry a note or does not come from the notes app.
     ///     - Any other error that might occur during the request, such as ``RainmakerError/unexpectedStatus(code:)`` when the server cannot create a file of the sanitized name at all.
     ///
     func createNote(title: String, category: String = "", content: String = "", modification: Date? = nil, isFavorite: Bool = false) async throws -> Note {
@@ -550,8 +550,8 @@ public extension Server {
     ///     - ``RainmakerError/insufficientStorage`` when the account's quota leaves no room for the new content.
     ///     - ``RainmakerError/locked`` when the note's file is locked, after the server already retried for several seconds.
     ///     - ``RainmakerError/appUnavailable(app:)`` when the notes app is not available on the server.
-    ///     - ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)`` when it is available but older than ``Notes/minimumAPIVersion``.
-    ///     - ``RainmakerError/responseDecodingFailed(reason:)`` when a success response does not carry a note.
+    ///     - ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)`` when it is available but older than ``Notes/minimumAPIVersion``. An outdated release still performs this change before its answer reveals the version, so when this error is thrown the note has already been changed. Check ``Notes/isSupported`` first to avoid that.
+    ///     - ``RainmakerError/responseDecodingFailed(reason:)`` when a success response does not carry a note or does not come from the notes app.
     ///     - Any other error that might occur during the request.
     ///
     func updateNote(_ id: Int, title: String? = nil, category: String? = nil, content: String? = nil, modification: Date? = nil, isFavorite: Bool? = nil, ifMatching entityTag: String? = nil) async throws -> Note {
@@ -592,7 +592,8 @@ public extension Server {
     ///     - ``RainmakerError/readOnly`` when the note cannot be deleted by the authenticated user.
     ///     - ``RainmakerError/locked`` when the note's file is locked, after the server already retried for several seconds.
     ///     - ``RainmakerError/appUnavailable(app:)`` when the notes app is not available on the server.
-    ///     - ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)`` when it is available but older than ``Notes/minimumAPIVersion``.
+    ///     - ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)`` when it is available but older than ``Notes/minimumAPIVersion``. An outdated release still performs this change before its answer reveals the version, so when this error is thrown the note has already been deleted. Check ``Notes/isSupported`` first to avoid that.
+    ///     - ``RainmakerError/responseDecodingFailed(reason:)`` when a success response does not come from the notes app.
     ///     - Any other error that might occur during the request.
     ///
     func deleteNote(_ id: Int) async throws {
@@ -613,7 +614,7 @@ public extension Server {
     ///
     /// This is a standalone call which needs nothing but credentials, the note's identifier and the path, so it suits a single action such as one of Shortcuts as well as a client keeping its own copy of the notes. It runs within the calling task, so cancelling that task cancels the request. The whole file is held in memory, so a large file or a process with little memory to spare, such as an extension, is better served by ``downloadAttachment(at:ofNote:to:force:)``, which writes it to a local file instead.
     ///
-    /// Unlike every other notes feature, the notes app answers this request without its version header and reports every failure the same way, with `404`: a note which does not exist, a path which names nothing or a folder, and a file it cannot read. An absent notes app answers `404` as well, so all of these are reported as ``RainmakerError/notFound`` and cannot be told apart, which is why the ``Notes`` capability is the way to learn whether the app is there. A release of the notes app older than ``Notes/minimumAPIVersion`` does not know the path at all and answers with its version header, which is reported as ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)``.
+    /// Unlike every other notes feature, the notes app answers this request without its version header and reports every failure the same way, with `404`: a note which does not exist, a path which names nothing (or, since release 6.1.0, a folder), and a file it cannot read. Releases older than 6.1.0 (see ``Notes/storesAttachmentsPerNote``) fail on a path naming a folder, an empty path included, with an internal error, which is reported as ``RainmakerError/unexpectedStatus(code:)`` with `500`. An absent notes app answers `404` as well, so all of these are reported as ``RainmakerError/notFound`` and cannot be told apart, which is why the ``Notes`` capability is the way to learn whether the app is there. A release of the notes app older than ``Notes/minimumAPIVersion`` does not know the path at all and answers with its version header, which is reported as ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)``.
     ///
     /// The request bypasses the local HTTP cache, because the server allows caching an attachment for an hour while it sends neither an entity tag nor a modification moment which a later request could be made conditional on. Keep what this returns in a store of your own instead, keyed by server, account, note and path. Bypassing the cache does not keep the session from storing the response in its `URLCache` though, which a session whose configuration keeps one on disk does, and a session shared by several accounts should not keep one at all. See ``init(address:password:user:session:webSocket:userAgent:)`` for a fitting configuration.
     ///
@@ -627,7 +628,7 @@ public extension Server {
     ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
     ///     - ``RainmakerError/notFound`` when the note or the file does not exist, the file cannot be read, or the notes app is not available on the server.
     ///     - ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)`` when the notes app is older than ``Notes/minimumAPIVersion``.
-    ///     - ``RainmakerError/unexpectedStatus(code:)`` for any other non-success response.
+    ///     - ``RainmakerError/unexpectedStatus(code:)`` for any other non-success response, such as `500` for a path naming a folder on a release of the notes app older than 6.1.0.
     ///     - Any other error that might occur during retrieval.
     ///
     func attachment(at path: String, ofNote noteId: Int) async throws -> NoteAttachment {
@@ -648,27 +649,31 @@ public extension Server {
     ///
     /// The destination is the location of the file itself, not of the folder it goes to, and that folder has to exist. When a file exists there already and `force` is not set, the call throws ``RainmakerError/fileAlreadyExists(_:)`` before anything is sent, and once more when such a file appeared while the download was in progress. With `force` set, an existing file is replaced, and it is kept intact until the new one is completely in place.
     ///
+    /// The destination must not be a directory. A directory there is refused with ``RainmakerError/fileAlreadyExists(_:)`` even when `force` is set, before anything is sent and once more right before the file is put in place, so `force` only ever replaces a regular file and never a directory with everything in it.
+    ///
     /// - Parameters:
     ///     - path: The path of the file relative to the folder of the note's category, as ``addAttachment(_:toNote:fileName:)-(URL,Int,String?)`` returned it or as the note references it after percent-decoding.
     ///     - noteId: The ``Note/id`` of the note the path is relative to.
-    ///     - destination: The local location to write the file to, in a folder which exists.
-    ///     - force: Whether to replace a file which exists at the destination. Defaults to `false`.
+    ///     - destination: The local location to write the file to, in a folder which exists, which must not be a directory itself.
+    ///     - force: Whether to replace a regular file which exists at the destination. Defaults to `false`.
     ///
     /// - Returns: The location the file was written to, which is `destination`, together with its MIME type.
     ///
     /// - Throws:
     ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
-    ///     - ``RainmakerError/fileAlreadyExists(_:)`` when a file exists at the destination and `force` is not set.
+    ///     - ``RainmakerError/fileAlreadyExists(_:)`` when a file exists at the destination and `force` is not set, or when the destination is a directory, whether `force` is set or not.
     ///     - ``RainmakerError/notFound`` when the note or the file does not exist, the file cannot be read, or the notes app is not available on the server.
     ///     - ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)`` when the notes app is older than ``Notes/minimumAPIVersion``.
-    ///     - ``RainmakerError/unexpectedStatus(code:)`` for any other non-success response.
+    ///     - ``RainmakerError/unexpectedStatus(code:)`` for any other non-success response, such as `500` for a path naming a folder on a release of the notes app older than 6.1.0.
     ///     - Any other error that might occur during retrieval or while putting the file in place.
     ///
     func downloadAttachment(at path: String, ofNote noteId: Int, to destination: URL, force: Bool = false) async throws -> NoteAttachmentFile {
         try requireCredentials()
         logger.debug("Downloading an attachment of note \(noteId) to \"\(destination.compatibilityPath(percentEncoded: false))\"...")
 
-        // Checked before the download so that a call which cannot succeed sends nothing.
+        // Checked before the download so that a call which cannot succeed sends nothing. A directory is refused even when forced, because replacing it would delete everything in it.
+        try fileManager.assertNotDirectory(at: destination)
+
         if force == false {
             try fileManager.assertFileDoesNotExist(at: destination)
         }
@@ -697,6 +702,9 @@ public extension Server {
 
         try fileManager.moveItem(at: location, to: stagingLocation)
 
+        // A directory may have appeared at the destination while the download was in progress, which replacing would delete together with everything in it.
+        try fileManager.assertNotDirectory(at: destination)
+
         if fileManager.fileExists(atPath: destination.compatibilityPath(percentEncoded: false)) {
             // Replacing keeps the existing file intact until the new one is completely in place, unlike deleting it first.
             _ = try fileManager.replaceItemAt(destination, withItemAt: stagingLocation)
@@ -710,7 +718,7 @@ public extension Server {
     ///
     /// Attach a local file to a note of the authenticated user and return the path the server stored it at.
     ///
-    /// The file is sent as the field `file` of a form, as the web interface of the notes app uploads it. Its body is staged in a temporary file which is copied from `source` through a small buffer and removed again when the call ends, whatever its outcome, so neither the file nor the body is held in memory. The call runs within the calling task, so cancelling that task cancels the upload. It needs nothing but credentials and the note's identifier, so it suits a single action such as one of Shortcuts as well as a client keeping its own copy of the notes.
+    /// The file is sent as the field `file` of a form, as the web interface of the notes app uploads it. Its body is staged in a temporary file which is copied from `source` through a small buffer and removed again when the call ends, whatever its outcome, so neither the file nor the body is held in memory, while staging temporarily needs free space about the size of the source. The call runs within the calling task, so cancelling that task stops staging the body, which then throws `CancellationError`, or cancels the upload once it is under way. It needs nothing but credentials and the note's identifier, so it suits a single action such as one of Shortcuts as well as a client keeping its own copy of the notes.
     ///
     /// Where the file ends up and therefore what this returns depends on the release of the notes app, see ``Notes/storesAttachmentsPerNote``:
     ///
@@ -719,9 +727,9 @@ public extension Server {
     ///
     /// The server's form handling keeps only what follows the last `/` or `\` of the name, as it does for every uploaded file. The returned path is relative to the folder of the note's category and is what ``attachment(at:ofNote:)``, ``downloadAttachment(at:ofNote:to:force:)`` and ``deleteAttachment(at:ofNote:)`` take.
     ///
-    /// Adding an attachment does not change the note. To embed it, the caller changes the note's content through ``updateNote(_:title:category:content:modification:isFavorite:ifMatching:)`` to reference the returned path, for example as `![](.attachments.123/Photo%20%281%29.png)`. The notes app's editor encodes each component of such a reference as JavaScript's `encodeURIComponent` does and additionally encodes `!`, `'`, `(`, `)` and `*`, which keeps a name from ending the markdown link early. ``NoteAttachmentReference/markdown(alt:path:)`` builds such a reference from the returned path.
+    /// Adding an attachment does not change the note. To embed it, the caller changes the note's content through ``updateNote(_:title:category:content:modification:isFavorite:ifMatching:)`` to reference the returned path, for example as `![](.attachments.123/Photo%20%281%29.png)`. The Nextcloud Text app, which edits Markdown notes in the notes app's rich mode, encodes each component of such a reference as JavaScript's `encodeURIComponent` does and additionally encodes `!`, `'`, `(`, `)` and `*`, which keeps a name from ending the Markdown link early; the notes app's plain editor applies `encodeURIComponent` alone. ``NoteAttachmentReference/markdown(alt:path:)`` builds such a reference from the returned path.
     ///
-    /// > Important: Adding an attachment is not idempotent. Every call which reaches the server stores another file, and a call whose response was lost may have stored one all the same. The notes app offers no way to list the attachments of a note, but they are ordinary files, which ``enumerate(at:recursively:)->[Item]`` lists in the folder the note's ``Note/path`` names.
+    /// > Important: Adding an attachment is not idempotent. Every call which reaches the server stores another file, and a call whose response was lost may have stored one all the same. The notes app offers no way to list the attachments of a note, but they are ordinary files, which ``enumerate(at:recursively:)->[Item]`` lists in the folder which contains the file the note's ``Note/path`` names, or in its `.attachments.<id>` subfolder on releases which keep attachments per note, see ``Notes/storesAttachmentsPerNote``.
     ///
     /// Credentials are required: notes are user-scoped and the underlying endpoint rejects unauthenticated requests.
     ///
@@ -739,7 +747,8 @@ public extension Server {
     ///     - ``RainmakerError/methodNotAllowed`` when the notes app is older than ``Notes/minimumAPIVersion`` and therefore does not offer the upload at all.
     ///     - ``RainmakerError/appUnavailable(app:)`` when the notes app is not available on the server.
     ///     - ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)`` when the response does not advertise ``Notes/minimumAPIVersion``.
-    ///     - ``RainmakerError/responseDecodingFailed(reason:)`` when a success response does not carry the stored path.
+    ///     - ``RainmakerError/responseDecodingFailed(reason:)`` when a success response does not carry the stored path or does not come from the notes app.
+    ///     - `CancellationError` when the calling task is cancelled while the body is staged.
     ///     - Any other error that might occur while staging or sending the file, such as ``RainmakerError/unexpectedStatus(code:)`` with `400` for a name the server refuses and with `500` for a failure to store the file, for example because the quota is exceeded or the note is shared without permission to change it.
     ///
     func addAttachment(_ source: URL, toNote noteId: Int, fileName: String? = nil) async throws -> String {
@@ -755,6 +764,9 @@ public extension Server {
         }
 
         try form.writeFile(from: source, fieldName: "file", fileName: fileName ?? source.lastPathComponent, to: body, bufferSize: Self.stagingBufferSize)
+
+        // Staging may have taken a while, so a task cancelled meanwhile does not start the upload at all.
+        try Task.checkCancellation()
 
         return try await uploadAttachment(stagedAt: body, as: form, toNote: noteId)
     }
@@ -812,6 +824,7 @@ public extension Server {
     ///     - ``RainmakerError/locked`` when the file is locked, after the server already retried for several seconds.
     ///     - ``RainmakerError/appUnavailable(app:)`` when the notes app is not available on the server.
     ///     - ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)`` when it is available but older than ``Notes/minimumAPIVersion``.
+    ///     - ``RainmakerError/responseDecodingFailed(reason:)`` when a success response does not come from the notes app.
     ///     - Any other error that might occur during the request, such as ``RainmakerError/unexpectedStatus(code:)`` with `400` for a last component which is not a valid file name.
     ///
     func deleteAttachment(at path: String, ofNote noteId: Int) async throws {
@@ -866,7 +879,7 @@ public extension Server {
     ///
     /// - Changing ``NotesSettings/notesPath`` does not move any note. The notes app looks for notes in the new folder from then on, and creates it when it does not exist yet the next time it is asked for the notes, so the notes in the old folder are no longer listed while those already in the new one are. The ``Notes/notesPath`` the capabilities advertise follows the setting as well.
     /// - Changing ``NotesSettings/showsHiddenFiles`` decides whether notes and categories whose names start with a dot are listed, see there.
-    /// - Changing ``NotesSettings/fileSuffix`` gives the notes created from then on that extension. The app reads files with the extensions `.txt`, `.org`, `.markdown`, `.md` and `.note` as notes whatever the setting, and in addition those with the custom suffix set most recently, so replacing one custom suffix with another one makes the notes of the former disappear from the listings unless their extension is among those.
+    /// - Changing ``NotesSettings/fileSuffix`` gives the notes created from then on that extension. The app reads files with the extensions `.txt`, `.org`, `.markdown`, `.md` and `.note` as notes whatever the setting, and in addition those with the custom suffix set most recently, so replacing one custom suffix with another one makes the notes of the former disappear from the listings unless their extension is among those. The app only recognizes a custom suffix whose characters after the leading dot are all lower-case and contain no further dot, because it compares the lower-cased last extension of a file name with the suffix as stored; with any other custom suffix, such as `.TXT2` or `.tar.gz`, notes created from then on are neither listed nor found by ``note(_:)``, ``updateNote(_:title:category:content:modification:isFavorite:ifMatching:)`` or ``deleteNote(_:)``, which throw ``RainmakerError/notFound``.
     ///
     /// The notes app keeps ``NotesSettings/showsHiddenFiles`` and ``NotesSettings/loadsRecentNoteOnStartUp`` since release 6.1.0. Older releases ignore them, which the returned settings show by leaving them `nil`.
     ///
@@ -874,9 +887,9 @@ public extension Server {
     ///
     /// - Parameters:
     ///     - notesPath: The path of the folder to store the notes in, relative to the account's files and sanitized as described above, or `nil` to keep the current one. Defaults to `nil`.
-    ///     - fileSuffix: The file extension to give the notes created from now on, sanitized as described above, or `nil` to keep the current one. Defaults to `nil`.
+    ///     - fileSuffix: The file extension to give the notes created from now on, sanitized as described above, or `nil` to keep the current one. Pass a single lower-case extension such as `.txt2`, because the app does not recognize notes with any other custom suffix, see above. Defaults to `nil`.
     ///     - noteMode: The way the web interface is to present a note when it is opened, or `nil` to keep the current one. Defaults to `nil`.
-    ///     - showsHiddenFiles: Whether the web interface is to list files and folders whose names start with a dot, or `nil` to keep the current setting. Defaults to `nil`.
+    ///     - showsHiddenFiles: Whether files and folders whose names start with a dot are listed as notes and categories, by the API as well as by the web interface, or `nil` to keep the current setting. Defaults to `nil`.
     ///     - loadsRecentNoteOnStartUp: Whether the web interface is to open the most recently edited note when it starts, or `nil` to keep the current setting. Defaults to `nil`.
     ///
     /// - Returns: The notes app's settings for the authenticated user as the server stored them after the change, including the sanitized values.
@@ -884,8 +897,8 @@ public extension Server {
     /// - Throws:
     ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
     ///     - ``RainmakerError/appUnavailable(app:)`` when the notes app is not available on the server.
-    ///     - ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)`` when it is available but older than ``Notes/minimumAPIVersion``.
-    ///     - ``RainmakerError/responseDecodingFailed(reason:)`` when a success response does not carry the settings.
+    ///     - ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)`` when it is available but older than ``Notes/minimumAPIVersion``. An outdated release still performs this change before its answer reveals the version, so when this error is thrown the settings have already been changed. Check ``Notes/isSupported`` first to avoid that.
+    ///     - ``RainmakerError/responseDecodingFailed(reason:)`` when a success response does not carry the settings or does not come from the notes app.
     ///     - Any other error that might occur during the request.
     ///
     func updateNotesSettings(notesPath: String? = nil, fileSuffix: String? = nil, noteMode: NoteMode? = nil, showsHiddenFiles: Bool? = nil, loadsRecentNoteOnStartUp: Bool? = nil) async throws -> NotesSettings {
@@ -944,7 +957,8 @@ extension Server {
     ///
     /// The notes app adds its `X-Notes-API-Versions` header to every response it sends itself, see `HTTPURLResponse.notesAPIVersions`, while a response the server or a proxy sends on its behalf lacks it. A status therefore only carries the notes app's meaning when the header is present, and it is checked before the version requirement so that an error the app reports is not mistaken for an outdated app:
     ///
-    /// - `200` is a success, provided the header advertises a supported API version, and ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)`` otherwise.
+    /// - `200` without the header is ``RainmakerError/responseDecodingFailed(reason:)``, because it did not come from the notes app, for example a login page of an authenticating proxy or a maintenance page.
+    /// - `200` with the header is a success, provided the header advertises a supported API version, and ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)`` otherwise. An outdated release has already handled the request by then, so a change it was asked for has been made although the call throws.
     /// - `304` is returned as it is when `allowsNotModified` is set, for a conditional request, and ``RainmakerError/unexpectedStatus(code:)`` otherwise.
     /// - `403` with the header is ``RainmakerError/readOnly``.
     /// - `404` with the header is ``RainmakerError/notFound``, because the app reports a note or an attachment which does not exist, while `404` without it is ``RainmakerError/appUnavailable(app:)``, because the route itself does not exist.
@@ -980,6 +994,11 @@ extension Server {
 
         switch response.status {
             case .ok:
+                // A success without the header was sent by something else on the notes app's behalf, such as a proxy's login page, which must not be mistaken for an outdated app the user is told to update.
+                guard isFromNotesApp else {
+                    throw RainmakerError.responseDecodingFailed(reason: "The success response lacks the X-Notes-API-Versions header the notes app sends with every response, so it did not come from the notes app.")
+                }
+
                 // Every response of the notes app advertises which versions of its API it can serve, so the requirement is enforced from the response already in hand rather than by asking for the server's capabilities first.
                 guard Notes.supports(apiVersions: advertisedAPIVersions) else {
                     throw RainmakerError.unsupportedAPIVersion(app: Notes.key, required: Notes.minimumAPIVersion, advertised: advertisedAPIVersions)
@@ -1224,7 +1243,7 @@ extension Server {
     ///
     /// Decode the body of a successful response from ``notesAPIResponse(for:uploadingFrom:allowsNotModified:)`` with ``jsonDecoder``.
     ///
-    /// None of the notes app's endpoints answers with an OCS envelope, so unlike every other JSON endpoint in this library there is no `meta` status vouching for a payload. A success response carrying something else entirely, for example an HTML login or maintenance page served by a proxy, therefore has to surface as ``RainmakerError/responseDecodingFailed(reason:)`` rather than as an opaque Foundation error. The payload is left out of that message so that note contents cannot leak into logs.
+    /// None of the notes app's endpoints answers with an OCS envelope, so unlike every other JSON endpoint in this library there is no `meta` status vouching for a payload. A success response which carries the notes app's version header but a body other than the expected one therefore has to surface as ``RainmakerError/responseDecodingFailed(reason:)`` rather than as an opaque Foundation error. An HTML login or maintenance page served by a proxy lacks that header and is reported the same way already by ``notesAPIResponse(for:uploadingFrom:allowsNotModified:)``, before it reaches this. The payload is left out of that message so that note contents cannot leak into logs.
     ///
     /// - Parameters:
     ///     - type: The type to decode.

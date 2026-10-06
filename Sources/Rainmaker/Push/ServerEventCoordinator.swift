@@ -37,7 +37,7 @@ struct ServerEventCoordinator {
     ///
     /// How many consecutive WebSocket connections may end before they authenticated, reported as ``SessionOutcome/disconnected(wasAuthenticated:)`` with `false`, before polling for ``rediscoverInterval`` and then looking at the capabilities again.
     ///
-    /// Without this limit an advertised endpoint the client cannot reach, for example behind a proxy which does not forward WebSocket upgrades, would be retried forever with a growing backoff and no events in between. A connection which authenticated resets the count, and so does falling back to polling.
+    /// Without this limit an advertised endpoint the client cannot reach, for example behind a proxy which does not forward WebSocket upgrades, would be retried forever with a growing backoff and no events in between. A connection which authenticated resets the count, and so do an authentication rejection, which proves that the socket reached the server, and falling back to polling for any reason, so the count only covers consecutive failures to connect.
     /// This is configurable so tests can exercise the fallback quickly.
     ///
     var maximumConnectionFailures = 3
@@ -138,6 +138,8 @@ struct ServerEventCoordinator {
 
             guard let target else {
                 logger.debug("notify_push unavailable; polling")
+                connectionFailures = 0
+                backoffSeconds = initialBackoff
                 await pollWindow(subjects: options.subjects, interval: options.pollInterval, window: rediscoverInterval, into: continuation)
                 continue
             }
@@ -148,11 +150,14 @@ struct ServerEventCoordinator {
 
             switch outcome {
                 case .authenticationRejected:
+                    // The socket reached the server, so this ends a run of connections which failed to connect.
+                    connectionFailures = 0
                     authenticationAttempts += 1
                     logger.notice("notify_push authentication rejected (attempt \(authenticationAttempts) of \(maximumAuthenticationAttempts))")
 
                     if authenticationAttempts >= maximumAuthenticationAttempts {
                         authenticationAttempts = 0
+                        backoffSeconds = initialBackoff
                         await pollWindow(subjects: options.subjects, interval: options.pollInterval, window: rediscoverInterval, into: continuation)
                     } else {
                         try? await Task.sleep(nanoseconds: UInt64(authenticationRetryInterval * 1_000_000_000))
