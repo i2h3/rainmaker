@@ -97,6 +97,11 @@ protocol Serving: Sendable {
     func navigation() async throws -> [NavigationItem]
 
     ///
+    /// Fetch the identifier and the display name of the account this server authenticates as.
+    ///
+    func currentUser() async throws -> User
+
+    ///
     /// List the notifications currently queued for the authenticated user.
     ///
     func notifications() async throws -> [NotificationItem]

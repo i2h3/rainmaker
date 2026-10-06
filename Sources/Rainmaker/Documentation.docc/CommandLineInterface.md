@@ -20,6 +20,7 @@ SUBCOMMANDS:
   collectives             List the collectives of the authenticated user and their pages. Requires authentication and the server's collectives app.
   conversations           List the Talk conversations of the authenticated user and retrieve their images. Requires authentication and the server's Talk app.
   create-directory        Create a directory on the server.
+  current-user            Show the identifier and the display name of the authenticated account. Requires authentication.
   delete                  Delete a file or directory from the server.
   delete-app-password     Delete the app password currently used to authenticate, ending the session on the server side.
   download                Download a file or directory from the server.

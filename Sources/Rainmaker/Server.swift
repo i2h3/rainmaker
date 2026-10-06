@@ -99,7 +99,10 @@ public final class Server {
     public let password: String?
 
     ///
-    /// The Nextcloud user name used to identify as.
+    /// The Nextcloud login name used to identify as, together with ``password``.
+    ///
+    /// This is also what the WebDAV paths of this library are built from, which only works for accounts whose login name is their identifier.
+    /// A server can accept an email address or a login attribute of an LDAP directory as the login name instead, and ``currentUser()`` returns the identifier the server actually keys the account by.
     ///
     public let user: String?
 
@@ -1505,6 +1508,54 @@ extension Server: Serving {
     }
 
     ///
+    /// Fetch the identifier and the display name of the account this ``Server`` authenticates as.
+    ///
+    /// The identifier of an account is not necessarily the name it logs in with: a server can accept an email address or a login attribute of an LDAP directory as the login name, which is what ``user`` and ``LoginResult/name`` then hold, while the server keys the account by an identifier of its own.
+    /// That identifier is what ``User/id`` carries here, and it is what the server expects wherever it names an account, so pass it rather than the login name to ``userAvatar(_:size:darkTheme:)``.
+    /// The WebDAV paths of this library are still built from ``user`` and therefore only work for accounts whose login name is their identifier, which this method does not change.
+    ///
+    /// This is a single request without any state, so it can be called on its own, for example once after a login flow completed, and cancelling the calling task cancels it.
+    ///
+    /// - Returns: The account as a ``User`` with its identifier and its display name, which the server falls back to the identifier for when the account has no display name of its own.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
+    ///     - ``RainmakerError/unexpectedStatus(code:)`` for any non-success response, such as `401` when the server rejects the credentials.
+    ///     - ``RainmakerError/responseDecodingFailed(reason:)`` when the server answers with something other than the details of an account.
+    ///     - Any other error that might occur during retrieval.
+    ///
+    public func currentUser() async throws -> User {
+        try requireCredentials()
+        logger.debug("Fetching the current user...")
+
+        let request = try makeOCSRequest(for: "cloud/user", method: .get)
+        let (data, urlResponse) = try await session.data(for: request)
+
+        guard let response = urlResponse as? HTTPURLResponse else {
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to cast URLResponse to HTTPURLResponse.")
+        }
+
+        // Unlike the endpoints of optional apps, this one is part of every installation, so a missing route is not a condition of its own and every other status, the rejected credentials included, surfaces as such.
+        guard response.status == .ok else {
+            throw RainmakerError.unexpectedStatus(code: response.statusCode)
+        }
+
+        let envelope: CurrentUserResponse
+
+        do {
+            envelope = try jsonDecoder.decode(CurrentUserResponse.self, from: data)
+        } catch {
+            throw RainmakerError.responseDecodingFailed(reason: "The server did not answer with the details of the current user.")
+        }
+
+        guard envelope.ocs.meta.status == "ok" else {
+            throw RainmakerError.responseDecodingFailed(reason: "OCS request failed (\(envelope.ocs.meta.statuscode)): \(envelope.ocs.meta.message ?? "No message.")")
+        }
+
+        return User(id: envelope.ocs.data.id, displayName: envelope.ocs.data.displayname)
+    }
+
+    ///
     /// List the notifications currently queued for the authenticated user.
     ///
     /// These are provided by the server's bundled notifications app, which is not necessarily installed or enabled. Whether it is available can be checked in advance via the ``Notifications`` capability, e.g. `try await capabilities().contains(Notifications.self)`. When the app is unavailable the underlying endpoint does not exist and this call throws ``RainmakerError/notFound``.
@@ -1673,7 +1724,7 @@ extension Server: Serving {
     /// This is a front page route rather than an OCS or app one, and the server marks it as public. Credentials are required here regardless: an instance may be configured to refuse anonymous requests outright, and asking as the signed-in account is what makes the call behave the same on every instance rather than only on the permissive ones.
     ///
     /// - Parameters:
-    ///     - userId: The identifier of the user to retrieve the avatar of, which is their login name rather than their display name.
+    ///     - userId: The identifier of the user to retrieve the avatar of, which is neither their display name nor necessarily the name they log in with. For the authenticated account it is the ``User/id`` returned by ``currentUser()``, not ``user`` or ``LoginResult/name``.
     ///     - size: Which of the two served sizes to ask for. Defaults to ``AvatarSize/small``.
     ///     - darkTheme: Whether to retrieve the variant meant for a dark appearance. Defaults to `false`.
     ///

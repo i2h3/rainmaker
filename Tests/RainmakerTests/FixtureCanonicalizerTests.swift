@@ -105,6 +105,34 @@ import Testing
         #expect(result.contains("\"hello-v2-token-key\": \"REDACTED\""))
     }
 
+    @Test("Redacts the login moments and the quota of the current user")
+    func redactsCurrentUserFields() {
+        let body = #"{"ocs":{"data":{"id":"admin","firstLoginTimestamp":1788879000,"lastLoginTimestamp":1788879440,"lastLogin":1788879440000,"quota":{"free":-3,"used":5242880,"total":-3,"relative":12.34,"quota":-3},"displayname":"admin"}}}"#
+        let result = canonicalize(body, pathExtension: "json", path: "/ocs/v2.php/cloud/user")
+
+        #expect(result.contains("\"firstLoginTimestamp\": 946684800,"))
+        #expect(result.contains("\"lastLoginTimestamp\": 946684800,"))
+        #expect(result.contains("\"lastLogin\": 946684800000,"))
+        #expect(result.contains("\"free\": 0,"))
+        #expect(result.contains("\"used\": 0,"))
+        #expect(result.contains("\"total\": 0,"))
+        #expect(result.contains("\"relative\": 0,"))
+
+        // The quota setting itself and the fields the client decodes are stable and stay as recorded.
+        #expect(result.contains("\"quota\":-3}"))
+        #expect(result.contains("\"id\":\"admin\""))
+        #expect(result.contains("\"displayname\":\"admin\""))
+    }
+
+    @Test("Leaves quota-like fields alone outside the account details")
+    func leavesCurrentUserFieldsScoped() {
+        let body = #"{"used":5242880,"total":10485760,"lastLogin":1788879440000}"#
+        let result = canonicalize(body, pathExtension: "json", path: "/ocs/v2.php/apps/notes/api/v1.4/notes")
+
+        // These names are generic enough to mean something else in another API, which is why the rules only apply to the account details.
+        #expect(result == body)
+    }
+
     @Test("Redacts the volatile note entity tags")
     func redactsNoteEntityTags() {
         let body = #"[{"id":86,"modified":1700000000,"etag":"c649e503de046daca1b998c2e52b2a94"}]"#
