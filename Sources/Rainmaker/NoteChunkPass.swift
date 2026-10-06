@@ -4,30 +4,21 @@
 import Foundation
 
 ///
-/// The state of one chunked pass over the notes which changed since a given moment, which ``Server/noteChunks(changedSince:chunkSize:)`` unfolds its stream from.
+/// The state of one chunked pass over the notes which changed since a given moment, which ``Server/noteChunks(changedSince:chunkSize:)`` and ``Server/noteSummaryChunks(changedSince:chunkSize:)`` unfold their streams from.
 ///
-/// Each call to ``next()`` retrieves one chunk through ``Server/notes(changedSince:chunkSize:continuingAfter:)``, continuing from the ``NoteChanges/chunkCursor`` of the chunk before, until a chunk is ``NoteChanges/isComplete`` or a request fails.
+/// Each call to ``next()`` retrieves one chunk through the closure the pass was created with, which is ``Server/notes(changedSince:chunkSize:continuingAfter:)`` or ``Server/noteSummaries(changedSince:chunkSize:continuingAfter:)`` with the moment and the chunk size of the pass, continuing from the ``NoteChangeSet/chunkCursor`` of the chunk before, until a chunk has no cursor or a request fails.
+/// It is generic over the ``NoteChangeSet`` a chunk is, so that both streams share the same rules for when a pass is over.
 /// It is an actor because the stream's unfolding closure is `@Sendable` while the cursor changes from one chunk to the next.
 /// The requests run within the task which awaits ``next()``, which is the task iterating the stream, so cancelling that task cancels the request in flight.
 ///
-actor NoteChunkPass {
+actor NoteChunkPass<Changes: NoteChangeSet> {
     ///
-    /// The server the chunks are retrieved from.
+    /// Retrieve the chunk following the given cursor, or the first chunk of the pass for `nil`, always with the moment and the chunk size the pass was started with, because the server prunes each chunk by that moment.
     ///
-    private let server: Server
+    private let retrieve: @Sendable (_ cursor: String?) async throws -> Changes
 
     ///
-    /// The moment the pass retrieves changes since, which is sent unchanged with every chunk because the server prunes each of them by it.
-    ///
-    private let changedSince: Date
-
-    ///
-    /// The number of notes each chunk sends in full at most, which ``Server/notes(changedSince:chunkSize:continuingAfter:)`` raises to one when smaller.
-    ///
-    private let chunkSize: Int
-
-    ///
-    /// The ``NoteChanges/chunkCursor`` of the chunk retrieved last, which the next chunk continues from, or `nil` before the first chunk.
+    /// The ``NoteChangeSet/chunkCursor`` of the chunk retrieved last, which the next chunk continues from, or `nil` before the first chunk.
     ///
     private var cursor: String?
 
@@ -40,24 +31,20 @@ actor NoteChunkPass {
     /// Create a pass which has not retrieved any chunk yet.
     ///
     /// - Parameters:
-    ///     - server: The server to retrieve the chunks from.
-    ///     - changedSince: The moment to retrieve changes since.
-    ///     - chunkSize: The number of notes each chunk sends in full at most.
+    ///     - retrieve: Retrieve the chunk following the given cursor, or the first chunk for `nil`, with the moment and the chunk size of the pass.
     ///
-    init(server: Server, changedSince: Date, chunkSize: Int) {
-        self.server = server
-        self.changedSince = changedSince
-        self.chunkSize = chunkSize
+    init(retrieve: @escaping @Sendable (_ cursor: String?) async throws -> Changes) {
+        self.retrieve = retrieve
     }
 
     ///
     /// Retrieve the next chunk of the pass, or `nil` once the pass is over.
     ///
-    /// The pass is over after a chunk which ``NoteChanges/isComplete`` and after the first error, which is rethrown, so the stream built on this finishes either way.
+    /// The pass is over after a chunk without a ``NoteChangeSet/chunkCursor``, which is the complete one, and after the first error, which is rethrown, so the stream built on this finishes either way.
     ///
-    /// - Throws: `CancellationError` when the calling task is cancelled before the request is sent, ``RainmakerError/responseDecodingFailed(reason:)`` when the server answers with the cursor it was asked to continue from, and otherwise whatever ``Server/notes(changedSince:chunkSize:continuingAfter:)`` throws.
+    /// - Throws: `CancellationError` when the calling task is cancelled before the request is sent, ``RainmakerError/responseDecodingFailed(reason:)`` when the server answers with the cursor it was asked to continue from, and otherwise whatever ``retrieve`` throws.
     ///
-    func next() async throws -> NoteChanges? {
+    func next() async throws -> Changes? {
         guard isFinished == false else {
             return nil
         }
@@ -67,7 +54,7 @@ actor NoteChunkPass {
         try Task.checkCancellation()
 
         let sentCursor = cursor
-        let chunk = try await server.notes(changedSince: changedSince, chunkSize: chunkSize, continuingAfter: sentCursor)
+        let chunk = try await retrieve(sentCursor)
 
         guard let nextCursor = chunk.chunkCursor else {
             return chunk

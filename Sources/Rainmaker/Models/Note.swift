@@ -7,6 +7,7 @@ import Foundation
 /// A single note of the authenticated user on the server.
 ///
 /// Notes are listed through ``Server/notes()`` and, incrementally, through ``Server/notes(changedSince:)``, while a single one is retrieved by its ``id`` through ``Server/note(_:)``.
+/// A client which does not need the text of the notes lists them as ``NoteSummary`` values through ``Server/noteSummaries(changedSince:)`` instead, which carry everything but the text and the error a failure to read it would cause.
 /// Notes are created through ``Server/createNote(title:category:content:modification:isFavorite:)``, changed through ``Server/updateNote(_:title:category:content:modification:isFavorite:ifMatching:)`` and deleted through ``Server/deleteNote(_:)``. Whether the notes app which provides them is available at all can be checked in advance via the ``Notes`` capability, e.g. `try await capabilities().contains(Notes.self)`.
 ///
 /// Every note is a file in the account's notes folder, which is why ``title`` doubles as its file name and ``category`` as the folder it sits in.
@@ -177,7 +178,7 @@ public struct Note: Model, Hashable, Identifiable, CustomStringConvertible, Cust
     ///
     /// Decode a note from the server's payload.
     ///
-    /// Every field but ``path``, ``isShared`` and ``shareTypes`` is required, ``hasError`` and ``errorType`` included: the server has sent those since it first served version 1 of the API. ``Notes/minimumAPIVersion`` is enforced before a payload reaches this type, and that version sends all of them, so a missing field means a response this type cannot describe rather than an older server. The notes this library requests are also never reduced by an `exclude` parameter, and the reduced form a `pruneBefore` request produces is recognized before decoding is attempted.
+    /// Every field but ``path``, ``isShared`` and ``shareTypes`` is required, ``hasError`` and ``errorType`` included: the server has sent those since it first served version 1 of the API. ``Notes/minimumAPIVersion`` is enforced before a payload reaches this type, and that version sends all of them, so a missing field means a response this type cannot describe rather than an older server. The notes this library decodes as a note are also never reduced by an `exclude` parameter, because the listings which leave out the content decode ``NoteSummary`` instead, and the reduced form a `pruneBefore` request produces is recognized before decoding is attempted.
     ///
     /// The server sends ``path``, ``isShared`` and ``shareTypes`` as well, since long before ``Notes/minimumAPIVersion``. They are decoded only if present all the same, falling back to `nil`, `false` and no share types, so that a payload written by hand, for example in the tests of a downstream project, does not have to carry them.
     ///

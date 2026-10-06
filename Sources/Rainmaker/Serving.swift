@@ -157,6 +157,31 @@ protocol Serving: Sendable {
     func noteChunks(changedSince: Date, chunkSize: Int) -> AsyncThrowingStream<NoteChanges, Error>
 
     ///
+    /// List the notes of the authenticated user which changed since a given moment without their text, together with the identifiers of those which did not.
+    ///
+    func noteSummaries(changedSince: Date) async throws -> NoteSummaryChanges
+
+    ///
+    /// List the notes of the authenticated user which changed since a given moment without their text, unless the answer would be the same as the one a given entity tag was taken from.
+    ///
+    func noteSummaries(changedSince: Date, ifChangedFrom entityTag: String) async throws -> NoteSummaryChanges?
+
+    ///
+    /// Retrieve one chunk of the notes of the authenticated user which changed since a given moment without their text, either the first one of a pass or the one following a given cursor.
+    ///
+    func noteSummaries(changedSince: Date, chunkSize: Int, continuingAfter cursor: String?) async throws -> NoteSummaryChanges
+
+    ///
+    /// Retrieve the first chunk of the notes of the authenticated user which changed since a given moment without their text, unless the answer would be the same as the one a given entity tag was taken from.
+    ///
+    func noteSummaries(changedSince: Date, chunkSize: Int, ifChangedFrom entityTag: String) async throws -> NoteSummaryChanges?
+
+    ///
+    /// Retrieve every chunk of one pass over the notes of the authenticated user which changed since a given moment without their text, in order, as a stream.
+    ///
+    func noteSummaryChunks(changedSince: Date, chunkSize: Int) -> AsyncThrowingStream<NoteSummaryChanges, Error>
+
+    ///
     /// Retrieve a single note of the authenticated user by its identifier.
     ///
     func note(_ id: Int) async throws -> Note

@@ -170,6 +170,52 @@ import Testing
         #expect(changes.lastModified != nil)
     }
 
+    @Test("Fetch Summaries", arguments: ServerVersion.allCases)
+    func fetchSummaries(_ serverVersion: ServerVersion) async throws {
+        let server = try makeServer(serverVersion: serverVersion)
+        let changes = try await server.noteSummaries(changedSince: beforeRecording)
+
+        // The server prunes nothing, as for ``fetchEverythingChanged(_:)``, and describes every note in full but for its text, which the recorded body does not carry at all.
+        #expect(changes.changed.count == 2)
+        #expect(changes.unchanged.isEmpty)
+        #expect(changes.changed.map(\.title).sorted() == ["Pancakes", "Rainmaker"])
+
+        let uncategorized = try #require(changes.changed.first { $0.title == "Rainmaker" })
+        #expect(uncategorized.category == "")
+        #expect(uncategorized.isFavorite == false)
+        #expect(uncategorized.isReadOnly == false)
+        #expect(uncategorized.modification == Date(timeIntervalSince1970: 1_700_000_000))
+        #expect(uncategorized.entityTag.isEmpty == false)
+        #expect(uncategorized.path?.hasSuffix("/Rainmaker.md") == true)
+        #expect(uncategorized.isShared == false)
+        #expect(uncategorized.shareTypes.isEmpty)
+
+        let categorized = try #require(changes.changed.first { $0.title == "Pancakes" })
+        #expect(categorized.category == "Recipes")
+        #expect(categorized.modification == Date(timeIntervalSince1970: 1_600_000_000))
+        #expect(categorized.path?.hasSuffix("/Recipes/Pancakes.md") == true)
+
+        // The headers are read as for a listing with text, so only their presence is asserted for the reasons ``fetchEverythingChanged(_:)`` gives.
+        #expect(changes.lastModified != nil)
+        #expect(changes.entityTag?.isEmpty == false)
+        #expect(changes.isComplete)
+        #expect(changes.pendingCount == nil)
+    }
+
+    @Test("Fetch Summaries First Chunk", arguments: ServerVersion.allCases)
+    func fetchSummariesFirstChunk(_ serverVersion: ServerVersion) async throws {
+        let server = try makeServer(serverVersion: serverVersion)
+        let changes = try await server.noteSummaries(changedSince: beforeRecording, chunkSize: 1, continuingAfter: nil)
+
+        // Chunking works on summaries as on notes with their text, see ``fetchFirstChunk(_:)``.
+        #expect(changes.changed.count == 1)
+        #expect(changes.pendingCount == 1)
+        #expect(changes.unchanged.isEmpty)
+        #expect(changes.isComplete == false)
+        #expect(changes.chunkCursor?.isEmpty == false)
+        #expect(changes.lastModified != nil)
+    }
+
     @Test("Fetch Note", arguments: ServerVersion.allCases)
     func fetchNote(_ serverVersion: ServerVersion) async throws {
         let server = try makeServer(serverVersion: serverVersion)

@@ -116,6 +116,7 @@ Each fetch bypasses the local HTTP cache, and the endpoint publishes no version 
 Retrieve the notes of an account, either all of them at once or, for a client keeping its own copy, only those the server recorded a change for since a given moment.
 Such an incremental retrieval also reports the server's own moment to continue from next time as ``NoteChanges/lastModified`` and an entity tag with which ``Server/notes(changedSince:ifChangedFrom:)`` learns without a transfer that nothing changed.
 A client which must not hold every changed note at once retrieves them in chunks of a bounded size instead, one at a time or as a stream of the chunks of one pass, of which only the last one says which notes still exist.
+A client which does not need the text of the notes lists them as summaries instead, which carry everything else and spare the transfer of every note's text, in the same incremental, conditional and chunked ways.
 A single note is retrieved by its identifier, also conditionally on its entity tag, which spares the transfer of its content while it did not change.
 Notes are created, changed and deleted one at a time, and a change can be made conditional on the entity tag of the copy it is based on, so that a note changed elsewhere in the meantime is reported as ``RainmakerError/noteConflict(current:)`` together with its current state rather than overwritten.
 Whether the app providing them is installed at all is advertised through the ``Notes`` capability, which matters more here than elsewhere because the notes app is not part of a Nextcloud installation, and which also reports whether it is new enough to be usable.
@@ -132,6 +133,11 @@ An absent notes app is reported as ``RainmakerError/appUnavailable(app:)`` rathe
 - ``Server/notes(changedSince:chunkSize:continuingAfter:)``
 - ``Server/notes(changedSince:chunkSize:ifChangedFrom:)``
 - ``Server/noteChunks(changedSince:chunkSize:)``
+- ``Server/noteSummaries(changedSince:)``
+- ``Server/noteSummaries(changedSince:ifChangedFrom:)``
+- ``Server/noteSummaries(changedSince:chunkSize:continuingAfter:)``
+- ``Server/noteSummaries(changedSince:chunkSize:ifChangedFrom:)``
+- ``Server/noteSummaryChunks(changedSince:chunkSize:)``
 - ``Server/note(_:)``
 - ``Server/note(_:ifChangedFrom:)``
 - ``Server/createNote(title:category:content:modification:isFavorite:)``
@@ -146,6 +152,8 @@ An absent notes app is reported as ``RainmakerError/appUnavailable(app:)`` rathe
 - ``Server/updateNotesSettings(notesPath:fileSuffix:noteMode:showsHiddenFiles:loadsRecentNoteOnStartUp:)``
 - ``Note``
 - ``NoteChanges``
+- ``NoteSummary``
+- ``NoteSummaryChanges``
 - ``ShareType``
 - ``NotesSettings``
 - ``NoteMode``
