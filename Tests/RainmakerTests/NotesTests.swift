@@ -7,11 +7,11 @@ import RainmakerTestServerTags
 import Testing
 
 ///
-/// About listing the notes of the authenticated user.
+/// About listing the notes of the authenticated user and retrieving a single one of them.
 ///
 /// The fixtures backing this suite are recorded against a container which has the notes app installed on demand, because that app is not part of a Nextcloud installation. See ``FixtureOrchestrator/enabledApps``. The notes themselves are seeded as files in the account's notes folder by ``FixtureProvisioner``, which also stamps them with fixed modification dates so that what the server reports as `modified` is reproducible.
 ///
-/// How a request is built, how an unavailable app surfaces and how the two response shapes decode is covered by ``NotesRequestTests`` instead, which drives a mock rather than the fixture tree.
+/// How a request is built, how an unavailable app surfaces and how the two response shapes decode is covered by ``NotesRequestTests`` instead, which drives a mock rather than the fixture tree, and ``SingleNoteRequestTests`` does the same for the retrieval of a single note.
 ///
 @Suite("Notes") struct NotesTests: ServerTesting {
     ///
@@ -168,5 +168,43 @@ import Testing
         // Only the presence of the cursor and the moment is asserted, because both are canonicalized when recorded, while a recording run is handed the live values.
         #expect(changes.chunkCursor?.isEmpty == false)
         #expect(changes.lastModified != nil)
+    }
+
+    @Test("Fetch Note", arguments: ServerVersion.allCases)
+    func fetchNote(_ serverVersion: ServerVersion) async throws {
+        let server = try makeServer(serverVersion: serverVersion)
+
+        // The identifier is assigned by the server, so it is taken from the listing rather than pinned. The recorded lookup is filed under that identifier, which is why both requests are recorded together.
+        let listed = try #require(try await server.notes().first { $0.title == "Rainmaker" })
+        let note = try await server.note(listed.id)
+
+        // The lookup reports the very note the listing does, field by field, which is what lets a client refresh one note without listing all of them.
+        #expect(note == listed)
+        #expect(note.content == "# Rainmaker\n")
+        #expect(note.category == "")
+        #expect(note.modification == Date(timeIntervalSince1970: 1_700_000_000))
+        #expect(note.path?.hasSuffix("/Rainmaker.md") == true)
+        #expect(note.hasError == false)
+        #expect(note.entityTag.isEmpty == false)
+    }
+
+    @Test("Fetch Unchanged Note", arguments: ServerVersion.allCases)
+    func fetchUnchangedNote(_ serverVersion: ServerVersion) async throws {
+        let server = try makeServer(serverVersion: serverVersion)
+        let listed = try #require(try await server.notes().first { $0.title == "Rainmaker" })
+
+        // The entity tag the listing reports for a note is the one the server compares a conditional lookup against, so nothing changed in between and the server answers with not modified. When recorded, the live tag is sent and the server's real answer is captured, while a replay finds that answer by method and path alone.
+        let note = try await server.note(listed.id, ifChangedFrom: listed.entityTag)
+        #expect(note == nil)
+    }
+
+    @Test("Fetch Missing Note", arguments: ServerVersion.allCases)
+    func fetchMissingNote(_ serverVersion: ServerVersion) async throws {
+        let server = try makeServer(serverVersion: serverVersion)
+
+        // No deployment assigns an identifier this large to a baseline with two notes, so the notes app itself answers that the note does not exist, which is told apart from an absent app by the header it adds.
+        await #expect(throws: RainmakerError.notFound) {
+            _ = try await server.note(999_999_999)
+        }
     }
 }

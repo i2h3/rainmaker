@@ -157,6 +157,16 @@ protocol Serving: Sendable {
     func noteChunks(changedSince: Date, chunkSize: Int) -> AsyncThrowingStream<NoteChanges, Error>
 
     ///
+    /// Retrieve a single note of the authenticated user by its identifier.
+    ///
+    func note(_ id: Int) async throws -> Note
+
+    ///
+    /// Retrieve a single note of the authenticated user by its identifier, unless it is still the one a given entity tag was taken from.
+    ///
+    func note(_ id: Int, ifChangedFrom entityTag: String) async throws -> Note?
+
+    ///
     /// Look up the settings the notes app keeps for the authenticated user.
     ///
     func notesSettings() async throws -> NotesSettings
