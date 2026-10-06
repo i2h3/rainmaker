@@ -145,6 +145,68 @@ import Testing
         #expect(object["pendingCount"] is NSNull)
     }
 
+    @Test("Note Summary Encodes Under Its Property Names")
+    func noteSummary() throws {
+        let payload = """
+        {"id":76,"title":"New note","modified":1376753464,"category":"sub-directory","favorite":false,"readonly":false,"internalPath":"/Notes/sub-directory/New note.md","shareTypes":[0,3],"isShared":true,"error":false,"errorType":"","etag":"be284e00488c61c101ee28309d235e0b"}
+        """
+
+        let keys = try encodedKeys(of: NoteSummary.self, from: payload)
+
+        // Neither the server's naming nor the error fields, which a listing without content always sends as no error, may survive a round trip.
+        #expect(keys.isDisjoint(with: ["etag", "readonly", "favorite", "modified", "internalPath", "error", "hasError", "errorType", "content"]))
+        #expect(keys == ["id", "entityTag", "isReadOnly", "title", "category", "isFavorite", "modification", "path", "isShared", "shareTypes"])
+    }
+
+    @Test("Note Summary Without Path And Shares Decodes With Defaults")
+    func noteSummaryWithoutPathAndShares() throws {
+        let payload = """
+        {"id":76,"etag":"be284e00488c61c101ee28309d235e0b","readonly":false,"modified":1376753464,"title":"New note","category":"","favorite":false}
+        """
+
+        let summary = try JSONDecoder().decode(NoteSummary.self, from: Data(payload.utf8))
+
+        // A payload written by hand may leave these out, as may one without the error fields, which a summary does not read.
+        #expect(summary.path == nil)
+        #expect(summary.isShared == false)
+        #expect(summary.shareTypes.isEmpty)
+        #expect(summary.modification == Date(timeIntervalSince1970: 1_376_753_464))
+    }
+
+    @Test("Note Summary Changes Encode Every Property And No Derived One")
+    func noteSummaryChanges() throws {
+        let summary = NoteSummary(id: 7, entityTag: "9cf1", title: "Changed", modification: Date(timeIntervalSince1970: 1_700_000_000))
+        let changes = NoteSummaryChanges(changed: [summary], unchanged: [8], lastModified: Date(timeIntervalSince1970: 1_700_000_000), entityTag: "c649e503", chunkCursor: "1700000000-1699999999-7", pendingCount: 3)
+
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .secondsSince1970
+        let data = try encoder.encode(changes)
+        let object = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let changed = try #require(object["changed"] as? [[String: Any]])
+
+        // The same keys as those of note changes, with completeness derived from the cursor alone.
+        #expect(Set(object.keys) == ["changed", "unchanged", "lastModified", "entityTag", "chunkCursor", "pendingCount"])
+        #expect(changed.first?["entityTag"] as? String == "9cf1")
+        #expect(changed.first?["content"] == nil)
+        #expect(object["unchanged"] as? [Int] == [8])
+        #expect(object["lastModified"] as? Double == 1_700_000_000)
+        #expect(object["chunkCursor"] as? String == "1700000000-1699999999-7")
+        #expect(object["pendingCount"] as? Int == 3)
+    }
+
+    @Test("Complete Note Summary Changes Encode Their Absent Header Values As Null")
+    func completeNoteSummaryChanges() throws {
+        let changes = NoteSummaryChanges(changed: [], unchanged: [8])
+        let data = try JSONEncoder().encode(changes)
+        let object = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+
+        #expect(changes.isComplete)
+        #expect(object["lastModified"] is NSNull)
+        #expect(object["entityTag"] is NSNull)
+        #expect(object["chunkCursor"] is NSNull)
+        #expect(object["pendingCount"] is NSNull)
+    }
+
     @Test("Collective Encodes Under Its Property Names")
     func collective() throws {
         let payload = """

@@ -7,6 +7,7 @@ import Foundation
 /// The notes which changed since a given moment, together with the identifiers of those which did not, and what the server said about the response itself.
 ///
 /// This is what ``Server/notes(changedSince:)`` and ``Server/notes(changedSince:ifChangedFrom:)`` return, and what each chunk of ``Server/notes(changedSince:chunkSize:continuingAfter:)``, ``Server/notes(changedSince:chunkSize:ifChangedFrom:)`` and ``Server/noteChunks(changedSince:chunkSize:)`` is. The server answers such a request with the full content of every note it recorded a change for since the given moment and reduces every other note to its identifier alone, which is why the two arrive separately here. Both together are the complete set of notes the account has, so a note whose identifier appears in neither was deleted on the server.
+/// The listings which ask the server to leave out the text of every note, such as ``Server/noteSummaries(changedSince:)``, return the counterpart ``NoteSummaryChanges`` instead, which holds ``NoteSummary`` values in place of notes.
 ///
 /// The moment to pass on the next call is ``lastModified``, which is the server's own clock rather than the device's. The first synchronization passes `Date.distantPast` instead, which prunes nothing and therefore also yields a ``lastModified`` to continue from:
 ///

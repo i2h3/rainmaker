@@ -13,7 +13,7 @@ public extension Server {
     ///
     /// An app which is installed but older than ``Notes/minimumAPIVersion`` is reported separately, as ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)``. That requirement is checked on every response, because the notes API advertises the versions it serves in a header of its own, and it can be checked in advance through ``Notes/isSupported``.
     ///
-    /// The whole collection is retrieved in a single request, because the endpoint returns everything at once unless a chunk size is requested, which this deliberately does not do. Use ``notes(changedSince:)`` to retrieve only what changed since an earlier call, and ``noteChunks(changedSince:chunkSize:)`` to retrieve it in chunks of a bounded size.
+    /// The whole collection is retrieved in a single request, because the endpoint returns everything at once unless a chunk size is requested, which this deliberately does not do. Use ``notes(changedSince:)`` to retrieve only what changed since an earlier call, ``noteChunks(changedSince:chunkSize:)`` to retrieve it in chunks of a bounded size, and ``noteSummaries(changedSince:)`` to leave out the text of every note.
     ///
     /// > Warning: Every note including its full content is fetched and held in memory at once, so what this costs grows with the size of the account's notes.
     ///
@@ -69,10 +69,7 @@ public extension Server {
         try requireCredentials()
         logger.debug("Fetching notes changed since \(changedSince)...")
 
-        let request = try makeNoteChangesRequest(changedSince: changedSince)
-        let (data, response) = try await notesAPIResponse(for: request)
-
-        return try makeNoteChanges(from: data, response: response)
+        return try await retrieveNoteChanges(changedSince: changedSince)
     }
 
     ///
@@ -103,16 +100,7 @@ public extension Server {
         try requireCredentials()
         logger.debug("Fetching notes changed since \(changedSince) unless unchanged...")
 
-        // The server only recognizes the tag when the header repeats it quoted and exactly as it computed it, so a weakness marker a proxy may have added is dropped before quoting.
-        let request = try makeNoteChangesRequest(changedSince: changedSince, headerFields: ["If-None-Match": entityTag.unquotedEntityTag.quotedEntityTag])
-        let (data, response) = try await notesAPIResponse(for: request, allowsNotModified: true)
-
-        guard response.status != .notModified else {
-            logger.debug("Notes did not change.")
-            return nil
-        }
-
-        return try makeNoteChanges(from: data, response: response)
+        return try await retrieveNoteChanges(changedSince: changedSince, ifChangedFrom: entityTag)
     }
 
     ///
@@ -150,10 +138,7 @@ public extension Server {
         try requireCredentials()
         logger.debug("Fetching a chunk of notes changed since \(changedSince)...")
 
-        let request = try makeNoteChangesRequest(changedSince: changedSince, chunkSize: chunkSize, chunkCursor: cursor)
-        let (data, response) = try await notesAPIResponse(for: request)
-
-        return try makeNoteChanges(from: data, response: response)
+        return try await retrieveNoteChanges(changedSince: changedSince, chunkSize: chunkSize, continuingAfter: cursor)
     }
 
     ///
@@ -187,15 +172,7 @@ public extension Server {
         try requireCredentials()
         logger.debug("Fetching the first chunk of notes changed since \(changedSince) unless unchanged...")
 
-        let request = try makeNoteChangesRequest(changedSince: changedSince, chunkSize: chunkSize, headerFields: ["If-None-Match": entityTag.unquotedEntityTag.quotedEntityTag])
-        let (data, response) = try await notesAPIResponse(for: request, allowsNotModified: true)
-
-        guard response.status != .notModified else {
-            logger.debug("Notes did not change.")
-            return nil
-        }
-
-        return try makeNoteChanges(from: data, response: response)
+        return try await retrieveNoteChanges(changedSince: changedSince, chunkSize: chunkSize, ifChangedFrom: entityTag)
     }
 
     ///
@@ -237,9 +214,170 @@ public extension Server {
     func noteChunks(changedSince: Date, chunkSize: Int) -> AsyncThrowingStream<NoteChanges, Error> {
         logger.debug("Starting a chunked pass over notes changed since \(changedSince)...")
 
-        let pass = NoteChunkPass(server: self, changedSince: changedSince, chunkSize: chunkSize)
+        let pass = NoteChunkPass { cursor in
+            try await self.notes(changedSince: changedSince, chunkSize: chunkSize, continuingAfter: cursor)
+        }
 
         // Unfolding rather than producing from a task of its own makes each request wait until the consumer asks for the next chunk and run within the consumer's task, which is what bounds the memory to one chunk and lets cancelling that task cancel the request.
+        return AsyncThrowingStream {
+            try await pass.next()
+        }
+    }
+
+    ///
+    /// List the notes of the authenticated user which changed since a given moment like ``notes(changedSince:)``, but without the text of any of them.
+    ///
+    /// The request asks the server to leave out the content of every note it sends in full, which it does through its `exclude` parameter, so the result describes each changed note by everything else, as a ``NoteSummary``, and reduces every other note to its identifier as ``notes(changedSince:)`` does. That suits a client which never needs the text, for example one which only lists titles, or one which deliberately keeps no copy of a note's text and therefore must not download it either. The text of a single note can still be retrieved when it is needed after all, through ``note(_:)``.
+    ///
+    /// The server decides what changed exactly as for ``notes(changedSince:)``, and its record of a change covers the text as well, so a note whose text alone changed is listed as changed with a new ``NoteSummary/entityTag``. Everything about the moment to pass, about the result's ``NoteSummaryChanges/lastModified`` and about deriving deletions holds as described there and for ``NoteSummaryChanges``.
+    ///
+    /// The server only notices that it cannot read a note while reading its text, which this asks it to skip, so a summary never reports such a failure and has no counterpart to ``Note/hasError``. A note which cannot be read is therefore listed like any other.
+    ///
+    /// Every release of the notes app serving ``Notes/minimumAPIVersion`` understands the parameter, and the same requirement and the same failure modes as ``notes(changedSince:)`` apply.
+    ///
+    /// - Parameters:
+    ///     - changedSince: The moment to retrieve changes since, usually the ``NoteSummaryChanges/lastModified`` of the previous call, and measured against the server's own record of when it last saw a note change rather than against ``NoteSummary/modification``.
+    ///
+    /// - Returns: The summaries of the changed notes, the identifiers of the unchanged ones and what the response headers say about them.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
+    ///     - ``RainmakerError/appUnavailable(app:)`` when the notes app is not available on the server.
+    ///     - ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)`` when it is available but older than ``Notes/minimumAPIVersion``.
+    ///     - ``RainmakerError/responseDecodingFailed(reason:)`` when a success response does not carry a list of notes.
+    ///     - Any other error that might occur during retrieval.
+    ///
+    func noteSummaries(changedSince: Date) async throws -> NoteSummaryChanges {
+        try requireCredentials()
+        logger.debug("Fetching summaries of notes changed since \(changedSince)...")
+
+        return try await retrieveNoteChanges(changedSince: changedSince)
+    }
+
+    ///
+    /// List the notes of the authenticated user which changed since a given moment without their text like ``noteSummaries(changedSince:)``, unless the answer would be the same as the one a given entity tag was taken from.
+    ///
+    /// This is to ``noteSummaries(changedSince:)`` what ``notes(changedSince:ifChangedFrom:)`` is to ``notes(changedSince:)``: the request carries the entity tag in its `If-None-Match` header, and the server answers with an empty `304 Not Modified`, which this returns as `nil`, when it would send exactly what it sent when it handed out that tag.
+    ///
+    /// Pass the ``NoteSummaryChanges/entityTag`` and the ``NoteSummaryChanges/lastModified`` of the previous result. The server computes the tag from the body it would send, which holds no text here, so a tag taken from a listing with text, such as ``NoteChanges/entityTag``, only matches while neither response sends a note in full. Everything else about the tag, about `nil` and about what to keep for the next call is as described for ``notes(changedSince:ifChangedFrom:)``.
+    ///
+    /// The same requirement and the same failure modes as ``noteSummaries(changedSince:)`` apply.
+    ///
+    /// - Parameters:
+    ///     - changedSince: The moment to retrieve changes since, usually the ``NoteSummaryChanges/lastModified`` of the previous result.
+    ///     - entityTag: The ``NoteSummaryChanges/entityTag`` of the previous result.
+    ///
+    /// - Returns: The summaries of the changed notes, the identifiers of the unchanged ones and what the response headers say about them, or `nil` when the server answered that nothing changed.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
+    ///     - ``RainmakerError/appUnavailable(app:)`` when the notes app is not available on the server.
+    ///     - ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)`` when it is available but older than ``Notes/minimumAPIVersion``.
+    ///     - ``RainmakerError/responseDecodingFailed(reason:)`` when a success response does not carry a list of notes.
+    ///     - Any other error that might occur during retrieval.
+    ///
+    func noteSummaries(changedSince: Date, ifChangedFrom entityTag: String) async throws -> NoteSummaryChanges? {
+        try requireCredentials()
+        logger.debug("Fetching summaries of notes changed since \(changedSince) unless unchanged...")
+
+        return try await retrieveNoteChanges(changedSince: changedSince, ifChangedFrom: entityTag)
+    }
+
+    ///
+    /// Retrieve one chunk of the notes of the authenticated user which changed since a given moment without their text, either the first one of a pass or the one following a given cursor.
+    ///
+    /// This is the chunked counterpart of ``noteSummaries(changedSince:)`` and works exactly as ``notes(changedSince:chunkSize:continuingAfter:)`` does, but for the text it asks the server to leave out: every chunk but the last carries a ``NoteSummaryChanges/chunkCursor`` to pass as `cursor` for the next one, and only the last chunk, which ``NoteSummaryChanges/isComplete``, lists the identifiers deletions may be derived from.
+    ///
+    /// ``noteSummaryChunks(changedSince:chunkSize:)`` performs a whole pass with this call, as a stream of chunks.
+    ///
+    /// The same requirement and the same failure modes as ``noteSummaries(changedSince:)`` apply.
+    ///
+    /// - Parameters:
+    ///     - changedSince: The moment to retrieve changes since, usually the ``NoteSummaryChanges/lastModified`` of the previous pass, and the same for every chunk of one pass.
+    ///     - chunkSize: The number of notes to send in full at most, which is raised to one when smaller, because the server takes zero as a request not to split the response at all.
+    ///     - cursor: The ``NoteSummaryChanges/chunkCursor`` of the previous chunk of the same pass, or `nil` to retrieve the first chunk of a new pass. Defaults to `nil`.
+    ///
+    /// - Returns: The summaries of the notes of this chunk, the identifiers of the unchanged notes when it is the last chunk, and what the response headers say about them.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
+    ///     - ``RainmakerError/appUnavailable(app:)`` when the notes app is not available on the server.
+    ///     - ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)`` when it is available but older than ``Notes/minimumAPIVersion``.
+    ///     - ``RainmakerError/responseDecodingFailed(reason:)`` when a success response does not carry a list of notes.
+    ///     - Any other error that might occur during retrieval.
+    ///
+    func noteSummaries(changedSince: Date, chunkSize: Int, continuingAfter cursor: String? = nil) async throws -> NoteSummaryChanges {
+        try requireCredentials()
+        logger.debug("Fetching a chunk of summaries of notes changed since \(changedSince)...")
+
+        return try await retrieveNoteChanges(changedSince: changedSince, chunkSize: chunkSize, continuingAfter: cursor)
+    }
+
+    ///
+    /// Retrieve the first chunk of the notes of the authenticated user which changed since a given moment without their text like ``noteSummaries(changedSince:chunkSize:continuingAfter:)``, unless the answer would be the same as the one a given entity tag was taken from.
+    ///
+    /// This is to a chunked pass over summaries what ``noteSummaries(changedSince:ifChangedFrom:)`` is to a single response, and it works exactly as ``notes(changedSince:chunkSize:ifChangedFrom:)`` does: pass the ``NoteSummaryChanges/entityTag`` and the ``NoteSummaryChanges/lastModified`` of the last chunk of the previous pass, and continue with ``noteSummaries(changedSince:chunkSize:continuingAfter:)`` when a chunk arrives which is not the last one.
+    ///
+    /// The same requirement and the same failure modes as ``noteSummaries(changedSince:chunkSize:continuingAfter:)`` apply.
+    ///
+    /// - Parameters:
+    ///     - changedSince: The moment to retrieve changes since, usually the ``NoteSummaryChanges/lastModified`` of the previous pass.
+    ///     - chunkSize: The number of notes to send in full at most, which is raised to one when smaller.
+    ///     - entityTag: The ``NoteSummaryChanges/entityTag`` of the last chunk of the previous pass.
+    ///
+    /// - Returns: The first chunk of a new pass, or `nil` when the server answered that nothing changed.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
+    ///     - ``RainmakerError/appUnavailable(app:)`` when the notes app is not available on the server.
+    ///     - ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)`` when it is available but older than ``Notes/minimumAPIVersion``.
+    ///     - ``RainmakerError/responseDecodingFailed(reason:)`` when a success response does not carry a list of notes.
+    ///     - Any other error that might occur during retrieval.
+    ///
+    func noteSummaries(changedSince: Date, chunkSize: Int, ifChangedFrom entityTag: String) async throws -> NoteSummaryChanges? {
+        try requireCredentials()
+        logger.debug("Fetching the first chunk of summaries of notes changed since \(changedSince) unless unchanged...")
+
+        return try await retrieveNoteChanges(changedSince: changedSince, chunkSize: chunkSize, ifChangedFrom: entityTag)
+    }
+
+    ///
+    /// Retrieve every chunk of one pass over the notes of the authenticated user which changed since a given moment without their text, in order, as a stream.
+    ///
+    /// Each element is the result of one call to ``noteSummaries(changedSince:chunkSize:continuingAfter:)``, the first without a cursor and every further one with the ``NoteSummaryChanges/chunkCursor`` of the element before, and the stream finishes after the element which ``NoteSummaryChanges/isComplete``. It behaves exactly as ``noteChunks(changedSince:chunkSize:)`` does in every other respect: a chunk is only requested when the consumer asks for the next element and within the consumer's task, so cancelling that task cancels the request in flight, a cancellation between two chunks ends the stream without requesting another one, and the stream finishes by throwing the first error a request throws, including ``RainmakerError/credentialsRequired`` before anything is sent when no credentials are set.
+    ///
+    /// ```swift
+    /// var lastChunk: NoteSummaryChanges?
+    ///
+    /// for try await chunk in server.noteSummaryChunks(changedSince: store.lastModified ?? .distantPast, chunkSize: 200) {
+    ///     store.upsert(chunk.changed)
+    ///     lastChunk = chunk
+    /// }
+    ///
+    /// // Only the last chunk lists every note the account has, so deletions are derived from it alone.
+    /// guard let lastChunk, lastChunk.isComplete else {
+    ///     return
+    /// }
+    ///
+    /// store.deleteAll(exceptFor: lastChunk.changed.map(\.id) + lastChunk.unchanged)
+    /// store.lastModified = lastChunk.lastModified
+    /// store.entityTag = lastChunk.entityTag
+    /// ```
+    ///
+    /// - Parameters:
+    ///     - changedSince: The moment to retrieve changes since, usually the ``NoteSummaryChanges/lastModified`` of the previous pass.
+    ///     - chunkSize: The number of notes to send in full at most per chunk, which is raised to one when smaller.
+    ///
+    /// - Returns: A stream of the chunks of one pass, the last of which is complete.
+    ///
+    func noteSummaryChunks(changedSince: Date, chunkSize: Int) -> AsyncThrowingStream<NoteSummaryChanges, Error> {
+        logger.debug("Starting a chunked pass over summaries of notes changed since \(changedSince)...")
+
+        let pass = NoteChunkPass { cursor in
+            try await self.noteSummaries(changedSince: changedSince, chunkSize: chunkSize, continuingAfter: cursor)
+        }
+
+        // Unfolding rather than producing from a task of its own makes each request wait until the consumer asks for the next chunk and run within the consumer's task, as for the chunks of notes with their text.
         return AsyncThrowingStream {
             try await pass.next()
         }
@@ -974,20 +1112,71 @@ extension Server {
     }
 
     ///
-    /// Build the request ``notes(changedSince:)``, ``notes(changedSince:ifChangedFrom:)`` and their chunked counterparts send for the notes which changed since a given moment.
+    /// Retrieve the notes or the summaries of the notes which changed since a given moment, in a single response or as one chunk of a pass, which every unconditional listing of notes and of summaries ends in.
+    ///
+    /// Whether the content of the notes is left out follows from the ``NoteChangeSet`` the caller expects, see ``NoteChangeSet/excludesContent``, so ``notes(changedSince:)`` and ``noteSummaries(changedSince:)`` as well as their chunked counterparts differ in nothing but their result type. The caller checks for credentials first.
+    ///
+    /// - Parameters:
+    ///     - changedSince: The moment to retrieve changes since.
+    ///     - chunkSize: The number of notes to send in full at most, or `nil` to have the server answer in a single response.
+    ///     - cursor: The cursor of the previous chunk of the same pass, or `nil` for none.
+    ///
+    /// - Returns: The listing read from the response.
+    ///
+    private func retrieveNoteChanges<Changes: NoteChangeSet>(changedSince: Date, chunkSize: Int? = nil, continuingAfter cursor: String? = nil) async throws -> Changes {
+        let request = try makeNoteChangesRequest(changedSince: changedSince, excludesContent: Changes.excludesContent, chunkSize: chunkSize, chunkCursor: cursor)
+        let (data, response) = try await notesAPIResponse(for: request)
+
+        return try makeNoteChanges(from: data, response: response)
+    }
+
+    ///
+    /// Retrieve the notes or the summaries of the notes which changed since a given moment, in a single response or as the first chunk of a pass, unless the answer would be the same as the one a given entity tag was taken from, which every conditional listing of notes and of summaries ends in.
+    ///
+    /// The tag is sent in `If-None-Match`, and a `304 Not Modified` is returned as `nil`. Whether the content of the notes is left out follows from the ``NoteChangeSet`` the caller expects, as with ``retrieveNoteChanges(changedSince:chunkSize:continuingAfter:)``. The caller checks for credentials first.
+    ///
+    /// - Parameters:
+    ///     - changedSince: The moment to retrieve changes since.
+    ///     - chunkSize: The number of notes to send in full at most, or `nil` to have the server answer in a single response.
+    ///     - entityTag: The entity tag of the previous response, with or without quotes and a `W/` prefix.
+    ///
+    /// - Returns: The listing read from the response, or `nil` when the server answered that nothing changed.
+    ///
+    private func retrieveNoteChanges<Changes: NoteChangeSet>(changedSince: Date, chunkSize: Int? = nil, ifChangedFrom entityTag: String) async throws -> Changes? {
+        // The server only recognizes the tag when the header repeats it quoted and exactly as it computed it, so a weakness marker a proxy may have added is dropped before quoting.
+        let request = try makeNoteChangesRequest(changedSince: changedSince, excludesContent: Changes.excludesContent, chunkSize: chunkSize, headerFields: ["If-None-Match": entityTag.unquotedEntityTag.quotedEntityTag])
+        let (data, response) = try await notesAPIResponse(for: request, allowsNotModified: true)
+
+        guard response.status != .notModified else {
+            logger.debug("Notes did not change.")
+            return nil
+        }
+
+        return try makeNoteChanges(from: data, response: response)
+    }
+
+    ///
+    /// Build the request ``notes(changedSince:)``, ``noteSummaries(changedSince:)``, their conditional and their chunked counterparts send for the notes which changed since a given moment.
     ///
     /// The `category` parameter the server also accepts is never sent, because it narrows the identifiers of the notes which were not sent in full as well, which would make every note outside the category look deleted.
+    /// When the content is excluded, the `exclude` parameter names nothing but `content`. The title in particular is never excluded, because its presence is what tells a note sent in full from one reduced to its identifier, see `NoteEntry`.
     ///
     /// - Parameters:
     ///     - changedSince: The moment to retrieve changes since, sent as the `pruneBefore` parameter in whole seconds since the Unix epoch.
+    ///     - excludesContent: Whether to ask the server to leave out the content of the notes it sends in full, sent as the `exclude` parameter with the value `content`, which is what ``NoteChangeSet/excludesContent`` of the expected result says.
     ///     - chunkSize: The number of notes to send in full at most, sent as the `chunkSize` parameter after raising it to at least one, or `nil` to have the server answer in a single response.
     ///     - chunkCursor: The cursor to continue a chunked retrieval from, sent as the `chunkCursor` parameter, or `nil` for none.
     ///     - headerFields: Additional header fields to set, such as `If-None-Match`.
     ///
-    private func makeNoteChangesRequest(changedSince: Date, chunkSize: Int? = nil, chunkCursor: String? = nil, headerFields: [String: String] = [:]) throws -> URLRequest {
+    private func makeNoteChangesRequest(changedSince: Date, excludesContent: Bool, chunkSize: Int? = nil, chunkCursor: String? = nil, headerFields: [String: String] = [:]) throws -> URLRequest {
         // A moment at or before the Unix epoch has no positive number of seconds to express it, and pruning before it would exclude nothing anyway, so the server is asked not to prune at all.
         let pruneBefore = changedSince.wholeSecondsSince1970 ?? 0
         var queryItems = [URLQueryItem(name: "pruneBefore", value: String(pruneBefore))]
+
+        // Leaving out the content also spares the server reading it for the response, which is why it then cannot notice and report a note it is unable to read.
+        if excludesContent {
+            queryItems.append(URLQueryItem(name: "exclude", value: "content"))
+        }
 
         // The server takes a chunk size of zero as a request not to split the response, so a caller asking for chunks always gets them, with at least one note per chunk.
         if let chunkSize {
@@ -1002,24 +1191,24 @@ extension Server {
     }
 
     ///
-    /// Read a successful response to a request built by ``makeNoteChangesRequest(changedSince:chunkSize:chunkCursor:headerFields:)`` into ``NoteChanges``.
+    /// Read a successful response to a request built by ``makeNoteChangesRequest(changedSince:excludesContent:chunkSize:chunkCursor:headerFields:)`` into ``NoteChanges`` or ``NoteSummaryChanges``, whichever the caller expects.
     ///
-    /// The body is split into the notes sent in full and the identifiers of those sent as identifiers alone, see `NoteEntry`, while the headers supply ``NoteChanges/lastModified``, ``NoteChanges/entityTag``, ``NoteChanges/chunkCursor`` and ``NoteChanges/pendingCount``.
+    /// The body is split into the notes sent in full, decoded as the ``NoteChangeSet/Item`` of the expected result, and the identifiers of those sent as identifiers alone, see `NoteEntry`, while the headers supply the moment, the entity tag, the chunk cursor and the pending count, such as ``NoteChanges/lastModified``, ``NoteChanges/entityTag``, ``NoteChanges/chunkCursor`` and ``NoteChanges/pendingCount``.
     /// A header which is absent or cannot be read leaves its value `nil` rather than failing, because the notes themselves are what the caller cannot do without.
     ///
     /// - Parameters:
     ///     - data: The response body.
     ///     - response: The response, whose headers are read.
     ///
-    private func makeNoteChanges(from data: Data, response: HTTPURLResponse) throws -> NoteChanges {
-        let entries = try decodeNotesAPIPayload([NoteEntry].self, from: data, describing: "the notes")
+    private func makeNoteChanges<Changes: NoteChangeSet>(from data: Data, response: HTTPURLResponse) throws -> Changes {
+        let entries = try decodeNotesAPIPayload([NoteEntry<Changes.Item>].self, from: data, describing: "the notes")
 
-        var changed = [Note]()
+        var changed = [Changes.Item]()
         var unchanged = [Int]()
 
         for entry in entries {
             switch entry {
-                case let .changed(note): changed.append(note)
+                case let .changed(item): changed.append(item)
                 case let .unchanged(id): unchanged.append(id)
             }
         }
@@ -1029,7 +1218,7 @@ extension Server {
         let chunkCursor = response.value(forHTTPHeaderField: "X-Notes-Chunk-Cursor").flatMap { $0.isEmpty ? nil : $0 }
         let pendingCount = response.value(forHTTPHeaderField: "X-Notes-Chunk-Pending").flatMap { Int($0.trimmingCharacters(in: .whitespaces)) }
 
-        return NoteChanges(changed: changed, unchanged: unchanged, lastModified: lastModified, entityTag: entityTag, chunkCursor: chunkCursor, pendingCount: pendingCount)
+        return Changes(changed: changed, unchanged: unchanged, lastModified: lastModified, entityTag: entityTag, chunkCursor: chunkCursor, pendingCount: pendingCount)
     }
 
     ///
