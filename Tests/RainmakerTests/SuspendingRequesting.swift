@@ -7,6 +7,8 @@ import Foundation
 ///
 /// A ``Requesting`` test double which answers a given number of requests through a ``MockRequesting`` and keeps every request after those in flight until the task which sent it is cancelled.
 ///
+/// Data requests and uploads count alike, while downloads are always answered.
+///
 /// A ``MockRequesting`` answers synchronously, so it cannot prove that cancelling a task cancels the request that task is waiting for. This double can: a suspended request ends as a `URLSession` data task does when its task is cancelled, by throwing `URLError.cancelled`, and a request whose task is never cancelled never ends.
 ///
 final class SuspendingRequesting: Requesting, @unchecked Sendable {
@@ -51,16 +53,56 @@ final class SuspendingRequesting: Requesting, @unchecked Sendable {
         self.answering = answering
     }
 
+    ///
+    /// The local files the uploads received so far were to be sent from, the suspended ones included, which a test checks to have been removed once an upload was cancelled.
+    ///
+    private let receivedUploadSources = LockedValue([URL]())
+
+    ///
+    /// The local files the uploads received so far were to be sent from, in order, the suspended ones included.
+    ///
+    var uploadSources: [URL] {
+        receivedUploadSources.get()
+    }
+
     func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+        guard receive() else {
+            return try await answering.data(for: request)
+        }
+
+        try await suspend()
+    }
+
+    func download(for request: URLRequest, delegate: (any URLSessionTaskDelegate)?) async throws -> (URL, URLResponse) {
+        try await answering.download(for: request, delegate: delegate)
+    }
+
+    func upload(for request: URLRequest, fromFile fileURL: URL, delegate: (any URLSessionTaskDelegate)?) async throws -> (Data, URLResponse) {
+        receivedUploadSources.withValue { $0.append(fileURL) }
+
+        guard receive() else {
+            return try await answering.upload(for: request, fromFile: fileURL, delegate: delegate)
+        }
+
+        try await suspend()
+    }
+
+    ///
+    /// Count a received request and tell whether it is one to suspend rather than to answer.
+    ///
+    private func receive() -> Bool {
         let index = counts.withValue { counts in
             counts.received += 1
             return counts.received
         }
 
-        guard index > answeredCount else {
-            return try await answering.data(for: request)
-        }
+        return index > answeredCount
+    }
 
+    ///
+    /// Keep the calling request in flight until its task is cancelled, then end it as a `URLSession` task ends, by throwing `URLError.cancelled`.
+    ///
+    private func suspend() async throws -> Never {
         counts.withValue { $0.suspended += 1 }
 
         defer {
@@ -75,13 +117,5 @@ final class SuspendingRequesting: Requesting, @unchecked Sendable {
         }
 
         throw URLError(.timedOut)
-    }
-
-    func download(for request: URLRequest, delegate: (any URLSessionTaskDelegate)?) async throws -> (URL, URLResponse) {
-        try await answering.download(for: request, delegate: delegate)
-    }
-
-    func upload(for request: URLRequest, fromFile fileURL: URL, delegate: (any URLSessionTaskDelegate)?) async throws -> (Data, URLResponse) {
-        try await answering.upload(for: request, fromFile: fileURL, delegate: delegate)
     }
 }

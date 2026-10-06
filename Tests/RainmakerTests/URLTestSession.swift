@@ -165,8 +165,20 @@ public actor URLTestSession: Requesting {
             throw URLTestSessionError.missingValue
         }
 
-        // The server response body to an upload carries no payload relevant to the client, so only the status from the headers file is replayed.
-        return (Data(), httpResponse)
+        // Most uploads, such as those over WebDAV, are answered without a body, so their fixtures have none and an empty body is replayed. An upload which is answered with a payload, such as an attachment of a note, has its body recorded under the extension its `Accept` header maps to, see ``URLRecordingSession/upload(for:fromFile:delegate:)``.
+        guard let acceptedType = request.allHTTPHeaderFields?["Accept"], let bodyFileExtension = try? FixtureLocator.bodyExtension(forAcceptHeader: acceptedType) else {
+            return (Data(), httpResponse)
+        }
+
+        let bodyFile = locator.bodyFile(in: requestResources, pathExtension: bodyFileExtension)
+
+        guard FileManager.default.fileExists(atPath: bodyFile.percentEncodedPath) else {
+            return (Data(), httpResponse)
+        }
+
+        logger.debug("Assuming body file: \(bodyFile.percentEncodedPath)")
+
+        return try (readDataFromPercentEncodedPath(at: bodyFile), httpResponse)
     }
 
     ///

@@ -182,6 +182,31 @@ protocol Serving: Sendable {
     func deleteNote(_ id: Int) async throws
 
     ///
+    /// Retrieve a file a note refers to, such as an image embedded into it, into memory.
+    ///
+    func attachment(at path: String, ofNote noteId: Int) async throws -> NoteAttachment
+
+    ///
+    /// Retrieve a file a note refers to, such as an image embedded into it, into a local file.
+    ///
+    func downloadAttachment(at path: String, ofNote noteId: Int, to destination: URL, force: Bool) async throws -> NoteAttachmentFile
+
+    ///
+    /// Attach a local file to a note of the authenticated user and return the path the server stored it at.
+    ///
+    func addAttachment(_ source: URL, toNote noteId: Int, fileName: String?) async throws -> String
+
+    ///
+    /// Attach the given bytes as a file to a note of the authenticated user and return the path the server stored it at.
+    ///
+    func addAttachment(_ data: Data, toNote noteId: Int, fileName: String) async throws -> String
+
+    ///
+    /// Delete a file attached to a note of the authenticated user.
+    ///
+    func deleteAttachment(at path: String, ofNote noteId: Int) async throws
+
+    ///
     /// Look up the settings the notes app keeps for the authenticated user.
     ///
     func notesSettings() async throws -> NotesSettings

@@ -63,6 +63,24 @@ import Testing
         #expect(components.queryItems == [URLQueryItem(name: "pruneBefore", value: "1700000000")])
     }
 
+    @Test("App Request Encodes Reserved Characters In Query Values")
+    func appRequestEncodesReservedCharacters() throws {
+        let server = makeServer()
+        let value = "a+b c&d=e#f/Ä?.png"
+        let request = try server.makeAppRequest(for: "notes/api/v1.4/attachment/7", method: .get, queryItems: [URLQueryItem(name: "path", value: value)])
+        let url = try #require(request.url)
+        let components = try #require(URLComponents(url: url, resolvingAgainstBaseURL: false))
+
+        // `queryItems` alone leaves `+` as it is, which the server decodes as a space, so `a+b` would arrive as `a b`.
+        var reference = URLComponents()
+        reference.queryItems = [URLQueryItem(name: "path", value: value)]
+        #expect(reference.percentEncodedQuery?.contains("a+b") == true)
+
+        // The factory encodes it, as well as the delimiters `&`, `=` and `#`, while leaving `/` and `?` readable.
+        #expect(components.percentEncodedQuery == "path=a%2Bb%20c%26d%3De%23f/%C3%84?.png")
+        #expect(components.queryItems == [URLQueryItem(name: "path", value: value)])
+    }
+
     @Test("App Request Without Query Items Is Unchanged")
     func appRequestWithoutQueryItems() throws {
         let server = makeServer()
@@ -125,6 +143,18 @@ import Testing
         #expect(headers?["OCS-APIRequest"] == "true")
         #expect(headers?["Accept"] == "application/json")
         #expect(headers?["Authorization"] == expectedBasicAuthorization)
+    }
+
+    @Test("OCS Request Encodes Reserved Characters In Query Values")
+    func ocsRequestEncodesReservedCharacters() throws {
+        let server = makeServer()
+        let request = try server.makeOCSRequest(for: "apps/activity/api/v2/activity/all", method: .get, queryItems: [URLQueryItem(name: "object_type", value: "a+b&c=d"), URLQueryItem(name: "limit", value: "50")])
+        let url = try #require(request.url)
+        let components = try #require(URLComponents(url: url, resolvingAgainstBaseURL: false))
+
+        // Plain values read as before, while `+`, `&` and `=` within a value cannot be mistaken for a space or for delimiters.
+        #expect(components.percentEncodedQuery == "object_type=a%2Bb%26c%3Dd&limit=50")
+        #expect(components.queryItems == [URLQueryItem(name: "object_type", value: "a+b&c=d"), URLQueryItem(name: "limit", value: "50")])
     }
 
     @Test("OCS Request Without Query Items Is Unchanged")
