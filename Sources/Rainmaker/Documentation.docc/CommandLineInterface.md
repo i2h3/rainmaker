@@ -34,7 +34,7 @@ SUBCOMMANDS:
   poll                    Poll the status of a previously initiated login flow.
   trash                   Manage the server trash bin.
   upload                  Upload a file or directory to a folder on the server.
-  watch                   Observe server-side changes over notify_push (or polling when unavailable) and print each event. Runs until interrupted.
+  watch                   Observe server-side changes over notify_push (or polling when unavailable or asked to) and print each event. Runs until interrupted.
 
   See 'rainmaker help <subcommand>' for detailed help.
 ```

@@ -4,9 +4,9 @@
 import Foundation
 
 ///
-/// Configures which server-side changes ``Server/events(_:)`` observes and how often it polls.
+/// Configures which server-side changes ``Server/events(_:)`` observes, over which ``ServerEventTransport`` and how often it polls.
 ///
-/// The defaults observe every ``ServerSubject`` and poll every 30 seconds when the `notify_push` WebSocket is unavailable, matching the cadence the official Nextcloud clients use.
+/// The defaults observe every ``ServerSubject`` with the ``ServerEventTransport/automatic`` transport and poll every 30 seconds when the `notify_push` WebSocket is unavailable, matching the cadence the official Nextcloud clients use.
 ///
 public struct ServerEventOptions: Sendable {
     ///
@@ -17,7 +17,7 @@ public struct ServerEventOptions: Sendable {
     public var subjects: Set<ServerSubject>
 
     ///
-    /// The interval in seconds at which subjects are polled while the WebSocket is unavailable, or for subjects the server does not push.
+    /// The interval in seconds at which subjects are polled while the WebSocket is unavailable or not used, as with the ``ServerEventTransport/polling`` transport and on watchOS, or for subjects the server does not push.
     ///
     public var pollInterval: TimeInterval
 
@@ -39,20 +39,29 @@ public struct ServerEventOptions: Sendable {
     public var emitConnectedOnStart: Bool
 
     ///
+    /// How changes are learned about: over the `notify_push` WebSocket when possible, or only by polling.
+    ///
+    /// With ``ServerEventTransport/polling`` the subjects are polled at ``pollInterval``, and ``backstopPollInterval`` and ``listenFileIDs`` have no effect because they concern the WebSocket.
+    ///
+    public var transport: ServerEventTransport
+
+    ///
     /// Create a new set of options.
     ///
     /// - Parameters:
     ///     - subjects: The subjects to observe. Defaults to all of them.
-    ///     - pollInterval: The polling interval in seconds used when the WebSocket is unavailable. Defaults to 30.
+    ///     - pollInterval: The polling interval in seconds used when the WebSocket is unavailable or not used. Defaults to 30.
     ///     - backstopPollInterval: The backstop polling interval in seconds used while the WebSocket is connected. Defaults to 900.
     ///     - listenFileIDs: Whether to request per-file identifiers. Defaults to `false`.
     ///     - emitConnectedOnStart: Whether to emit ``ServerEvent/connected`` on subscription. Defaults to `true`.
+    ///     - transport: How changes are learned about. Defaults to ``ServerEventTransport/automatic``.
     ///
-    public init(subjects: Set<ServerSubject> = Set(ServerSubject.allCases), pollInterval: TimeInterval = 30, backstopPollInterval: TimeInterval = 900, listenFileIDs: Bool = false, emitConnectedOnStart: Bool = true) {
+    public init(subjects: Set<ServerSubject> = Set(ServerSubject.allCases), pollInterval: TimeInterval = 30, backstopPollInterval: TimeInterval = 900, listenFileIDs: Bool = false, emitConnectedOnStart: Bool = true, transport: ServerEventTransport = .automatic) {
         self.subjects = subjects
         self.pollInterval = pollInterval
         self.backstopPollInterval = backstopPollInterval
         self.listenFileIDs = listenFileIDs
         self.emitConnectedOnStart = emitConnectedOnStart
+        self.transport = transport
     }
 }

@@ -69,12 +69,14 @@ Obtain an app password through the server's login flow and revoke it again once 
 ### Observing Changes
 
 Observe server-side changes over the `notify_push` WebSocket when available, falling back to polling otherwise, through a single stream of re-fetch hints.
+The ``ServerEventTransport/polling`` transport polls only and never opens a socket, and watchOS always polls.
 
 - ``Server/events(_:)``
 - ``Server/events(_:pollInterval:)``
 - ``ServerEvent``
 - ``ServerSubject``
 - ``ServerEventOptions``
+- ``ServerEventTransport``
 
 ### Activity Stream
 
