@@ -120,6 +120,7 @@ A single note is retrieved by its identifier, also conditionally on its entity t
 Notes are created, changed and deleted one at a time, and a change can be made conditional on the entity tag of the copy it is based on, so that a note changed elsewhere in the meantime is reported as ``RainmakerError/noteConflict(current:)`` together with its current state rather than overwritten.
 Whether the app providing them is installed at all is advertised through the ``Notes`` capability, which matters more here than elsewhere because the notes app is not part of a Nextcloud installation, and which also reports whether it is new enough to be usable.
 Notes are ordinary files, so ``NotesSettings`` says where to find them when reaching for them over WebDAV instead, and ``Note/path`` says where exactly the file of each note is.
+Those settings can be changed as well, which may change which notes the server lists, so a client keeping its own copy retrieves them anew afterwards.
 Some behaviours of the notes app are tied to its release rather than to its API version, which ``Notes/isAppVersion(atLeast:)`` and the helpers built on it, such as ``Notes/supportsAttachmentDeletion``, tell apart.
 An absent notes app is reported as ``RainmakerError/appUnavailable(app:)`` rather than as ``RainmakerError/notFound``, which is reserved for a note that does not exist, so a client keeping its own copy never mistakes a missing app for deleted notes.
 
@@ -135,6 +136,7 @@ An absent notes app is reported as ``RainmakerError/appUnavailable(app:)`` rathe
 - ``Server/updateNote(_:title:category:content:modification:isFavorite:ifMatching:)``
 - ``Server/deleteNote(_:)``
 - ``Server/notesSettings()``
+- ``Server/updateNotesSettings(notesPath:fileSuffix:noteMode:showsHiddenFiles:loadsRecentNoteOnStartUp:)``
 - ``Note``
 - ``NoteChanges``
 - ``ShareType``

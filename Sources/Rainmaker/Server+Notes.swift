@@ -493,6 +493,55 @@ public extension Server {
 
         return try decodeNotesAPIPayload(NotesSettings.self, from: data, describing: "the note settings")
     }
+
+    ///
+    /// Change the settings the notes app keeps for the authenticated user and return them as the server stored them.
+    ///
+    /// Only the values which are given are sent, and the server keeps every other setting as it is. A call which gives no value at all changes nothing and returns the settings as ``notesSettings()`` would. This is a standalone call which needs nothing but credentials, so it suits a single action such as one of Shortcuts as well.
+    ///
+    /// The settings belong to the account rather than to a client, so a change applies to the app's web interface and to every other client of the account alike. The server validates every value and replaces what it cannot use rather than refusing the request, which is why a caller has to adopt the settings this returns rather than assume what it asked for:
+    ///
+    /// - The notes path is relative to the account's files. Both `/` and `\` delimit its components, empty components and `.` are dropped, and `..` removes the component before it, so the path cannot leave the account's files. An empty path means the root folder of the account's files.
+    /// - A file suffix of `.md` or `.txt` is stored as it is. Any other suffix is stored as a custom one, of which every character other than the letters `A` to `Z` and `a` to `z`, the digits, `.` and `-` is removed, as are its leading dots, before a single dot is put in front of it. A suffix with nothing left becomes `.md`.
+    /// - A note mode the server does not offer the account, which is ``NoteMode/rich`` when the Text app is not enabled for it, is replaced by the server's default mode.
+    ///
+    /// Some settings change which notes the server lists, and a client keeping its own copy of the notes has to treat such a change like a different set of notes and retrieve them anew, for example through ``notes(changedSince:)`` with the Unix epoch:
+    ///
+    /// - Changing ``NotesSettings/notesPath`` does not move any note. The notes app looks for notes in the new folder from then on, and creates it when it does not exist yet the next time it is asked for the notes, so the notes in the old folder are no longer listed while those already in the new one are. The ``Notes/notesPath`` the capabilities advertise follows the setting as well.
+    /// - Changing ``NotesSettings/showsHiddenFiles`` decides whether notes and categories whose names start with a dot are listed, see there.
+    /// - Changing ``NotesSettings/fileSuffix`` gives the notes created from then on that extension. The app reads files with the extensions `.txt`, `.org`, `.markdown`, `.md` and `.note` as notes whatever the setting, and in addition those with the custom suffix set most recently, so replacing one custom suffix with another one makes the notes of the former disappear from the listings unless their extension is among those.
+    ///
+    /// The notes app keeps ``NotesSettings/showsHiddenFiles`` and ``NotesSettings/loadsRecentNoteOnStartUp`` since release 6.1.0. Older releases ignore them, which the returned settings show by leaving them `nil`.
+    ///
+    /// Credentials are required: the settings are user-scoped and the underlying endpoint rejects unauthenticated requests.
+    ///
+    /// - Parameters:
+    ///     - notesPath: The path of the folder to store the notes in, relative to the account's files and sanitized as described above, or `nil` to keep the current one. Defaults to `nil`.
+    ///     - fileSuffix: The file extension to give the notes created from now on, sanitized as described above, or `nil` to keep the current one. Defaults to `nil`.
+    ///     - noteMode: The way the web interface is to present a note when it is opened, or `nil` to keep the current one. Defaults to `nil`.
+    ///     - showsHiddenFiles: Whether the web interface is to list files and folders whose names start with a dot, or `nil` to keep the current setting. Defaults to `nil`.
+    ///     - loadsRecentNoteOnStartUp: Whether the web interface is to open the most recently edited note when it starts, or `nil` to keep the current setting. Defaults to `nil`.
+    ///
+    /// - Returns: The notes app's settings for the authenticated user as the server stored them after the change, including the sanitized values.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
+    ///     - ``RainmakerError/appUnavailable(app:)`` when the notes app is not available on the server.
+    ///     - ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)`` when it is available but older than ``Notes/minimumAPIVersion``.
+    ///     - ``RainmakerError/responseDecodingFailed(reason:)`` when a success response does not carry the settings.
+    ///     - Any other error that might occur during the request.
+    ///
+    func updateNotesSettings(notesPath: String? = nil, fileSuffix: String? = nil, noteMode: NoteMode? = nil, showsHiddenFiles: Bool? = nil, loadsRecentNoteOnStartUp: Bool? = nil) async throws -> NotesSettings {
+        try requireCredentials()
+        logger.debug("Updating note settings...")
+
+        // A setting sent as null is reset to its default by the server, so whatever is not given is left out of the body instead.
+        let body = NotesSettingsUpdateRequest(notesPath: notesPath, fileSuffix: fileSuffix, noteMode: noteMode?.rawValue, showHidden: showsHiddenFiles, loadRecentOnStartUp: loadsRecentNoteOnStartUp)
+        let request = try makeNotesAPIRequest(for: "settings", method: .put, jsonBody: encodeNotesAPIBody(body))
+        let (data, _) = try await notesAPIResponse(for: request)
+
+        return try decodeNotesAPIPayload(NotesSettings.self, from: data, describing: "the updated note settings")
+    }
 }
 
 // MARK: - Notes API Helpers
