@@ -73,6 +73,15 @@ import Testing
         #expect(result.contains("http://localhost/login/v2/flow/REDACTED"))
     }
 
+    @Test("Redacts login tokens in escaped login URLs")
+    func redactsEscapedLoginURLTokens() {
+        let body = "{\"login\":\"http:\\/\\/localhost:54540\\/login\\/v2\\/flow\\/XYZ789\"}"
+        let result = canonicalize(body, pathExtension: "json", path: "/index.php/login/v2")
+
+        #expect(result.contains("\\/login\\/v2\\/flow\\/REDACTED"))
+        #expect(result.contains("XYZ789") == false)
+    }
+
     @Test("Leaves login secrets alone outside the login flow")
     func leavesLoginSecretsScoped() {
         let body = "{\"token\": \"abc123\", \"appPassword\": \"secret\"}"
