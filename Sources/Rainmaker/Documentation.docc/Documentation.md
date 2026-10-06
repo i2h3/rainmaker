@@ -49,8 +49,10 @@ List, restore and permanently remove deleted items, which the server keeps in a 
 ### Authentication
 
 Obtain an app password through the server's login flow and revoke it again once it is no longer needed.
+``Server/poll(_:)`` returns `nil` while the user has not completed the flow and throws only for real failures, so a client polling it can tell an unreachable server from a pending flow, while the deprecated ``Server/poll(_:token:)`` throws in both cases.
 
 - ``Server/login()``
+- ``Server/poll(_:)``
 - ``Server/poll(_:token:)``
 - ``Server/deleteAppPassword()``
 

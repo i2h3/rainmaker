@@ -1373,17 +1373,48 @@ extension Server: Serving {
     }
 
     ///
-    /// Look up the login flow information.
+    /// Begin a login flow, which yields an app password once the user granted access in a browser.
     ///
-    /// - Returns: A set of properties to kick off the authentication which yields an app password.
+    /// This is the first step of the [login flow v2](https://docs.nextcloud.com/server/latest/developer_manual/client_apis/LoginFlow/index.html), which needs no credentials and is therefore available on a ``Server`` created without ``user`` and ``password``.
+    /// Present ``LoginFlow/entry`` to the user in a browser, then call ``poll(_:)`` with the returned ``LoginFlow`` repeatedly until it returns a ``LoginResult``.
+    /// The server forgets a flow 20 minutes after it began, so a client should stop polling by then and begin a new flow if the user still wants to log in.
+    ///
+    /// This is a single request which runs within the calling task, so cancelling that task cancels it.
+    ///
+    /// - Returns: The addresses and the token of the new login flow.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/notFound`` when the server answers that it does not know the endpoint, which is the case for an address which does not point to the root of a Nextcloud server.
+    ///     - ``RainmakerError/unexpectedStatus(code:)`` for any other status than `200`.
+    ///     - ``RainmakerError/responseDecodingFailed(reason:)`` when the server answers with something other than a login flow, for example the HTML page of a web server which is not Nextcloud.
     ///
     public func login() async throws -> LoginFlow {
         logger.debug("Fetching login information...")
 
         let url = address.appendingCompatibility(path: "index.php/login/v2", directoryHint: .notDirectory)
         let request = makeRequest(for: url, method: .post)
-        let (data, _) = try await session.data(for: request)
-        let dataTransferObject = try jsonDecoder.decode(LoginFlowResponse.self, from: data)
+        let (data, urlResponse) = try await session.data(for: request)
+
+        guard let response = urlResponse as? HTTPURLResponse else {
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to cast URLResponse to HTTPURLResponse.")
+        }
+
+        if response.status == .notFound {
+            throw RainmakerError.notFound
+        }
+
+        guard response.status == .ok else {
+            throw RainmakerError.unexpectedStatus(code: response.statusCode)
+        }
+
+        let dataTransferObject: LoginFlowResponse
+
+        do {
+            dataTransferObject = try jsonDecoder.decode(LoginFlowResponse.self, from: data)
+        } catch {
+            throw RainmakerError.responseDecodingFailed(reason: "The server did not answer with a login flow, so it is probably not a Nextcloud server.")
+        }
+
         return LoginFlow(endpoint: dataTransferObject.poll.endpoint, entry: dataTransferObject.login, token: dataTransferObject.poll.token)
     }
 
@@ -2015,18 +2046,70 @@ extension Server: Serving {
     }
 
     ///
+    /// Check once whether the user completed a login flow begun with ``login()``, and fetch its result if so.
+    ///
+    /// Call this repeatedly, for example every second, until it returns a ``LoginResult`` or the caller gives up.
+    /// The server answers a flow the user has not completed yet with the status `404` and an empty JSON array, for which this returns `nil` rather than throwing, so that a caller can tell a pending flow from a real failure.
+    /// A caller which treats every thrown error as pending, as a `try?` does, keeps polling a server which is unreachable or which rejects the request until it gives up, and never shows the user why.
+    ///
+    /// The server cannot tell a pending flow from one it does not know, so it answers a flow which expired, whose token is wrong or whose result was already fetched exactly like a pending one, and this returns `nil` for those as well.
+    /// The server forgets a flow 20 minutes after ``login()`` began it, and hands out its result only once, so a caller should bound its polling by such a time and stop polling after the first result.
+    ///
+    /// This is a single request which needs no credentials and runs within the calling task, so cancelling that task cancels it.
+    ///
+    /// - Parameters:
+    ///     - flow: The login flow as returned by ``login()``, of which only ``LoginFlow/endpoint`` and ``LoginFlow/token`` are used.
+    ///
+    /// - Returns: The credentials the user granted, or `nil` while the flow is pending.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/notFound`` when the server answers with the status `404` but without the empty JSON array, which means the endpoint does not exist rather than that the flow is pending.
+    ///     - ``RainmakerError/unexpectedStatus(code:)`` for any other status than `200` and `404`.
+    ///     - ``RainmakerError/responseDecodingFailed(reason:)`` when the server answers with the status `200` but without the credentials.
+    ///
+    public func poll(_ flow: LoginFlow) async throws -> LoginResult? {
+        let (data, urlResponse) = try await sendLoginPoll(to: flow.endpoint, token: flow.token)
+
+        guard let response = urlResponse as? HTTPURLResponse else {
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to cast URLResponse to HTTPURLResponse.")
+        }
+
+        if response.status == .notFound {
+            guard let pending = try? jsonDecoder.decode([String].self, from: data), pending.isEmpty else {
+                throw RainmakerError.notFound
+            }
+
+            return nil
+        }
+
+        guard response.status == .ok else {
+            throw RainmakerError.unexpectedStatus(code: response.statusCode)
+        }
+
+        let dataTransferObject: LoginResultResponse
+
+        do {
+            dataTransferObject = try jsonDecoder.decode(LoginResultResponse.self, from: data)
+        } catch {
+            throw RainmakerError.responseDecodingFailed(reason: "The server did not answer with the result of the login flow.")
+        }
+
+        return LoginResult(name: dataTransferObject.loginName, password: dataTransferObject.appPassword, server: dataTransferObject.server)
+    }
+
+    ///
     /// Poll the status of a login flow.
+    ///
+    /// Unlike ``poll(_:)``, this throws ``RainmakerError/responseDecodingFailed(reason:)`` while the flow is pending, which a caller cannot tell from a real failure, and it ignores the status of the response.
+    /// It is kept unchanged for existing callers.
     ///
     /// - Parameters:
     ///     - endpoint: The URL to poll on.
     ///     - token: The unique token of the login flow to check the status of.
     ///
+    @available(*, deprecated, renamed: "poll(_:)", message: "Use poll(_:) with the LoginFlow, which returns nil while the flow is pending instead of throwing.")
     public func poll(_ endpoint: URL, token: String) async throws -> LoginResult {
-        logger.debug("Polling \(endpoint.absoluteString)")
-
-        var request = makeRequest(for: endpoint, method: .post)
-        request.httpBody = "token=\(token)".data(using: .utf8)
-        let (data, _) = try await session.data(for: request)
+        let (data, _) = try await sendLoginPoll(to: endpoint, token: token)
         let stringRepresentation = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard stringRepresentation != "[]" else {
@@ -2035,6 +2118,25 @@ extension Server: Serving {
 
         let dataTransferObject = try jsonDecoder.decode(LoginResultResponse.self, from: data)
         return LoginResult(name: dataTransferObject.loginName, password: dataTransferObject.appPassword, server: dataTransferObject.server)
+    }
+
+    ///
+    /// Send the request which polls a login flow, shared by ``poll(_:)`` and its deprecated predecessor ``poll(_:token:)``.
+    ///
+    /// The token is sent as a form field, percent-encoded like a query item through `URLComponents.setEncodedQueryItems(_:)`, because the server reads the body as `application/x-www-form-urlencoded`.
+    /// The tokens the server hands out consist of letters and digits only, so the body is the same as before the encoding was added.
+    ///
+    private func sendLoginPoll(to endpoint: URL, token: String) async throws -> (Data, URLResponse) {
+        logger.debug("Polling \(endpoint.absoluteString)")
+
+        var form = URLComponents()
+        form.setEncodedQueryItems([URLQueryItem(name: "token", value: token)])
+
+        var request = makeRequest(for: endpoint, method: .post)
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.httpBody = Data((form.percentEncodedQuery ?? "").utf8)
+
+        return try await session.data(for: request)
     }
 
     ///

@@ -30,6 +30,9 @@ struct Poll: AsyncParsableCommand {
 
         let server = Server(address: address)
 
+        // Polling uses only the endpoint and the token of a flow, so the endpoint stands in for the login page this command is not given.
+        let flow = LoginFlow(endpoint: address, entry: address, token: token)
+
         var currentTry = 0
         var loginResult: LoginResult?
 
@@ -40,17 +43,15 @@ struct Poll: AsyncParsableCommand {
                 print("Polling (try \(currentTry) out of \(tries))...")
             }
 
-            do {
-                loginResult = try await server.poll(address, token: token)
+            // A pending flow is nil, while every real failure, such as an unreachable server or an endpoint which does not exist, ends the command with its error.
+            loginResult = try await server.poll(flow)
 
+            if loginResult != nil {
                 if formatArguments.outputFormat == .plain {
                     print("Received result.")
                 }
 
                 break
-            } catch RainmakerError.responseDecodingFailed {
-                // The server may respond with an empty array ("[]") while the flow is incomplete.
-                // This is also expected and can be ignored to continue polling.
             }
 
             try await Task.sleep(nanoseconds: 1_000_000_000)
