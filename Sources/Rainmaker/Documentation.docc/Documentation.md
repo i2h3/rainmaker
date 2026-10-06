@@ -152,6 +152,19 @@ An absent notes app is reported as ``RainmakerError/appUnavailable(app:)`` rathe
 - ``NoteAttachment``
 - ``NoteAttachmentFile``
 
+### Note Content
+
+Predict what the notes app makes of a note's title and category, and reference attachments from a note's Markdown content the way the Nextcloud Text app does, without asking the server.
+These are pure functions which need neither a ``Server`` nor a connection, so a single action such as one of Shortcuts can prepare a request with them or interpret a note's content.
+The notes API never derives a title from the content, so ``NoteTitle/derive(fromContent:)`` is how a client gives a note the title the web interface would give it.
+The server still has the last word, so a caller adopts the ``Note/title`` and ``Note/category`` it returns, which may for example carry a number appended to avoid a clash.
+An attachment added through ``Server/addAttachment(_:toNote:fileName:)-(URL,Int,String?)`` only becomes part of the note once its content references it, and the Text app deletes files in the note's attachment folder which the content does not reference, so the reference has to be encoded exactly as ``NoteAttachmentReference/markdown(alt:path:)`` encodes it.
+
+- ``NoteTitle``
+- ``NoteCategory``
+- ``NoteAttachmentReference``
+- ``NoteAttachmentPath``
+
 ### Collectives
 
 Retrieve the collectives of an account and the pages within one of them.
