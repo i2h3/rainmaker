@@ -25,7 +25,8 @@ guard let notes = try capabilities.get(Notes.self), notes.isSupported else {
 let canDeleteAttachments = notes.supportsAttachmentDeletion // Release 6.1.0 or newer.
 ```
 
-A notes app which goes away later is reported as ``RainmakerError/appUnavailable(app:)`` by every notes call, never as ``RainmakerError/notFound``, which is reserved for a note that does not exist.
+A notes app which goes away later is reported as ``RainmakerError/appUnavailable(app:)`` by every notes call except the retrieval of an attachment (see below), never as ``RainmakerError/notFound``, which is reserved for a note that does not exist.
+Where the retrieval of an attachment reports ``RainmakerError/notFound``, the ``Notes`` capability tells whether the app is still there.
 A client therefore never mistakes a missing app for an account whose notes were all deleted.
 
 ### Retrieve Changes Since the Previous Call
@@ -147,7 +148,7 @@ A background job of the Text app deletes files in the `.attachments.<id>` folder
 ``NoteAttachmentReference/markdown(alt:path:)`` builds the reference the way Text does, ``NoteAttachmentReference/decode(_:)`` turns a reference back into the path the server takes, and ``NoteAttachmentReference/sanitizeFileName(_:)`` removes the invisible characters from a file name before upload which Text leaves out of references.
 
 The retrieval of an attachment is the one notes request the app answers without its version header, and it reports every failure with a bare `404`, so ``RainmakerError/notFound`` there may also mean an absent notes app.
-The notes app offers no way to list the attachments of a note, but they are ordinary files, which ``Server/enumerate(at:recursively:)->[Item]`` lists in the folder ``Note/path`` names.
+The notes app offers no way to list the attachments of a note, but they are ordinary files, which ``Server/enumerate(at:recursively:)->[Item]`` lists in the folder which contains the file ``Note/path`` names, or in its `.attachments.<id>` subfolder on releases which keep attachments per note, see ``Notes/storesAttachmentsPerNote``.
 
 ### Treat Changed Settings as a New Set of Notes
 

@@ -38,6 +38,22 @@ import Testing
     }
 
     ///
+    /// A new and empty folder in the temporary directory, in which a test downloads so that it can tell that nothing but the destination was left behind there.
+    ///
+    private func makeTemporaryFolder() throws -> URL {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("NoteAttachmentRequestTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false)
+        return folder
+    }
+
+    ///
+    /// The names of what the given folder contains, sorted.
+    ///
+    private func contents(of folder: URL) throws -> [String] {
+        try FileManager.default.contentsOfDirectory(atPath: folder.path).sorted()
+    }
+
+    ///
     /// Read the path of a captured request.
     ///
     private func path(of request: URLRequest) throws -> String {
@@ -156,10 +172,11 @@ import Testing
     @Test("Downloading Writes The File To The Destination")
     func download() async throws {
         let session = MockRequesting(body: bytes, headerFields: ["Content-Type": "image/png"])
-        let destination = makeTemporaryLocation()
+        let folder = try makeTemporaryFolder()
+        let destination = folder.appendingPathComponent("Rainmaker.png")
 
         defer {
-            try? FileManager.default.removeItem(at: destination)
+            try? FileManager.default.removeItem(at: folder)
         }
 
         let file = try await makeServer(session: session).downloadAttachment(at: "Rainmaker.png", ofNote: 7, to: destination)
@@ -171,6 +188,11 @@ import Testing
         #expect(try pathParameter(of: request) == "Rainmaker.png")
         #expect(request.value(forHTTPHeaderField: "Accept") == "*/*")
         #expect(request.cachePolicy == .reloadIgnoringLocalCacheData)
+
+        // The session's temporary file was moved on, and the staging location next to the destination is gone again.
+        #expect(session.downloadLocations.count == 1)
+        #expect(session.downloadLocations.allSatisfy { FileManager.default.fileExists(atPath: $0.path) == false })
+        #expect(try contents(of: folder) == ["Rainmaker.png"])
     }
 
     @Test("Downloading Onto An Existing File Sends Nothing")
@@ -210,14 +232,123 @@ import Testing
     @Test("Downloading Something Missing Leaves The Destination Alone")
     func downloadMissing() async throws {
         let session = MockRequesting(string: #"{"errorType":"Exception"}"#, statusCode: 404)
-        let destination = makeTemporaryLocation()
+        let folder = try makeTemporaryFolder()
+        let destination = folder.appendingPathComponent("Missing.png")
+
+        defer {
+            try? FileManager.default.removeItem(at: folder)
+        }
 
         await #expect(throws: RainmakerError.notFound) {
             _ = try await makeServer(session: session).downloadAttachment(at: "Missing.png", ofNote: 7, to: destination)
         }
 
-        // The body of the error response is never put in place of the file.
+        // The body of the error response is never put in place of the file, and neither the session's temporary file nor a staged copy is left behind.
         #expect(FileManager.default.fileExists(atPath: destination.path) == false)
+        #expect(session.downloadLocations.count == 1)
+        #expect(session.downloadLocations.allSatisfy { FileManager.default.fileExists(atPath: $0.path) == false })
+        #expect(try contents(of: folder).isEmpty)
+    }
+
+    @Test("Downloading Refuses A File Which Appeared During The Download")
+    func downloadOntoFileWhichAppeared() async throws {
+        let folder = try makeTemporaryFolder()
+        let destination = folder.appendingPathComponent("Rainmaker.png")
+        let bytes = bytes
+
+        defer {
+            try? FileManager.default.removeItem(at: folder)
+        }
+
+        // The file appears while the request is answered, after the check which precedes the request passed.
+        let session = MockRequesting { _ in
+            try? Data("existing".utf8).write(to: destination)
+            return (bytes, 200, ["Content-Type": "image/png"])
+        }
+
+        await #expect(throws: RainmakerError.fileAlreadyExists(destination)) {
+            _ = try await makeServer(session: session).downloadAttachment(at: "Rainmaker.png", ofNote: 7, to: destination)
+        }
+
+        #expect(try Data(contentsOf: destination) == Data("existing".utf8))
+        #expect(session.downloadLocations.count == 1)
+        #expect(session.downloadLocations.allSatisfy { FileManager.default.fileExists(atPath: $0.path) == false })
+        #expect(try contents(of: folder) == ["Rainmaker.png"])
+    }
+
+    @Test("Downloading Never Replaces A Directory")
+    func downloadOntoDirectory() async throws {
+        let session = MockRequesting(body: bytes, headerFields: ["Content-Type": "image/png"])
+        let destination = try makeTemporaryFolder()
+        let child = destination.appendingPathComponent("Important.txt")
+        try Data("important".utf8).write(to: child)
+
+        defer {
+            try? FileManager.default.removeItem(at: destination)
+        }
+
+        // Replacing a directory would delete everything in it, so it is refused even when forced, before anything is sent.
+        await #expect(throws: RainmakerError.fileAlreadyExists(destination)) {
+            _ = try await makeServer(session: session).downloadAttachment(at: "Rainmaker.png", ofNote: 7, to: destination, force: true)
+        }
+
+        #expect(session.requests.isEmpty)
+        #expect(try Data(contentsOf: child) == Data("important".utf8))
+    }
+
+    @Test("Downloading Refuses A Directory Which Appeared During The Download")
+    func downloadOntoDirectoryWhichAppeared() async throws {
+        let folder = try makeTemporaryFolder()
+        let destination = folder.appendingPathComponent("Rainmaker.png")
+        let child = destination.appendingPathComponent("Important.txt")
+        let bytes = bytes
+
+        defer {
+            try? FileManager.default.removeItem(at: folder)
+        }
+
+        // The directory appears while the request is answered, so only the check right before the file is put in place can catch it.
+        let session = MockRequesting { _ in
+            try? FileManager.default.createDirectory(at: destination, withIntermediateDirectories: false)
+            try? Data("important".utf8).write(to: child)
+            return (bytes, 200, ["Content-Type": "image/png"])
+        }
+
+        await #expect(throws: RainmakerError.fileAlreadyExists(destination)) {
+            _ = try await makeServer(session: session).downloadAttachment(at: "Rainmaker.png", ofNote: 7, to: destination, force: true)
+        }
+
+        #expect(try Data(contentsOf: child) == Data("important".utf8))
+        #expect(session.downloadLocations.allSatisfy { FileManager.default.fileExists(atPath: $0.path) == false })
+        #expect(try contents(of: folder) == ["Rainmaker.png"])
+    }
+
+    @Test("Cancelling A Download Cancels Its Request And Leaves No File")
+    func cancelDownload() async throws {
+        let session = SuspendingRequesting(answering: 0, through: MockRequesting(body: bytes), suspendsDownloads: true)
+        let server = makeServer(session: session)
+        let folder = try makeTemporaryFolder()
+        let destination = folder.appendingPathComponent("Rainmaker.png")
+
+        defer {
+            try? FileManager.default.removeItem(at: folder)
+        }
+
+        let download = Task {
+            try await server.downloadAttachment(at: "Rainmaker.png", ofNote: 7, to: destination)
+        }
+
+        #expect(try await eventually { session.suspendedCount == 1 })
+        download.cancel()
+
+        let result = await download.result
+
+        #expect(throws: URLError.self) {
+            try result.get()
+        }
+
+        // Nothing is put in place before the download completed, so a cancelled one leaves neither the destination nor a staged copy behind.
+        #expect(try contents(of: folder).isEmpty)
     }
 
     // MARK: - Adding
@@ -323,6 +454,66 @@ import Testing
 
         #expect(try Data(contentsOf: destination) == expected)
         #expect(form.contentType == "multipart/form-data; boundary=B")
+    }
+
+    @Test("Staging Stops When The Task Is Cancelled")
+    func stagingStopsOnCancellation() async throws {
+        let source = makeTemporaryLocation()
+        let destination = makeTemporaryLocation(pathExtension: "multipart")
+        try bytes.write(to: source)
+
+        defer {
+            try? FileManager.default.removeItem(at: source)
+            try? FileManager.default.removeItem(at: destination)
+        }
+
+        // The task waits for its cancellation before it stages, so the copy loop is what has to notice it.
+        let staging = Task {
+            while Task.isCancelled == false {
+                await Task.yield()
+            }
+
+            try MultipartFormData(boundary: "B").writeFile(from: source, fieldName: "file", fileName: "a.bin", to: destination, bufferSize: 1)
+        }
+
+        staging.cancel()
+
+        let result = await staging.result
+
+        #expect(throws: CancellationError.self) {
+            try result.get()
+        }
+    }
+
+    @Test("Adding From A Cancelled Task Sends Nothing")
+    func addFromCancelledTask() async throws {
+        let session = MockRequesting(string: #"{"filename":"x"}"#, headerFields: supportedHeaders)
+        let server = makeServer(session: session)
+        let source = makeTemporaryLocation()
+        try bytes.write(to: source)
+
+        defer {
+            try? FileManager.default.removeItem(at: source)
+        }
+
+        let addition = Task {
+            while Task.isCancelled == false {
+                await Task.yield()
+            }
+
+            return try await server.addAttachment(source, toNote: 7)
+        }
+
+        addition.cancel()
+
+        let result = await addition.result
+
+        // Staging notices the cancellation, so the upload is never started.
+        #expect(throws: CancellationError.self) {
+            try result.get()
+        }
+
+        #expect(session.requests.isEmpty)
     }
 
     @Test("Adding A Missing File Sends Nothing")

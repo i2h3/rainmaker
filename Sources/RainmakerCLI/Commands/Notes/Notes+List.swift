@@ -11,6 +11,7 @@ extension Notes {
     ///
     /// Without options it lists every note through `Server.notes()`. `--changed-since` lists the notes changed since a moment through `Server.notes(changedSince:)`, `--chunk-size` and `--cursor` retrieve one chunk of such a listing through `Server.notes(changedSince:chunkSize:continuingAfter:)`, and `--if-none-match` makes the listing, or the first chunk, conditional through `Server.notes(changedSince:ifChangedFrom:)` or `Server.notes(changedSince:chunkSize:ifChangedFrom:)`.
     /// `--summaries` leaves out the text of every note by going through the `Server.noteSummaries` counterpart of each of those calls instead, which always lists changes since a moment, so without `--changed-since` it lists every note as changed since the Unix epoch.
+    /// The plain output of a listing of changes ends with `#cursor`, `#etag` and `#last-modified` lines, so that the values `--cursor`, `--if-none-match` and `--changed-since` take are at hand without the JSON output.
     ///
     struct List: AsyncParsableCommand {
         static let configuration = CommandConfiguration(abstract: "List the notes of the authenticated user, all of them, those changed since a moment, or one chunk of those.")
@@ -36,7 +37,7 @@ extension Notes {
         ///
         /// The moment to list changes since, in whole seconds since the Unix epoch, which is the moment the previous listing reported as `lastModified`.
         ///
-        @Option(help: "List only the notes changed at or after this moment, given as whole seconds since the Unix epoch. Notes which did not change are reported by their identifier alone. Defaults to the Unix epoch when another option needs a moment.")
+        @Option(help: "List only the notes changed at or after this moment, given as whole seconds since the Unix epoch, such as the '#last-modified' line of a previous listing. Notes which did not change are reported by their identifier alone. Defaults to the Unix epoch when another option needs a moment.")
         var changedSince: Int?
 
         ///
@@ -54,7 +55,7 @@ extension Notes {
         ///
         /// The entity tag of the previous listing, which makes the listing conditional.
         ///
-        @Option(help: "Print 'Not modified.' instead of a listing when the server's answer would carry this entity tag of a previous listing.")
+        @Option(help: "Print 'Not modified.' instead of a listing when the server's answer would carry this entity tag of a previous listing, as its '#etag' line printed it.")
         var ifNoneMatch: String?
 
         ///
@@ -118,7 +119,7 @@ extension Notes {
                 case .json:
                     try print(Notes.encoded(changes))
                 case .plain:
-                    printPlain(titles: changes.changed.map(\.title), unchanged: changes.unchanged, chunkCursor: changes.chunkCursor)
+                    printPlain(titles: changes.changed.map(\.title), unchanged: changes.unchanged, chunkCursor: changes.chunkCursor, entityTag: changes.entityTag, lastModified: changes.lastModified)
             }
         }
 
@@ -152,7 +153,7 @@ extension Notes {
                 case .json:
                     try print(Notes.encoded(changes))
                 case .plain:
-                    printPlain(titles: changes.changed.map(\.title), unchanged: changes.unchanged, chunkCursor: changes.chunkCursor)
+                    printPlain(titles: changes.changed.map(\.title), unchanged: changes.unchanged, chunkCursor: changes.chunkCursor, entityTag: changes.entityTag, lastModified: changes.lastModified)
             }
         }
 
@@ -175,8 +176,10 @@ extension Notes {
         ///     - titles: The titles of the notes sent in full, one per line.
         ///     - unchanged: The identifiers of the notes sent as identifiers alone, one per line.
         ///     - chunkCursor: The cursor to continue a chunked listing with, printed as a `#cursor` line when there is one.
+        ///     - entityTag: The entity tag of the response, printed as an `#etag` line when there is one, which is what `--if-none-match` takes.
+        ///     - lastModified: The moment the server says to continue from, printed as a `#last-modified` line in whole seconds since the Unix epoch when there is one, which is what `--changed-since` takes.
         ///
-        private func printPlain(titles: [String], unchanged: [Int], chunkCursor: String?) {
+        private func printPlain(titles: [String], unchanged: [Int], chunkCursor: String?, entityTag: String?, lastModified: Date?) {
             for title in titles {
                 print(title)
             }
@@ -188,6 +191,15 @@ extension Notes {
             // The cursor is what continues the pass, so it is surfaced whenever there is more to come.
             if let chunkCursor {
                 print("#cursor \(chunkCursor)")
+            }
+
+            // Both values are what the next listing is based on, which the plain output would otherwise only offer through the JSON output.
+            if let entityTag {
+                print("#etag \(entityTag)")
+            }
+
+            if let lastModified {
+                print("#last-modified \(Int(lastModified.timeIntervalSince1970.rounded(.down)))")
             }
         }
     }

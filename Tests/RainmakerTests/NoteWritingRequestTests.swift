@@ -144,6 +144,52 @@ import Testing
         await #expect(throws: RainmakerError.unsupportedAPIVersion(app: "notes", required: "1.4", advertised: ["0.2", "1.3"])) {
             _ = try await makeServer(session: session).createNote(title: "Rainmaker")
         }
+
+        // An outdated app only reveals its version in the answer to the request it already carried out, so the note was created all the same, which the documentation warns about.
+        #expect(session.requests.count == 1)
+        #expect(session.requests.first?.httpMethod == "POST")
+    }
+
+    @Test("Updating On An Outdated App Has Already Sent The Change")
+    func updateOnOutdatedApp() async throws {
+        let session = MockRequesting(string: payload, headerFields: ["X-Notes-API-Versions": "0.2, 1.3"])
+
+        await #expect(throws: RainmakerError.unsupportedAPIVersion(app: "notes", required: "1.4", advertised: ["0.2", "1.3"])) {
+            _ = try await makeServer(session: session).updateNote(7, content: "text")
+        }
+
+        // The version is only learned from the answer, so the change was made by the time the error is thrown.
+        #expect(session.requests.count == 1)
+        #expect(session.requests.first?.httpMethod == "PUT")
+    }
+
+    @Test("Deleting On An Outdated App Has Already Sent The Deletion")
+    func deleteOnOutdatedApp() async throws {
+        let session = MockRequesting(string: "[]", headerFields: ["X-Notes-API-Versions": "0.2, 1.3"])
+
+        await #expect(throws: RainmakerError.unsupportedAPIVersion(app: "notes", required: "1.4", advertised: ["0.2", "1.3"])) {
+            try await makeServer(session: session).deleteNote(7)
+        }
+
+        // The version is only learned from the answer, so the note was deleted by the time the error is thrown.
+        #expect(session.requests.count == 1)
+        #expect(session.requests.first?.httpMethod == "DELETE")
+    }
+
+    @Test("A Success Not Sent By The Notes App Is A Decoding Failure")
+    func createAnsweredByProxy() async throws {
+        let session = MockRequesting(string: "<!DOCTYPE html><html><body>Log in</body></html>", headerFields: [:])
+
+        // A login page an authenticating proxy answers with lacks the notes app's version header, which must not read as an outdated app.
+        await #expect {
+            _ = try await makeServer(session: session).createNote(title: "Rainmaker")
+        } throws: { error in
+            guard case RainmakerError.responseDecodingFailed = error else {
+                return false
+            }
+
+            return true
+        }
     }
 
     @Test("Cancelling A Creation Cancels Its Request")
@@ -402,6 +448,10 @@ import Testing
         await #expect(throws: RainmakerError.unsupportedAPIVersion(app: "notes", required: "1.4", advertised: ["0.2", "1.3"])) {
             _ = try await makeServer(session: session).updateNotesSettings(fileSuffix: ".md")
         }
+
+        // The version is only learned from the answer, so the settings were changed by the time the error is thrown.
+        #expect(session.requests.count == 1)
+        #expect(session.requests.first?.httpMethod == "PUT")
     }
 
     // MARK: - Credentials

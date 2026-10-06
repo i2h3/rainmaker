@@ -10,6 +10,21 @@ Nothing has to be synchronized first, and nothing has to be torn down afterwards
 
 The intents below assume a function `makeServer()` of the app's own which reads the address and the credentials of the account from the app's keychain and creates a ``Server`` with a session configured as described in <doc:UsingNotesFromAppIntents#Bound-the-Time-an-Intent-Takes>.
 
+### Check the Notes App Before Changing Anything
+
+A release of the notes app older than ``Notes/minimumAPIVersion`` still carries out a creation, a change or a deletion it is asked for, and only its answer reveals that it is too old, so ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)`` from ``Server/createNote(title:category:content:modification:isFavorite:)``, ``Server/updateNote(_:title:category:content:modification:isFavorite:ifMatching:)``, ``Server/deleteNote(_:)`` or ``Server/updateNotesSettings(notesPath:fileSuffix:noteMode:showsHiddenFiles:loadsRecentNoteOnStartUp:)`` means that the change has already been made.
+An intent which changes something without retrieving anything first therefore checks the ``Notes`` capability, so that it neither changes data on such a server nor tells the user it failed after it did, which would invite running it again and creating a duplicate.
+
+```swift
+func requireUsableNotesApp(on server: Server) async throws {
+    guard try await server.capabilities().get(Notes.self)?.isSupported == true else {
+        throw NotesIntentError.notesAppUnusable
+    }
+}
+```
+
+An intent which retrieves the note first, as the one appending to a note below does, needs no such check, because the retrieval changes nothing and already fails with ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)`` on such a server.
+
 ### Create a Note From Text
 
 The notes API never derives a title from the content, so an intent which is only handed some text derives the title the notes app's web interface would give it through ``NoteTitle/derive(fromContent:)``.
@@ -24,6 +39,7 @@ struct CreateNoteIntent: AppIntent {
 
     func perform() async throws -> some IntentResult & ReturnsValue<String> {
         let server = try makeServer()
+        try await requireUsableNotesApp(on: server)
         let note = try await server.createNote(title: NoteTitle.derive(fromContent: text), content: text)
 
         return .result(value: note.title)
@@ -33,6 +49,7 @@ struct CreateNoteIntent: AppIntent {
 
 The server sanitizes the title and numbers one already taken, so the intent reports the ``Note/title`` it returns rather than the one it sent.
 Creating a note is not idempotent: when the response was lost, the note may have been created all the same, so an intent does not simply repeat the call.
+Checking the ``Notes`` capability first costs a request, but it is what keeps an outdated notes app from creating the note while the intent reports a failure.
 
 ### Append to a Note
 
@@ -117,7 +134,8 @@ func makeServer() throws -> Server {
 ```
 
 A request which times out throws the `URLError` the session reports, which an intent surfaces like any other error.
-The errors worth a message of their own are ``RainmakerError/appUnavailable(app:)`` and ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)``, which mean that the server lacks a notes app this library can use, and ``RainmakerError/notFound``, which means that the note was deleted.
+The errors worth a message of their own are ``RainmakerError/appUnavailable(app:)`` and ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)``, which mean that the server lacks a notes app this library can use, although a change the intent asked for may have been made all the same when it did not check the ``Notes`` capability first, see <doc:UsingNotesFromAppIntents#Check-the-Notes-App-Before-Changing-Anything>, and ``RainmakerError/notFound``, which means that the note was deleted, or for an attachment that it or its note is missing, where retrieving an attachment also reports an absent notes app this way.
+A success response which did not come from the notes app at all, such as the login page of an authenticating proxy, is reported as ``RainmakerError/responseDecodingFailed(reason:)``.
 
 ### Index Notes Without Their Text
 

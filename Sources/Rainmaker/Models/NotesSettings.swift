@@ -24,6 +24,7 @@ public struct NotesSettings: Model, Hashable, Decodable {
     /// The file extension the app gives a note it creates, e.g. `".md"`, which is also the default.
     ///
     /// The app reads notes from files with any extension it recognizes, which are `.txt`, `.org`, `.markdown`, `.md`, `.note` and the custom suffix set most recently, so this says what new notes will look like rather than what existing ones do.
+    /// The app only recognizes a custom suffix whose characters after the leading dot are all lower-case and contain no further dot, because it compares the lower-cased last extension of a file name with the suffix as stored; with any other custom suffix, such as `.TXT2` or `.tar.gz`, notes created from then on are neither listed nor found by ``Server/note(_:)``, ``Server/updateNote(_:title:category:content:modification:isFavorite:ifMatching:)`` or ``Server/deleteNote(_:)``, which throw ``RainmakerError/notFound``.
     ///
     public let fileSuffix: String
 
@@ -56,7 +57,7 @@ public struct NotesSettings: Model, Hashable, Decodable {
     ///     - notesPath: The path of the folder the notes are stored in, see ``notesPath``.
     ///     - fileSuffix: The file extension the app gives a note it creates, see ``fileSuffix``.
     ///     - noteMode: The way the web interface presents a note, see ``noteMode``. Defaults to `nil`.
-    ///     - showsHiddenFiles: Whether the web interface lists hidden files and folders, see ``showsHiddenFiles``. Defaults to `nil`.
+    ///     - showsHiddenFiles: Whether files and folders whose names start with a dot are listed as notes and categories, by the API as well as by the web interface, see ``showsHiddenFiles``. Defaults to `nil`.
     ///     - loadsRecentNoteOnStartUp: Whether the web interface opens the most recent note when it starts, see ``loadsRecentNoteOnStartUp``. Defaults to `nil`.
     ///
     public init(notesPath: String, fileSuffix: String, noteMode: NoteMode? = nil, showsHiddenFiles: Bool? = nil, loadsRecentNoteOnStartUp: Bool? = nil) {
