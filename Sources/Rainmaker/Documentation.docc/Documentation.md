@@ -117,6 +117,7 @@ Retrieve the notes of an account, either all of them at once or, for a client ke
 Such an incremental retrieval also reports the server's own moment to continue from next time as ``NoteChanges/lastModified`` and an entity tag with which ``Server/notes(changedSince:ifChangedFrom:)`` learns without a transfer that nothing changed.
 A client which must not hold every changed note at once retrieves them in chunks of a bounded size instead, one at a time or as a stream of the chunks of one pass, of which only the last one says which notes still exist.
 A single note is retrieved by its identifier, also conditionally on its entity tag, which spares the transfer of its content while it did not change.
+Notes are created, changed and deleted one at a time, and a change can be made conditional on the entity tag of the copy it is based on, so that a note changed elsewhere in the meantime is reported as ``RainmakerError/noteConflict(current:)`` together with its current state rather than overwritten.
 Whether the app providing them is installed at all is advertised through the ``Notes`` capability, which matters more here than elsewhere because the notes app is not part of a Nextcloud installation, and which also reports whether it is new enough to be usable.
 Notes are ordinary files, so ``NotesSettings`` says where to find them when reaching for them over WebDAV instead, and ``Note/path`` says where exactly the file of each note is.
 Some behaviours of the notes app are tied to its release rather than to its API version, which ``Notes/isAppVersion(atLeast:)`` and the helpers built on it, such as ``Notes/supportsAttachmentDeletion``, tell apart.
@@ -130,6 +131,9 @@ An absent notes app is reported as ``RainmakerError/appUnavailable(app:)`` rathe
 - ``Server/noteChunks(changedSince:chunkSize:)``
 - ``Server/note(_:)``
 - ``Server/note(_:ifChangedFrom:)``
+- ``Server/createNote(title:category:content:modification:isFavorite:)``
+- ``Server/updateNote(_:title:category:content:modification:isFavorite:ifMatching:)``
+- ``Server/deleteNote(_:)``
 - ``Server/notesSettings()``
 - ``Note``
 - ``NoteChanges``

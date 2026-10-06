@@ -321,6 +321,154 @@ public extension Server {
     }
 
     ///
+    /// Create a note for the authenticated user and return it as the server stored it.
+    ///
+    /// The server creates the note's file in the account's notes folder, see ``NotesSettings/notesPath``, below the folder `category` names, and returns the new note with the ``Note/id`` and ``Note/entityTag`` it assigned. This is a standalone call which needs nothing but credentials, so it suits a single action such as one of Shortcuts as well as a client keeping its own copy of the notes.
+    ///
+    /// The title and the category become a file name and a folder, so the server sanitizes both, and a caller has to adopt the ``Note/title``, ``Note/category`` and ``Note/path`` of the result rather than assume what it asked for:
+    ///
+    /// - Characters which are illegal in file names on some systems, which are `*`, `|`, `/`, `\`, `:`, `"`, `<`, `>` and `?`, are removed from the title, as are leading dots and white space, so that the file is neither hidden nor placed elsewhere.
+    /// - Only the first line of the title is kept, any other white space becomes a plain space, and the title is cut off after 100 characters.
+    /// - A title which ends up empty becomes the notes app's default title, "New note" localized to the account's language.
+    /// - When the category already holds a note of that title, the server appends a number such as `" (2)"` rather than overwrite it.
+    /// - Each component of the category, which `/` delimits, is sanitized like the title and empty components are dropped, and the folders it names are created as needed.
+    ///
+    /// The title is never derived from the content, which only an outdated version of the notes API did.
+    ///
+    /// When `modification` is given, the server stamps it onto the note's file after writing the content, so it becomes ``Note/modification``, which is how a client creating a note it wrote offline keeps the moment it was actually written. Without it, or for a moment at or before the Unix epoch, the note is stamped with the moment the server wrote it.
+    ///
+    /// > Important: Creating a note is not idempotent. Every call which reaches the server creates another note, even with the same title, which the server then numbers as described above. A call whose response was lost, for example because the connection dropped or because the calling task was cancelled after the request had been sent, may therefore have created a note all the same, and simply repeating it may create a duplicate. Before retrying, list the notes, for example through ``notes(changedSince:)``, and look for the note the first attempt may have created.
+    ///
+    /// When the server creates the file but then fails to write the content or the other values, it deletes the new note again before it answers with the error, so a call which fails with a response leaves no half created note behind.
+    ///
+    /// Credentials are required: notes are user-scoped and the underlying endpoint rejects unauthenticated requests.
+    ///
+    /// - Parameters:
+    ///     - title: The title of the new note, which the server sanitizes as described above.
+    ///     - category: The category to file the new note under, with `/` delimiting sub-categories, or an empty string for none. Defaults to an empty string.
+    ///     - content: The text of the new note. Defaults to an empty string.
+    ///     - modification: The moment to stamp the new note with as its ``Note/modification``, or `nil` to have the server stamp it with the moment it wrote it. It is sent in whole seconds since the Unix epoch. Defaults to `nil`.
+    ///     - isFavorite: Whether the new note is marked as a favorite. Defaults to `false`.
+    ///
+    /// - Returns: The new note as the server stored it, including the sanitized title and category and the identifier and entity tag it assigned.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
+    ///     - ``RainmakerError/insufficientStorage`` when the account's quota leaves no room for the new note.
+    ///     - ``RainmakerError/locked`` when a file the server has to write is locked, after the server already retried for several seconds.
+    ///     - ``RainmakerError/appUnavailable(app:)`` when the notes app is not available on the server.
+    ///     - ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)`` when it is available but older than ``Notes/minimumAPIVersion``.
+    ///     - ``RainmakerError/responseDecodingFailed(reason:)`` when a success response does not carry a note.
+    ///     - Any other error that might occur during the request, such as ``RainmakerError/unexpectedStatus(code:)`` when the server cannot create a file of the sanitized name at all.
+    ///
+    func createNote(title: String, category: String = "", content: String = "", modification: Date? = nil, isFavorite: Bool = false) async throws -> Note {
+        try requireCredentials()
+        logger.debug("Creating a note...")
+
+        // A moment without a positive number of whole seconds is left out, which the server takes as a request to keep the moment it wrote the file at.
+        let body = NoteCreationRequest(title: title, category: category, content: content, modified: modification?.wholeSecondsSince1970, favorite: isFavorite)
+        let request = try makeNotesAPIRequest(for: "notes", method: .post, jsonBody: encodeNotesAPIBody(body))
+        let (data, _) = try await notesAPIResponse(for: request)
+        let note = try decodeNotesAPIPayload(Note.self, from: data, describing: "the created note")
+        logger.debug("Created note \(note.id).")
+
+        return note
+    }
+
+    ///
+    /// Change a note of the authenticated user and return it as the server stored it, optionally only if it is still the one a given entity tag was taken from.
+    ///
+    /// Only the values which are given are sent, and the server leaves everything else of the note as it is. A value equal to the one the note already has changes nothing, and a call which gives no value at all returns the note as ``note(_:)`` would. This is a standalone call which needs nothing but credentials and the note's identifier, so it suits a single action such as one of Shortcuts as well as a client keeping its own copy of the notes.
+    ///
+    /// When `entityTag` is given, the request carries it in its `If-Match` header and the server only changes the note while that is still its ``Note/entityTag``. Otherwise it changes nothing and the call throws ``RainmakerError/noteConflict(current:)``, which carries the note as the server has it now, content and entity tag included. That is what lets a caller resolve the conflict without a further request: apply its change to the current note again, for example append its text to the current ``Note/content`` rather than replace it, and retry with the current note's entity tag. Without an entity tag, the change applies to whatever the note is by then, so the last writer wins. A tag with or without quotes and with a `W/` prefix is accepted alike.
+    ///
+    /// The server applies the values one after the other, in the order content, modification, title and category, and favorite, each as a write of its own, so a change is not atomic. When a later step fails, for example because the file is locked or because a title cannot be used as a file name, the earlier steps remain applied, and the error does not say which. Retrieve the note through ``note(_:)`` after an error to learn what it is now.
+    ///
+    /// - A new ``Note/content`` replaces the text of the note.
+    /// - A `modification` is stamped onto the note's file after the content was written, so sending it along with the content keeps the moment the caller wrote the text at, while new content without it is stamped with the moment the server wrote it. A moment at or before the Unix epoch is left out as if it was not given.
+    /// - A new title renames the note's file and a new category moves it to the matching folder, both sanitized as ``createNote(title:category:content:modification:isFavorite:)`` describes, so a caller has to adopt the ``Note/title``, ``Note/category`` and ``Note/path`` of the result. An empty category moves the note out of every category. The note keeps its ``Note/id`` either way, and on releases of the notes app which keep attachments per note, see ``Notes/storesAttachmentsPerNote``, its `.attachments.<id>` folder moves along. A category folder left empty is removed.
+    /// - ``Note/isFavorite`` is not stored in the note's file but with the account's favorites, so changing nothing else needs no permission to write the note and works on a note which ``Note/isReadOnly`` as well. It changes the note's entity tag all the same.
+    ///
+    /// Every other change of a note which is read-only for the authenticated user, for example one shared without write access, is refused with ``RainmakerError/readOnly``.
+    ///
+    /// Credentials are required: notes are user-scoped and the underlying endpoint rejects unauthenticated requests.
+    ///
+    /// - Parameters:
+    ///     - id: The ``Note/id`` of the note to change.
+    ///     - title: The new title, or `nil` to keep the current one. Defaults to `nil`.
+    ///     - category: The new category, with `/` delimiting sub-categories and an empty string for none, or `nil` to keep the current one. Defaults to `nil`.
+    ///     - content: The new text, or `nil` to keep the current one. Defaults to `nil`.
+    ///     - modification: The moment to stamp the note with as its ``Note/modification``, or `nil` to leave it to the server. It is sent in whole seconds since the Unix epoch. Defaults to `nil`.
+    ///     - isFavorite: Whether the note is to be marked as a favorite, or `nil` to keep the current state. Defaults to `nil`.
+    ///     - entityTag: The ``Note/entityTag`` of the copy the change is based on, to change the note only while it is still that copy, or `nil` to change it whatever it is by then. Defaults to `nil`.
+    ///
+    /// - Returns: The note as the server stored it after the change, including its new entity tag and the sanitized title and category.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
+    ///     - ``RainmakerError/notFound`` when the account has no note with this identifier.
+    ///     - ``RainmakerError/noteConflict(current:)`` when `entityTag` is given but the note changed on the server since, in which case nothing was changed.
+    ///     - ``RainmakerError/readOnly`` when the note cannot be written by the authenticated user.
+    ///     - ``RainmakerError/insufficientStorage`` when the account's quota leaves no room for the new content.
+    ///     - ``RainmakerError/locked`` when the note's file is locked, after the server already retried for several seconds.
+    ///     - ``RainmakerError/appUnavailable(app:)`` when the notes app is not available on the server.
+    ///     - ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)`` when it is available but older than ``Notes/minimumAPIVersion``.
+    ///     - ``RainmakerError/responseDecodingFailed(reason:)`` when a success response does not carry a note.
+    ///     - Any other error that might occur during the request.
+    ///
+    func updateNote(_ id: Int, title: String? = nil, category: String? = nil, content: String? = nil, modification: Date? = nil, isFavorite: Bool? = nil, ifMatching entityTag: String? = nil) async throws -> Note {
+        try requireCredentials()
+        logger.debug("Updating note \(id)...")
+
+        var headerFields = [String: String]()
+
+        // The server compares the header against the tag it computed, quoted, so the tag is normalized the same way as for If-None-Match.
+        if let entityTag {
+            headerFields["If-Match"] = entityTag.unquotedEntityTag.quotedEntityTag
+        }
+
+        let body = NoteUpdateRequest(title: title, category: category, content: content, modified: modification?.wholeSecondsSince1970, favorite: isFavorite)
+        let request = try makeNotesAPIRequest(for: "notes/\(id)", method: .put, headerFields: headerFields, jsonBody: encodeNotesAPIBody(body))
+        let (data, _) = try await notesAPIResponse(for: request)
+
+        return try decodeNotesAPIPayload(Note.self, from: data, describing: "the updated note")
+    }
+
+    ///
+    /// Delete a note of the authenticated user.
+    ///
+    /// The server deletes the note's file like any other file deleted on the server, which puts it into the trash bin when the server keeps one, and it removes the category folder the note leaves empty. On releases of the notes app which keep attachments per note, see ``Notes/storesAttachmentsPerNote``, it deletes the note's `.attachments.<id>` folder along with it, while older releases leave the attachments where they are. This is a standalone call which needs nothing but credentials and the note's identifier, so it suits a single action such as one of Shortcuts as well as a client keeping its own copy of the notes.
+    ///
+    /// A note which does not exist is reported as ``RainmakerError/notFound``, which a caller deleting a note can take as the note being gone already, for example when it retries a deletion whose response was lost. An absent notes app is reported as ``RainmakerError/appUnavailable(app:)`` instead, as with ``notes()``.
+    ///
+    /// Unlike ``updateNote(_:title:category:content:modification:isFavorite:ifMatching:)``, this offers no entity tag to make the deletion conditional on, because the server does not check one when it deletes a note. A caller which must not delete a note changed elsewhere can check through ``note(_:ifChangedFrom:)`` first, which narrows that window but cannot close it.
+    ///
+    /// Credentials are required: notes are user-scoped and the underlying endpoint rejects unauthenticated requests.
+    ///
+    /// - Parameters:
+    ///     - id: The ``Note/id`` of the note to delete.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
+    ///     - ``RainmakerError/notFound`` when the account has no note with this identifier.
+    ///     - ``RainmakerError/readOnly`` when the note cannot be deleted by the authenticated user.
+    ///     - ``RainmakerError/locked`` when the note's file is locked, after the server already retried for several seconds.
+    ///     - ``RainmakerError/appUnavailable(app:)`` when the notes app is not available on the server.
+    ///     - ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)`` when it is available but older than ``Notes/minimumAPIVersion``.
+    ///     - Any other error that might occur during the request.
+    ///
+    func deleteNote(_ id: Int) async throws {
+        try requireCredentials()
+        logger.debug("Deleting note \(id)...")
+
+        let request = try makeNotesAPIRequest(for: "notes/\(id)", method: .delete)
+
+        // The server answers with an empty list, which carries nothing worth decoding.
+        _ = try await notesAPIResponse(for: request)
+        logger.debug("Deleted note \(id).")
+    }
+
+    ///
     /// Look up the settings the notes app keeps for the authenticated user.
     ///
     /// These say where the app stores notes and which extension it gives a new one, which matters because notes are ordinary files: the folder is not a fixed name but a value derived from the account's locale by default, so anything which wants to reach notes over WebDAV rather than through ``notes()`` has to ask for it rather than assume it. See ``NotesSettings``.

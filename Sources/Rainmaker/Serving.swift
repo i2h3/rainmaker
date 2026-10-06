@@ -167,6 +167,21 @@ protocol Serving: Sendable {
     func note(_ id: Int, ifChangedFrom entityTag: String) async throws -> Note?
 
     ///
+    /// Create a note for the authenticated user and return it as the server stored it.
+    ///
+    func createNote(title: String, category: String, content: String, modification: Date?, isFavorite: Bool) async throws -> Note
+
+    ///
+    /// Change a note of the authenticated user and return it as the server stored it, optionally only if it is still the one a given entity tag was taken from.
+    ///
+    func updateNote(_ id: Int, title: String?, category: String?, content: String?, modification: Date?, isFavorite: Bool?, ifMatching entityTag: String?) async throws -> Note
+
+    ///
+    /// Delete a note of the authenticated user.
+    ///
+    func deleteNote(_ id: Int) async throws
+
+    ///
     /// Look up the settings the notes app keeps for the authenticated user.
     ///
     func notesSettings() async throws -> NotesSettings

@@ -65,6 +65,7 @@ public enum RainmakerError: Error, Equatable, CustomStringConvertible {
     ///
     /// A note was not changed because it changed on the server since the entity tag the change was based on.
     ///
+    /// ``Server/updateNote(_:title:category:content:modification:isFavorite:ifMatching:)`` reports this when it was given an entity tag which no longer matches the note, in which case nothing was changed.
     /// Carries the note as it currently is on the server, which the notes app sends along with the status `412`, so a client can resolve the conflict without a further request.
     /// Its ``Note/entityTag`` is what a retried change has to be based on.
     ///

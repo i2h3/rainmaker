@@ -34,7 +34,7 @@ public struct Notes: Capability {
     ///
     /// Version 1.4 is the one which exposes the attachments of a note, below a path every release of the notes app advertising it serves, so requiring it is what lets the notes features rely on that path rather than probe for it.
     /// Everything older is unsupported: ``Note/entityTag`` and ``Note/isReadOnly`` arrived with API version 1.2 and are relied upon rather than treated as optional, custom file suffixes arrived with 1.3, and the attachment endpoints with 1.4.
-    /// A server whose notes app is older makes ``Server/notes()``, ``Server/notes(changedSince:)``, ``Server/notes(changedSince:ifChangedFrom:)``, ``Server/notes(changedSince:chunkSize:continuingAfter:)``, ``Server/notes(changedSince:chunkSize:ifChangedFrom:)``, ``Server/noteChunks(changedSince:chunkSize:)``, ``Server/note(_:)``, ``Server/note(_:ifChangedFrom:)`` and ``Server/notesSettings()`` throw ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)``.
+    /// A server whose notes app is older makes ``Server/notes()``, ``Server/notes(changedSince:)``, ``Server/notes(changedSince:ifChangedFrom:)``, ``Server/notes(changedSince:chunkSize:continuingAfter:)``, ``Server/notes(changedSince:chunkSize:ifChangedFrom:)``, ``Server/noteChunks(changedSince:chunkSize:)``, ``Server/note(_:)``, ``Server/note(_:ifChangedFrom:)``, ``Server/createNote(title:category:content:modification:isFavorite:)``, ``Server/updateNote(_:title:category:content:modification:isFavorite:ifMatching:)``, ``Server/deleteNote(_:)`` and ``Server/notesSettings()`` throw ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)``.
     ///
     public static var minimumAPIVersion: String {
         "\(minimumMajorAPIVersion).\(minimumMinorAPIVersion)"
