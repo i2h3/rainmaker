@@ -131,7 +131,10 @@ Files such as images are attached to a note by uploading them, which returns the
 Some behaviours of the notes app are tied to its release rather than to its API version, which ``Notes/isAppVersion(atLeast:)`` and the helpers built on it, such as ``Notes/supportsAttachmentDeletion``, tell apart: only release 6.1.0 and newer keep the attachments of a note in a folder of their own and can delete them.
 An attachment is retrieved bypassing the local HTTP cache, but a session still stores the response in its `URLCache`, so a session shared by several accounts or handling private files is best configured without one, see ``Server/init(address:password:user:session:webSocket:userAgent:)``.
 An absent notes app is reported as ``RainmakerError/appUnavailable(app:)`` rather than as ``RainmakerError/notFound``, which is reserved for a note that does not exist, so a client keeping its own copy never mistakes a missing app for deleted notes.
+The two articles below put these calls together, one for a client keeping its own copy of the notes and one for single actions such as those of Shortcuts.
 
+- <doc:SynchronizingNotes>
+- <doc:UsingNotesFromAppIntents>
 - ``Server/notes()``
 - ``Server/notes(changedSince:)``
 - ``Server/notes(changedSince:ifChangedFrom:)``
@@ -243,6 +246,7 @@ List the server apps, such as Files, Photos and Activity, which the server adver
 
 Every error this library raises on its own is a ``RainmakerError``.
 The notes features map the statuses the notes app answers with onto dedicated cases, such as ``RainmakerError/readOnly``, ``RainmakerError/locked``, ``RainmakerError/insufficientStorage`` and ``RainmakerError/noteConflict(current:)``, but only when the response actually comes from that app, while anything a proxy or the server answers on its behalf stays ``RainmakerError/unexpectedStatus(code:)``.
+An absent notes app is ``RainmakerError/appUnavailable(app:)``, an outdated one ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)``, and a request the installed release does not offer at all, such as deleting an attachment before release 6.1.0, ``RainmakerError/methodNotAllowed``.
 
 - ``RainmakerError``
 

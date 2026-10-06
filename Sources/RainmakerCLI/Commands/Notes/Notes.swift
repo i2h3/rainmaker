@@ -11,7 +11,7 @@ import Rainmaker
 /// This is a group because every subcommand reads or writes the same app through the same credentials, mirroring how ``Conversations`` groups its subcommands. Each subcommand is declared in a file of its own as an extension of this type, such as ``Notes/List`` in `Notes+List.swift`.
 /// ``Notes/List`` is the default subcommand, so `notes` and `notes --changed-since <seconds>` keep listing notes as they did before this became a group.
 ///
-/// This type shadows the library's `Notes` capability within this module, which the subcommands therefore do not refer to. Spelling that capability `Rainmaker.Notes` would not help either, because the root command of this module is called ``Rainmaker`` and shadows the library's module name in turn.
+/// This type shadows the library's `Notes` capability within this module, which the subcommands therefore do not refer to. Spelling that capability `Rainmaker.Notes` would not help either, because the root command of this module is called `Rainmaker` and shadows the library's module name in turn.
 ///
 struct Notes: AsyncParsableCommand {
     static let configuration = CommandConfiguration(

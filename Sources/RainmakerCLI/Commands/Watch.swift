@@ -9,7 +9,7 @@ import Rainmaker
 /// Observe server-side changes and print each event as it arrives.
 ///
 /// This exercises ``Rainmaker/Server/events(_:)``: it prefers the `notify_push` WebSocket when the server offers it and otherwise polls, printing one line per ``Rainmaker/ServerEvent``. It runs until interrupted.
-/// The `--transport` option sets ``Rainmaker/ServerEventOptions/transport``, so `--transport polling` only polls and never opens a WebSocket.
+/// The `--transport` option sets `ServerEventOptions.transport` of the library, so `--transport polling` only polls and never opens a WebSocket.
 ///
 struct Watch: AsyncParsableCommand {
     static let configuration = CommandConfiguration(abstract: "Observe server-side changes over notify_push (or polling when unavailable or asked to) and print each event. Runs until interrupted.")
