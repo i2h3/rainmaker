@@ -11,7 +11,7 @@
 /// 3. A line which consists of nothing but `=` or nothing but `-`, which underlines a heading in the other Markdown syntax for headings, is emptied.
 /// 4. Emphasis, which is text between two equal runs of `*` or `_` on one line, is reduced to the text between them.
 ///
-/// Each pass takes time proportional to the length of the content, so that even content made to be pathological, such as a heading followed by a long run of spaces, cannot stall a caller.
+/// Every pass but the one removing emphasis takes time proportional to the length of the content, and that one does as well for realistic content, while its worst case, a line of runs of delimiters which get shorter one after the other, grows with the length of the line times its square root, so that even content made to be pathological, such as a heading followed by a long run of spaces, cannot stall a caller.
 /// Like ``NoteNameSanitizer``, it works on Unicode scalars, considers white space what ``NoteNameSanitizer/isWhitespace(_:)`` does, which includes line feeds, and starts a new line only after a line feed, so that a carriage return of a Windows line ending is part of the line it ends.
 ///
 enum NoteMarkdownStripper {
