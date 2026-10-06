@@ -185,6 +185,11 @@ enum HTTPStatus: Int, RawRepresentable, CustomStringConvertible {
     case expectationFailed = 417
 
     ///
+    /// Equals the raw status code of `423`.
+    ///
+    case locked = 423
+
+    ///
     /// Equals the raw status code of `500`.
     ///
     case internalServerError = 500
@@ -294,6 +299,8 @@ enum HTTPStatus: Int, RawRepresentable, CustomStringConvertible {
                 "Requested range not satisfiable"
             case .expectationFailed:
                 "Expectation failed"
+            case .locked:
+                "Locked"
             case .internalServerError:
                 "Internal server error"
             case .notImplemented:

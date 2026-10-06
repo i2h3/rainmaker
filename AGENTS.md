@@ -6,6 +6,7 @@ The human readable introduction of this Swift Package is in [README.md](README.m
 
 - `Sources/` contains the Swift source code per target.
 - `Sources/Rainmaker/` contains the Swift source code for the main static library provided by this package.
+- `Sources/Rainmaker/Server.swift` declares `Server` with the files, OCS and app features, while `Sources/Rainmaker/Server+Events.swift` and `Sources/Rainmaker/Server+Notes.swift` extend it with the event stream and the notes features respectively. The notes extension also holds the private helpers every notes feature is built on: the request factory for the notes API roots (`Server.notesAPIRoot`, and `Server.notesAttachmentAPIRoot` because older notes releases route attachments only below `v1.4`), the mapping of the notes app's statuses onto `RainmakerError` gated by its `X-Notes-API-Versions` header (read through `Extensions/HTTPURLResponse+notesAPIVersions.swift`), and the JSON decoding and encoding of payloads.
 - `Sources/Rainmaker/Requests/Bodies` contains static HTTP bodies for requests sent to a Nextcloud server. For example the uniform XML document when retrieving information about a WebDAV resource from the server. The reasoning is simplicity by having a plain file, ease of maintenance by making it editable like a standard XML document and performance by not always assembling it programmatically.
 - `Sources/Rainmaker/Extensions/` is for implementations of extensions of first-party or platform types. One source code file per extended type and added feature.
 - `Sources/Rainmaker/Models` contains Swift source code for data models which are also publicly available types. They do not necessarily mirror the structure and types as returned by the server in responses. They are meant to be as elegant and plausible as possible from a Swift client developer perspective, not necessarily mirroring the server responses exactly.
@@ -54,7 +55,7 @@ The human readable introduction of this Swift Package is in [README.md](README.m
 ## Documentation Instructions
 
 - Always check existing documentation comments for validity and update, if necessary.
-- The published API reference is generated from public symbols only, so the full documentation of every `Server` method lives on the method itself in `Sources/Rainmaker/Server.swift` and `Sources/Rainmaker/Server+Events.swift`. The internal `Serving` protocol carries one-line abstracts only.
+- The published API reference is generated from public symbols only, so the full documentation of every `Server` method lives on the method itself in `Sources/Rainmaker/Server.swift`, `Sources/Rainmaker/Server+Events.swift` and `Sources/Rainmaker/Server+Notes.swift`. The internal `Serving` protocol carries one-line abstracts only.
 - Whenever the files and folders within the repository change, update the "Repository Structure" section of this document accordingly.
 - Always check the `./README.md` for validity and update, if necessary.
 - Semantic versioning is used. Report on the impact in this regard after applying changes.
