@@ -333,7 +333,7 @@ public extension Server {
     /// - When the category already holds a note of that title, the server appends a number such as `" (2)"` rather than overwrite it.
     /// - Each component of the category, which `/` delimits, is sanitized like the title and empty components are dropped, and the folders it names are created as needed.
     ///
-    /// The title is never derived from the content, which only an outdated version of the notes API did.
+    /// The title is never derived from the content, which only an outdated version of the notes API did. To give a note the title the notes app's web interface would derive from its text, pass what ``NoteTitle/derive(fromContent:)`` returns as `title`, and to learn beforehand which title and category the server will settle on, see ``NoteTitle/sanitize(_:)`` and ``NoteCategory/sanitize(_:)``.
     ///
     /// When `modification` is given, the server stamps it onto the note's file after writing the content, so it becomes ``Note/modification``, which is how a client creating a note it wrote offline keeps the moment it was actually written. Without it, or for a moment at or before the Unix epoch, the note is stamped with the moment the server wrote it.
     ///
@@ -471,7 +471,7 @@ public extension Server {
     ///
     /// Retrieve a file a note refers to, such as an image embedded into it, into memory.
     ///
-    /// The path is relative to the folder of the note's category, which is the folder the note's file is in. It is what ``addAttachment(_:toNote:fileName:)-(URL,Int,String?)`` returned, or what the note's text references, after percent-decoding the reference. The server reads `\` as `/`, skips empty components and resolves `..` as a step up, but never above the notes folder, so a path reaches every file in the notes folder and nothing outside of it. Attachments uploaded through the notes app land in a folder named `.attachments.<id>` next to the note on releases which keep them per note, see ``Notes/storesAttachmentsPerNote``, and right next to the note on older releases.
+    /// The path is relative to the folder of the note's category, which is the folder the note's file is in. It is what ``addAttachment(_:toNote:fileName:)-(URL,Int,String?)`` returned, or what the note's text references, after percent-decoding the reference. The server reads `\` as `/`, skips empty components and resolves `..` as a step up, but never above the notes folder, so a path reaches every file in the notes folder and nothing outside of it. Attachments uploaded through the notes app land in a folder named `.attachments.<id>` next to the note on releases which keep them per note, see ``Notes/storesAttachmentsPerNote``, and right next to the note on older releases. ``NoteAttachmentReference/decode(_:)`` turns a reference in the note's text into such a path, and ``NoteAttachmentPath/resolve(_:relativeTo:)`` tells which file in the notes folder the server resolves it to.
     ///
     /// This is a standalone call which needs nothing but credentials, the note's identifier and the path, so it suits a single action such as one of Shortcuts as well as a client keeping its own copy of the notes. It runs within the calling task, so cancelling that task cancels the request. The whole file is held in memory, so a large file or a process with little memory to spare, such as an extension, is better served by ``downloadAttachment(at:ofNote:to:force:)``, which writes it to a local file instead.
     ///
@@ -581,7 +581,7 @@ public extension Server {
     ///
     /// The server's form handling keeps only what follows the last `/` or `\` of the name, as it does for every uploaded file. The returned path is relative to the folder of the note's category and is what ``attachment(at:ofNote:)``, ``downloadAttachment(at:ofNote:to:force:)`` and ``deleteAttachment(at:ofNote:)`` take.
     ///
-    /// Adding an attachment does not change the note. To embed it, the caller changes the note's content through ``updateNote(_:title:category:content:modification:isFavorite:ifMatching:)`` to reference the returned path, for example as `![](.attachments.123/Photo%20%281%29.png)`. The notes app's editor encodes each component of such a reference as JavaScript's `encodeURIComponent` does and additionally encodes `!`, `'`, `(`, `)` and `*`, which keeps a name from ending the markdown link early.
+    /// Adding an attachment does not change the note. To embed it, the caller changes the note's content through ``updateNote(_:title:category:content:modification:isFavorite:ifMatching:)`` to reference the returned path, for example as `![](.attachments.123/Photo%20%281%29.png)`. The notes app's editor encodes each component of such a reference as JavaScript's `encodeURIComponent` does and additionally encodes `!`, `'`, `(`, `)` and `*`, which keeps a name from ending the markdown link early. ``NoteAttachmentReference/markdown(alt:path:)`` builds such a reference from the returned path.
     ///
     /// > Important: Adding an attachment is not idempotent. Every call which reaches the server stores another file, and a call whose response was lost may have stored one all the same. The notes app offers no way to list the attachments of a note, but they are ordinary files, which ``enumerate(at:recursively:)->[Item]`` lists in the folder the note's ``Note/path`` names.
     ///
