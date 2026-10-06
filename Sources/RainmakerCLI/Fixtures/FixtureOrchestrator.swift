@@ -38,12 +38,13 @@
             "LoginTests",
             "MoveTests",
             "NavigationTests",
+            "NoteMutationTests",
             "NotesTests",
             "UploadTests",
         ]
 
         ///
-        /// The identifier of the notes app, which `NotesTests` cannot record anything without.
+        /// The identifier of the notes app, which `NotesTests` and `NoteMutationTests` cannot record anything without.
         ///
         /// It is named on its own rather than only as part of ``installedApps`` because what follows its installation is a lookup specific to it, namely ``resolveNotesFolder(on:)``.
         ///
