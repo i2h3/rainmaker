@@ -115,7 +115,8 @@ Each fetch bypasses the local HTTP cache, and the endpoint publishes no version 
 
 Retrieve the notes of an account, either all of them at once or, for a client keeping its own copy, only those the server recorded a change for since a given moment.
 Whether the app providing them is installed at all is advertised through the ``Notes`` capability, which matters more here than elsewhere because the notes app is not part of a Nextcloud installation, and which also reports whether it is new enough to be usable.
-Notes are ordinary files, so ``NotesSettings`` says where to find them when reaching for them over WebDAV instead.
+Notes are ordinary files, so ``NotesSettings`` says where to find them when reaching for them over WebDAV instead, and ``Note/path`` says where exactly the file of each note is.
+Some behaviours of the notes app are tied to its release rather than to its API version, which ``Notes/isAppVersion(atLeast:)`` and the helpers built on it, such as ``Notes/supportsAttachmentDeletion``, tell apart.
 An absent notes app is reported as ``RainmakerError/appUnavailable(app:)`` rather than as ``RainmakerError/notFound``, which is reserved for a note that does not exist, so a client keeping its own copy never mistakes a missing app for deleted notes.
 
 - ``Server/notes()``
@@ -123,7 +124,9 @@ An absent notes app is reported as ``RainmakerError/appUnavailable(app:)`` rathe
 - ``Server/notesSettings()``
 - ``Note``
 - ``NoteChanges``
+- ``ShareType``
 - ``NotesSettings``
+- ``NoteMode``
 
 ### Collectives
 

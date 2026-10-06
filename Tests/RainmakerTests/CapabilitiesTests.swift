@@ -70,7 +70,11 @@ import Testing
         #expect(notes.apiVersion?.isEmpty == false)
         #expect(notes.version?.isEmpty == false)
         #expect(notes.notesPath?.isEmpty == false)
+        #expect(notes.isSupported)
         #expect(capabilities.contains(Notes.self))
+
+        // Whichever release the app store hands this server version, the attachment behaviours tied to it agree with each other, because both arrived with the same release.
+        #expect(notes.storesAttachmentsPerNote == notes.supportsAttachmentDeletion)
 
         // Talk is likewise installed on the recording containers on demand. Its features are named flags rather than an API version, because it versions its endpoints in their paths instead.
         let talk = try #require(try capabilities.get(Talk.self))

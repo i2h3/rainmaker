@@ -68,6 +68,7 @@ public struct Notes: Capability {
     /// The version of the notes app itself, e.g. `"6.0.1"`.
     ///
     /// This is the app's own version and unrelated to the server ``Version``, which is why it is kept as the plain string the server sends.
+    /// Behaviours the app does not announce through ``apiVersion`` can only be told apart by it, which is what ``isAppVersion(atLeast:)`` is for.
     ///
     public let version: String?
 
@@ -86,6 +87,122 @@ public struct Notes: Capability {
     ///
     public var isSupported: Bool {
         Self.supports(apiVersions: apiVersion ?? [])
+    }
+
+    ///
+    /// The release of the notes app which started to keep the attachments uploaded through its API in a folder per note and to offer their deletion, which is `"6.1.0"`.
+    ///
+    /// Both behaviours are what ``storesAttachmentsPerNote`` and ``supportsAttachmentDeletion`` check for. Neither is announced through ``apiVersion``, which is `1.4` before and after this release, so the app's ``version`` is the only way to tell.
+    ///
+    public static let attachmentFoldersAppVersion = "6.1.0"
+
+    ///
+    /// Whether the installed notes app keeps the attachments uploaded through its API in a hidden `.attachments.<id>` folder next to the note they belong to.
+    ///
+    /// This is the case from ``attachmentFoldersAppVersion`` on. Older releases put an uploaded attachment straight into the folder of the note under a random name which only keeps the file extension, which is why a client wanting the attachments of a note to stay apart from its notes may want to check this first. See ``Note/path`` for where the folder is.
+    /// It is `false` when ``version`` is absent or cannot be compared, see ``isAppVersion(atLeast:)``.
+    ///
+    public var storesAttachmentsPerNote: Bool {
+        isAppVersion(atLeast: Self.attachmentFoldersAppVersion)
+    }
+
+    ///
+    /// Whether the installed notes app can delete an attachment of a note through its API.
+    ///
+    /// This is the case from ``attachmentFoldersAppVersion`` on, because only attachments in the folder of a note, see ``storesAttachmentsPerNote``, can be told apart from other files and deleted. Older releases do not offer deletion at all and answer such a request with a status which maps to ``RainmakerError/methodNotAllowed``.
+    /// It is `false` when ``version`` is absent or cannot be compared, see ``isAppVersion(atLeast:)``.
+    ///
+    public var supportsAttachmentDeletion: Bool {
+        isAppVersion(atLeast: Self.attachmentFoldersAppVersion)
+    }
+
+    ///
+    /// Whether the installed notes app is at least the given release, comparing it against ``version``.
+    ///
+    /// Versions are compared component by component as numbers, so `"6.10.0"` is newer than `"6.9.0"`, and missing components count as zero, so `"7"` equals `"7.0.0"`. A pre-release such as `"6.1.0-beta.3"` is older than the release it precedes, which errs on the side of not relying on a feature which may not have been part of the pre-release yet. Build metadata after a `+` is ignored.
+    /// The answer is `false` rather than a guess when ``version`` is absent or either version cannot be read that way.
+    ///
+    /// This library itself only requires ``minimumAPIVersion``, so whether a feature tied to a release of the app, like ``supportsAttachmentDeletion``, is required is up to the client.
+    ///
+    /// - Parameter minimum: The oldest acceptable release of the notes app, e.g. `"6.1.0"`.
+    /// - Returns: `true` if ``version`` is the same as or newer than `minimum`.
+    ///
+    public func isAppVersion(atLeast minimum: String) -> Bool {
+        guard let version else {
+            return false
+        }
+
+        guard let result = Self.compareAppVersions(version, minimum) else {
+            return false
+        }
+
+        return result != .orderedAscending
+    }
+
+    ///
+    /// Compare two releases of the notes app as ``isAppVersion(atLeast:)`` describes, or return `nil` when either of them cannot be read.
+    ///
+    /// The core of each version is what precedes the first `-` or `+`, split at `.` into numbers. On equal cores, a version with a pre-release suffix after `-` orders before one without, while two pre-releases of the same core count as equal because their suffixes are not compared.
+    ///
+    static func compareAppVersions(_ lhs: String, _ rhs: String) -> ComparisonResult? {
+        guard let left = parseAppVersion(lhs) else {
+            return nil
+        }
+
+        guard let right = parseAppVersion(rhs) else {
+            return nil
+        }
+
+        let count = max(left.core.count, right.core.count)
+
+        for index in 0 ..< count {
+            let leftComponent = index < left.core.count ? left.core[index] : 0
+            let rightComponent = index < right.core.count ? right.core[index] : 0
+
+            if leftComponent < rightComponent {
+                return .orderedAscending
+            }
+
+            if leftComponent > rightComponent {
+                return .orderedDescending
+            }
+        }
+
+        switch (left.isPreRelease, right.isPreRelease) {
+            case (true, false):
+                return .orderedAscending
+            case (false, true):
+                return .orderedDescending
+            default:
+                return .orderedSame
+        }
+    }
+
+    ///
+    /// Split a release of the notes app into the numbers of its core and whether it is a pre-release, as ``compareAppVersions(_:_:)`` compares them, or return `nil` when the core is not made of numbers only.
+    ///
+    private static func parseAppVersion(_ version: String) -> (core: [Int], isPreRelease: Bool)? {
+        let trimmed = version.trimmingCharacters(in: .whitespaces)
+        let withoutBuild = trimmed.split(separator: "+", maxSplits: 1, omittingEmptySubsequences: false).first ?? ""
+        let parts = withoutBuild.split(separator: "-", maxSplits: 1, omittingEmptySubsequences: false)
+        let coreText = parts.first ?? ""
+        let isPreRelease = parts.count > 1
+
+        var core = [Int]()
+
+        for component in coreText.split(separator: ".", omittingEmptySubsequences: false) {
+            guard let number = Int(component), number >= 0 else {
+                return nil
+            }
+
+            core.append(number)
+        }
+
+        guard core.isEmpty == false else {
+            return nil
+        }
+
+        return (core, isPreRelease)
     }
 
     ///

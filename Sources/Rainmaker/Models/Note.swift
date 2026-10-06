@@ -9,7 +9,9 @@ import Foundation
 /// Notes are listed through ``Server/notes()`` and, incrementally, through ``Server/notes(changedSince:)``. Whether the notes app which provides them is available at all can be checked in advance via the ``Notes`` capability, e.g. `try await capabilities().contains(Notes.self)`.
 ///
 /// Every note is a file in the account's notes folder, which is why ``title`` doubles as its file name and ``category`` as the folder it sits in.
-/// The attachments ``content`` may refer to are intentionally not modelled, as retrieving them is out of scope.
+/// Where exactly that file is, is what ``path`` says, and whether it is shared with anyone is what ``isShared`` and ``shareTypes`` say.
+///
+/// A note is usually decoded from a server's response, but ``init(id:entityTag:isReadOnly:title:category:content:hasError:errorType:isFavorite:modification:path:isShared:shareTypes:)`` creates one from its individual values, for example to stand in for a server's response in the tests of a downstream project.
 ///
 /// A note the server could not read is still listed rather than omitted, and the response still succeeds. Such a note carries ``hasError``, and its ``content`` is a message about the failure instead of the note's text. Anything which stores what it retrieves has to check that before writing, or it replaces a perfectly good local copy with an error message.
 ///
@@ -88,6 +90,67 @@ public struct Note: Model, Hashable, Identifiable, CustomStringConvertible, Cust
     public let modification: Date
 
     ///
+    /// The path of the note's file relative to the account's files, with a leading slash, e.g. `"/Notes/Recipes/Pancakes.md"`.
+    ///
+    /// This corresponds to the server's `internalPath` field and is what makes the note's file reachable over WebDAV, for example through ``Server/info(_:)`` or ``Server/download(_:to:force:)``.
+    /// It starts with ``NotesSettings/notesPath`` and continues with ``category`` and the file name derived from ``title``, but asking for it rather than assembling it is the only reliable way, because the server sanitizes both and picks the file extension.
+    /// The attachments of a note are files as well: releases of the notes app from 6.1.0 on, see ``Notes/storesAttachmentsPerNote``, keep those uploaded through the notes API in a hidden `.attachments.<id>` folder in the same folder as this file, where `<id>` is ``id``.
+    ///
+    /// Every release of the notes app serving ``Notes/minimumAPIVersion`` sends it, so this is `nil` only for a note created without it through the memberwise initializer or decoded from a payload written by hand.
+    ///
+    public let path: String?
+
+    ///
+    /// Whether the note's file is shared with anyone, which is the case exactly when ``shareTypes`` is not empty.
+    ///
+    /// This corresponds to the server's `isShared` field. It reports the shares the owner of the note's file created for it, which is the authenticated user for every note in their own notes folder.
+    ///
+    public let isShared: Bool
+
+    ///
+    /// The kinds of share the note's file is part of, one entry per kind, which is empty when ``isShared`` is `false`.
+    ///
+    /// This corresponds to the server's `shareTypes` field. The server only looks for the kinds ``ShareType`` has named constants for, but any other number it might send in future is kept rather than dropped.
+    ///
+    public let shareTypes: [ShareType]
+
+    ///
+    /// Create a note from its individual values, for example to stand in for a server's response in the tests of a downstream project.
+    ///
+    /// The defaults are what the server sends for an ordinary, uncategorized note it read without trouble and which is neither a favorite nor shared.
+    ///
+    /// - Parameters:
+    ///     - id: The server-assigned identifier, see ``id``.
+    ///     - entityTag: The entity tag, see ``entityTag``.
+    ///     - isReadOnly: Whether the note cannot be edited, see ``isReadOnly``. Defaults to `false`.
+    ///     - title: The title, see ``title``.
+    ///     - category: The category, see ``category``. Defaults to an empty string, meaning uncategorized.
+    ///     - content: The text, see ``content``.
+    ///     - hasError: Whether the server could not read the note, see ``hasError``. Defaults to `false`.
+    ///     - errorType: The kind of error, see ``errorType``. Defaults to an empty string.
+    ///     - isFavorite: Whether the note is a favorite, see ``isFavorite``. Defaults to `false`.
+    ///     - modification: The moment of the last modification, see ``modification``.
+    ///     - path: The path of the note's file, see ``path``. Defaults to `nil`.
+    ///     - isShared: Whether the note's file is shared, see ``isShared``. Defaults to `false`.
+    ///     - shareTypes: The kinds of share the note's file is part of, see ``shareTypes``. Defaults to none.
+    ///
+    public init(id: Int, entityTag: String, isReadOnly: Bool = false, title: String, category: String = "", content: String, hasError: Bool = false, errorType: String = "", isFavorite: Bool = false, modification: Date, path: String? = nil, isShared: Bool = false, shareTypes: [ShareType] = []) {
+        self.id = id
+        self.entityTag = entityTag
+        self.isReadOnly = isReadOnly
+        self.title = title
+        self.category = category
+        self.content = content
+        self.hasError = hasError
+        self.errorType = errorType
+        self.isFavorite = isFavorite
+        self.modification = modification
+        self.path = path
+        self.isShared = isShared
+        self.shareTypes = shareTypes
+    }
+
+    ///
     /// The keys a note is decoded from, which are the names the server sends. Encoding uses the separate encoding keys below so that the server's naming does not leak into the encoded form.
     ///
     private enum CodingKeys: String, CodingKey {
@@ -101,6 +164,9 @@ public struct Note: Model, Hashable, Identifiable, CustomStringConvertible, Cust
         case errorType
         case isFavorite = "favorite"
         case modification = "modified"
+        case path = "internalPath"
+        case isShared
+        case shareTypes
     }
 
     // MARK: - Decodable
@@ -108,7 +174,9 @@ public struct Note: Model, Hashable, Identifiable, CustomStringConvertible, Cust
     ///
     /// Decode a note from the server's payload.
     ///
-    /// Every field is required, ``hasError`` and ``errorType`` included: the server has sent those since it first served version 1 of the API. ``Notes/minimumAPIVersion`` is enforced before a payload reaches this type, and that version sends all of them, so a missing field means a response this type cannot describe rather than an older server. The notes this library requests are also never reduced by an `exclude` parameter, and the reduced form a `pruneBefore` request produces is recognized before decoding is attempted.
+    /// Every field but ``path``, ``isShared`` and ``shareTypes`` is required, ``hasError`` and ``errorType`` included: the server has sent those since it first served version 1 of the API. ``Notes/minimumAPIVersion`` is enforced before a payload reaches this type, and that version sends all of them, so a missing field means a response this type cannot describe rather than an older server. The notes this library requests are also never reduced by an `exclude` parameter, and the reduced form a `pruneBefore` request produces is recognized before decoding is attempted.
+    ///
+    /// The server sends ``path``, ``isShared`` and ``shareTypes`` as well, since long before ``Notes/minimumAPIVersion``. They are decoded only if present all the same, falling back to `nil`, `false` and no share types, so that a payload written by hand, for example in the tests of a downstream project, does not have to carry them.
     ///
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -126,6 +194,10 @@ public struct Note: Model, Hashable, Identifiable, CustomStringConvertible, Cust
         // Decoding into a `TimeInterval` rather than an integer avoids the trap an out of range value would cause on the platforms where `Int` is only 32 bits wide.
         let secondsSince1970 = try container.decode(TimeInterval.self, forKey: .modification)
         modification = Date(timeIntervalSince1970: secondsSince1970)
+
+        path = try container.decodeIfPresent(String.self, forKey: .path)
+        isShared = try container.decodeIfPresent(Bool.self, forKey: .isShared) ?? false
+        shareTypes = try container.decodeIfPresent([ShareType].self, forKey: .shareTypes) ?? []
     }
 
     // MARK: - Encodable
@@ -133,7 +205,7 @@ public struct Note: Model, Hashable, Identifiable, CustomStringConvertible, Cust
     ///
     /// The keys a note is encoded under, which are the property names rather than the names the server sends.
     ///
-    /// Encoding deliberately does not reuse ``CodingKeys``: those exist to read the server's payload and carry its naming, which would leak back out into anything this library encodes. Keeping the two apart is what makes the encoded form match the model a Swift caller sees, including where a property was renamed for clarity such as ``modification`` over the server's `modified`.
+    /// Encoding deliberately does not reuse ``CodingKeys``: those exist to read the server's payload and carry its naming, which would leak back out into anything this library encodes. Keeping the two apart is what makes the encoded form match the model a Swift caller sees, including where a property was renamed for clarity such as ``modification`` over the server's `modified` or ``path`` over its `internalPath`.
     ///
     private enum EncodingKeys: String, CodingKey {
         case id
@@ -146,6 +218,9 @@ public struct Note: Model, Hashable, Identifiable, CustomStringConvertible, Cust
         case errorType
         case isFavorite
         case modification
+        case path
+        case isShared
+        case shareTypes
     }
 
     ///
@@ -164,6 +239,9 @@ public struct Note: Model, Hashable, Identifiable, CustomStringConvertible, Cust
         try container.encode(errorType, forKey: .errorType)
         try container.encode(isFavorite, forKey: .isFavorite)
         try container.encode(modification, forKey: .modification)
+        try container.encode(path, forKey: .path)
+        try container.encode(isShared, forKey: .isShared)
+        try container.encode(shareTypes, forKey: .shareTypes)
     }
 
     // MARK: - CustomStringConvertible

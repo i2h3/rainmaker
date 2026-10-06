@@ -63,11 +63,20 @@ import Testing
         #expect(uncategorized.entityTag.isEmpty == false)
         #expect(uncategorized.description == "Rainmaker")
 
+        // The path is pinned only below the notes folder, whose name is derived from the container's locale. The seeded notes are not shared with anyone.
+        #expect(uncategorized.path?.hasPrefix("/") == true)
+        #expect(uncategorized.path?.hasSuffix("/Rainmaker.md") == true)
+        #expect(uncategorized.isShared == false)
+        #expect(uncategorized.shareTypes.isEmpty)
+
         // A note in a sub-folder of the notes folder is reported under that folder as its category.
         let categorized = try #require(notes.first { $0.title == "Pancakes" })
         #expect(categorized.category == "Recipes")
         #expect(categorized.content == "# Pancakes\n")
         #expect(categorized.modification == Date(timeIntervalSince1970: 1_600_000_000))
+
+        // The category is the folder the note's file sits in, which the path reflects.
+        #expect(categorized.path?.hasSuffix("/Recipes/Pancakes.md") == true)
 
         // The identifiers are assigned by the server and are only meaningful in being present and telling the notes apart.
         #expect(notes.allSatisfy { $0.id > 0 })
@@ -86,11 +95,25 @@ import Testing
     @Test("Settings", arguments: ServerVersion.allCases)
     func settings(_ serverVersion: ServerVersion) async throws {
         let server = try makeServer(serverVersion: serverVersion)
+
+        // The capabilities say which release of the notes app answers, which decides whether the preferences of newer releases are sent. Branching on them rather than on the server version keeps the test independent of which release the app store hands each server version.
+        let notes = try #require(try await server.capabilities().get(Notes.self))
         let settings = try await server.notesSettings()
 
         // Neither value is pinned to a literal: the folder is derived from the account's locale, so the container's language decides it, and the suffix is a user setting. What matters is that the server reports something usable, since the recording provisions its notes into exactly this folder.
         #expect(settings.notesPath.isEmpty == false)
         #expect(settings.fileSuffix.hasPrefix("."))
+
+        // Every supported release sends a mode, and it is one of the known ones rather than something which decoded as absent.
+        #expect(settings.noteMode != nil)
+
+        if notes.isAppVersion(atLeast: "6.1.0") {
+            #expect(settings.showsHiddenFiles != nil)
+            #expect(settings.loadsRecentNoteOnStartUp != nil)
+        } else {
+            #expect(settings.showsHiddenFiles == nil)
+            #expect(settings.loadsRecentNoteOnStartUp == nil)
+        }
     }
 
     @Test("Fetch Everything Changed", arguments: ServerVersion.allCases)

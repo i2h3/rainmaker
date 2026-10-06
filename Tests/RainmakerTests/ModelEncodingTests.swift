@@ -56,13 +56,60 @@ import Testing
     @Test("Note Encodes Under Its Property Names")
     func note() throws {
         let payload = """
-        {"id":76,"etag":"be284e00488c61c101ee28309d235e0b","readonly":false,"modified":1376753464,"title":"New note","category":"sub-directory","content":"New note","favorite":false,"error":false,"errorType":""}
+        {"id":76,"etag":"be284e00488c61c101ee28309d235e0b","readonly":false,"modified":1376753464,"title":"New note","category":"sub-directory","content":"New note","favorite":false,"error":false,"errorType":"","internalPath":"/Notes/sub-directory/New note.md","shareTypes":[0,3],"isShared":true}
         """
 
         let keys = try encodedKeys(of: Note.self, from: payload)
 
-        #expect(keys.isDisjoint(with: ["etag", "readonly", "favorite", "modified", "error"]))
-        #expect(keys == ["id", "entityTag", "isReadOnly", "title", "category", "content", "hasError", "errorType", "isFavorite", "modification"])
+        #expect(keys.isDisjoint(with: ["etag", "readonly", "favorite", "modified", "error", "internalPath"]))
+        #expect(keys == ["id", "entityTag", "isReadOnly", "title", "category", "content", "hasError", "errorType", "isFavorite", "modification", "path", "isShared", "shareTypes"])
+    }
+
+    @Test("Note Without Path And Shares Decodes With Defaults")
+    func noteWithoutPathAndShares() throws {
+        let payload = """
+        {"id":76,"etag":"be284e00488c61c101ee28309d235e0b","readonly":false,"modified":1376753464,"title":"New note","category":"","content":"New note","favorite":false,"error":false,"errorType":""}
+        """
+
+        let note = try JSONDecoder().decode(Note.self, from: Data(payload.utf8))
+
+        // A payload written by hand may leave these out, which must not fail the decoding.
+        #expect(note.path == nil)
+        #expect(note.isShared == false)
+        #expect(note.shareTypes.isEmpty)
+
+        // The memberwise initializer defaults to exactly what such a payload decodes to, so a fake built with it compares equal to the decoded note.
+        let made = Note(id: 76, entityTag: "be284e00488c61c101ee28309d235e0b", title: "New note", content: "New note", modification: Date(timeIntervalSince1970: 1_376_753_464))
+        #expect(made == note)
+    }
+
+    @Test("Note Path And Shares Decode From The Server's Names")
+    func notePathAndShares() throws {
+        let payload = """
+        {"id":76,"etag":"be284e00488c61c101ee28309d235e0b","readonly":false,"modified":1376753464,"title":"New note","category":"sub-directory","content":"New note","favorite":false,"error":false,"errorType":"","internalPath":"/Notes/sub-directory/New note.md","shareTypes":[0,3,99],"isShared":true}
+        """
+
+        let note = try JSONDecoder().decode(Note.self, from: Data(payload.utf8))
+
+        #expect(note.path == "/Notes/sub-directory/New note.md")
+        #expect(note.isShared)
+
+        // A kind of share without a named constant keeps its number rather than failing the decoding of the note.
+        #expect(note.shareTypes == [.user, .link, ShareType(rawValue: 99)])
+    }
+
+    @Test("Share Type Encodes As The Number The Server Sent")
+    func shareType() throws {
+        let types = try JSONDecoder().decode([ShareType].self, from: Data("[0, 1, 3, 4, 6, 10, 12, 15, 42]".utf8))
+        #expect(types == [.user, .group, .link, .email, .federated, .room, .deck, .scienceMesh, ShareType(rawValue: 42)])
+
+        let data = try JSONEncoder().encode(types)
+        let array = try #require(try JSONSerialization.jsonObject(with: data) as? [Int])
+
+        // Unlike the enums with named cases, a kind of share has only its number to encode, known or not.
+        #expect(array == [0, 1, 3, 4, 6, 10, 12, 15, 42])
+        #expect(ShareType.link.description == "link")
+        #expect(ShareType(rawValue: 42).description == "42")
     }
 
     @Test("Collective Encodes Under Its Property Names")
@@ -96,13 +143,54 @@ import Testing
     @Test("Note Settings Encode Under Their Property Names")
     func notesSettings() throws {
         let payload = """
-        {"notesPath":"Notizen","fileSuffix":".md","noteMode":"rich"}
+        {"notesPath":"Notizen","fileSuffix":".md","noteMode":"rich","showHidden":false,"loadRecentOnStartUp":true}
         """
 
         let keys = try encodedKeys(of: NotesSettings.self, from: payload)
 
-        // The server already names these the way this library does, so the two key sets coincide rather than needing a translation. The undocumented field must not survive.
-        #expect(keys == ["notesPath", "fileSuffix"])
+        // The names of the two preferences the server spells differently must not survive a round trip.
+        #expect(keys.isDisjoint(with: ["showHidden", "loadRecentOnStartUp"]))
+        #expect(keys == ["notesPath", "fileSuffix", "noteMode", "showsHiddenFiles", "loadsRecentNoteOnStartUp"])
+    }
+
+    @Test("Note Settings Decode The Preferences Of Newer Releases")
+    func notesSettingsPreferences() throws {
+        let payload = """
+        {"notesPath":"Notizen","fileSuffix":".md","noteMode":"preview","showHidden":true,"loadRecentOnStartUp":false}
+        """
+
+        let settings = try JSONDecoder().decode(NotesSettings.self, from: Data(payload.utf8))
+
+        #expect(settings == NotesSettings(notesPath: "Notizen", fileSuffix: ".md", noteMode: .preview, showsHiddenFiles: true, loadsRecentNoteOnStartUp: false))
+
+        let data = try JSONEncoder().encode(settings)
+        let object = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+
+        // The mode encodes as the string the server uses for it.
+        #expect(object["noteMode"] as? String == "preview")
+    }
+
+    @Test("Note Settings Tolerate An Unknown Mode And Missing Preferences")
+    func notesSettingsUnknownMode() throws {
+        let payload = """
+        {"notesPath":"Notes","fileSuffix":".txt","noteMode":"wysiwyg"}
+        """
+
+        let settings = try JSONDecoder().decode(NotesSettings.self, from: Data(payload.utf8))
+
+        // A mode of a future release reads as absent rather than failing the whole lookup, and the preferences older releases do not send read as absent as well.
+        #expect(settings.noteMode == nil)
+        #expect(settings.showsHiddenFiles == nil)
+        #expect(settings.loadsRecentNoteOnStartUp == nil)
+        #expect(settings.fileSuffix == ".txt")
+
+        let data = try JSONEncoder().encode(settings)
+        let object = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+
+        // Absent values are encoded as null so that the encoded form always has the same keys.
+        #expect(object["noteMode"] is NSNull)
+        #expect(object["showsHiddenFiles"] is NSNull)
+        #expect(object["loadsRecentNoteOnStartUp"] is NSNull)
     }
 
     @Test("Navigation Item Encodes Under Its Property Names")
