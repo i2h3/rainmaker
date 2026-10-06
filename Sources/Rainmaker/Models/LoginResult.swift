@@ -14,7 +14,7 @@ public struct LoginResult: Model, Hashable {
     /// The login name to authenticate with together with ``password``.
     ///
     /// This is the name the user logged in with in the browser, which can differ from the identifier of the account, for example when the server accepts an email address or a login attribute of an LDAP directory.
-    /// The identifier of the account, not this name, is what the server keys the WebDAV paths and the avatar of the account by.
+    /// The identifier of the account, not this name, is what the server keys the WebDAV paths and the avatar of the account by, and ``Server/currentUser()`` called on a ``Server`` authenticating with this result returns it as ``User/id``.
     ///
     public let name: String
 

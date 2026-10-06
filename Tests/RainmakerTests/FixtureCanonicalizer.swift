@@ -6,7 +6,7 @@ import Foundation
 ///
 /// Normalizes recorded HTTP responses so that fixtures stay stable and free of host-specific or volatile values across regenerations.
 ///
-/// This is used by ``URLRecordingSession`` before a response is written to disk. It rewrites the ephemeral container origin to a canonical one and replaces values which change on every server deployment (entity tags, file identifiers, timestamps, login tokens) with fixed placeholders. The replaced values are never asserted on by the tests and the chosen placeholders remain parseable by the production response parsing, which the replay-verify pass confirms.
+/// This is used by ``URLRecordingSession`` before a response is written to disk. It rewrites the ephemeral container origin to a canonical one and replaces values which change on every server deployment (entity tags, file identifiers, timestamps, login tokens, the login moments and quota of the account) with fixed placeholders. The replaced values are never asserted on by the tests and the chosen placeholders remain parseable by the production response parsing, which the replay-verify pass confirms.
 ///
 struct FixtureCanonicalizer {
     ///
@@ -133,6 +133,10 @@ struct FixtureCanonicalizer {
             replacements += Self.talkReplacements
         }
 
+        if path.contains("/cloud/user") {
+            replacements += Self.userReplacements
+        }
+
         for (pattern, replacement) in replacements {
             text = text.replacingOccurrences(of: pattern, with: replacement, options: .regularExpression)
         }
@@ -192,6 +196,23 @@ struct FixtureCanonicalizer {
         ("\"lastActivity\"[ ]*:[ ]*[0-9]+", "\"lastActivity\": 1700000000"),
         ("\"timestamp\"[ ]*:[ ]*[0-9]+", "\"timestamp\": 1700000000"),
         ("\"avatarVersion\"[ ]*:[ ]*\"[^\"]*\"", "\"avatarVersion\": \"00000000\""),
+    ]
+
+    ///
+    /// Replacements applied only to the bodies of the provisioning API's account details, which ``Server/currentUser()`` reads from `/cloud/user` and which `/cloud/users/<id>` sends in the same shape.
+    ///
+    /// The moments of the first and the last login change whenever the account logs in, which every recording does, and the numbers of the quota follow whatever the files of the account happen to occupy at the time of the recording.
+    /// None of them is decoded by ``CurrentUserResponse``, so the fixed values only need to stay valid JSON numbers.
+    /// The rules are scoped to these paths because the field names, `"used"` and `"total"` in particular, are too generic to rewrite in every body.
+    ///
+    private static let userReplacements: [(pattern: String, replacement: String)] = [
+        ("\"firstLoginTimestamp\"[ ]*:[ ]*-?[0-9]+", "\"firstLoginTimestamp\": 946684800"),
+        ("\"lastLoginTimestamp\"[ ]*:[ ]*-?[0-9]+", "\"lastLoginTimestamp\": 946684800"),
+        ("\"lastLogin\"[ ]*:[ ]*-?[0-9]+", "\"lastLogin\": 946684800000"),
+        ("\"free\"[ ]*:[ ]*-?[0-9.eE+]+", "\"free\": 0"),
+        ("\"used\"[ ]*:[ ]*-?[0-9.eE+]+", "\"used\": 0"),
+        ("\"total\"[ ]*:[ ]*-?[0-9.eE+]+", "\"total\": 0"),
+        ("\"relative\"[ ]*:[ ]*-?[0-9.eE+]+", "\"relative\": 0"),
     ]
 
     ///

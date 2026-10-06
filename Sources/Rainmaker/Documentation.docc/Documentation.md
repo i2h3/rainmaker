@@ -110,6 +110,7 @@ The server answers with an image for every user it knows, drawing one from their
 ``UserAvatar/isCustom`` is the only thing that distinguishes the two, and a client with a monogram style of its own has to consult it or it will draw over the server's placeholder rather than in place of it.
 Only two sizes are served, which is what ``AvatarSize`` models: the endpoint rounds any other value to one of them.
 Each fetch bypasses the local HTTP cache, and the endpoint publishes no version marker, so cache images on a bounded lifetime and key entries by server, account, user, size and appearance.
+The avatar of the authenticated account is keyed by its identifier, which ``Server/currentUser()`` returns, rather than by the name it logs in with.
 
 - ``Server/userAvatar(_:size:darkTheme:)``
 - ``UserAvatar``
@@ -205,6 +206,16 @@ Keep separate cached images for each server, account, conversation token and app
 - ``Conversation``
 - ``ConversationType``
 - ``ConversationAvatar``
+
+### Current User
+
+Look up the account a ``Server`` authenticates as.
+Its identifier is not necessarily the name it logs in with, because a server can accept an email address or a login attribute of an LDAP directory as the login name, which is what ``Server/user`` and ``LoginResult/name`` hold.
+``User/id`` is the identifier the server keys the account by, and it is what ``Server/userAvatar(_:size:darkTheme:)`` expects for the authenticated account.
+The WebDAV paths of this library are still built from ``Server/user``, so they only work for accounts whose login name is their identifier.
+
+- ``Server/currentUser()``
+- ``User``
 
 ### Apps Navigation
 

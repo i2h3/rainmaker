@@ -31,6 +31,7 @@
             "CapabilitiesTests",
             "ConversationsTests",
             "CreateDirectoryTests",
+            "CurrentUserTests",
             "DeleteTests",
             "DownloadTests",
             "InfoTests",
