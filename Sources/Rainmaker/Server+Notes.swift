@@ -13,7 +13,7 @@ public extension Server {
     ///
     /// An app which is installed but older than ``Notes/minimumAPIVersion`` is reported separately, as ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)``. That requirement is checked on every response, because the notes API advertises the versions it serves in a header of its own, and it can be checked in advance through ``Notes/isSupported``.
     ///
-    /// The whole collection is retrieved in a single request, because the endpoint returns everything at once unless a chunk size is requested, which this deliberately does not do. Use ``notes(changedSince:)`` to retrieve only what changed since an earlier call.
+    /// The whole collection is retrieved in a single request, because the endpoint returns everything at once unless a chunk size is requested, which this deliberately does not do. Use ``notes(changedSince:)`` to retrieve only what changed since an earlier call, and ``noteChunks(changedSince:chunkSize:)`` to retrieve it in chunks of a bounded size.
     ///
     /// > Warning: Every note including its full content is fetched and held in memory at once, so what this costs grows with the size of the account's notes.
     ///
@@ -47,7 +47,7 @@ public extension Server {
     ///
     /// The moment is sent to the server as its `pruneBefore` parameter, converted to whole seconds since the Unix epoch. A moment at or before the epoch, such as `Date.distantPast`, prunes nothing and therefore returns every note in full, which is how a first synchronization starts.
     ///
-    /// Along with the notes, the result carries what the server says about the response in its headers: ``NoteChanges/lastModified`` is the moment to pass on the next call, and ``NoteChanges/entityTag`` is what ``notes(changedSince:ifChangedFrom:)`` takes to skip the transfer while nothing changed. The whole collection is retrieved in a single response, so the result is always ``NoteChanges/isComplete``.
+    /// Along with the notes, the result carries what the server says about the response in its headers: ``NoteChanges/lastModified`` is the moment to pass on the next call, and ``NoteChanges/entityTag`` is what ``notes(changedSince:ifChangedFrom:)`` takes to skip the transfer while nothing changed. The whole collection is retrieved in a single response, so the result is always ``NoteChanges/isComplete``. A client which must not hold every changed note at once retrieves them in chunks through ``notes(changedSince:chunkSize:continuingAfter:)`` or ``noteChunks(changedSince:chunkSize:)`` instead.
     ///
     /// > Warning: The server compares this moment against its own record of when it last noticed each note change, which is not the same as that note's ``Note/modification`` date. A note may be from 2020, but when the server only found it today it is not pruned from the response. Never pass a note's ``Note/modification`` back in as this moment; pass the ``NoteChanges/lastModified`` of the previous call, which is the server's own time at which it started answering, and which the API defines as the value to reuse.
     ///
@@ -113,6 +113,136 @@ public extension Server {
         }
 
         return try makeNoteChanges(from: data, response: response)
+    }
+
+    ///
+    /// Retrieve one chunk of the notes of the authenticated user which changed since a given moment, either the first one of a pass or the one following a given cursor.
+    ///
+    /// This is the chunked counterpart of ``notes(changedSince:)`` for a client which must not hold every changed note at once, such as an extension or a watch app with little memory to spare. The server orders the notes it would send in full by when it last saw each of them change and sends at most `chunkSize` of them per response. Every chunk but the last carries a ``NoteChanges/chunkCursor`` to pass as `cursor` for the next one, along with the ``NoteChanges/pendingCount`` of notes still to come, and lists no identifiers in ``NoteChanges/unchanged``.
+    ///
+    /// The last chunk, which ``NoteChanges/isComplete``, is the only one which lists the identifiers of the other notes the account has, and it lists those the earlier chunks sent in full as well. Deletions must therefore only be derived from the last chunk, from its ``NoteChanges/changed`` and ``NoteChanges/unchanged`` alone, and never from what a pass collected along the way.
+    ///
+    /// Every chunk of one pass carries the same ``NoteChanges/lastModified``, because the cursor keeps the moment the server started answering the first chunk. Remember it only once the last chunk was applied, so that an interrupted pass is repeated rather than skipped.
+    ///
+    /// A cursor is a plain value meant to be handed back as it is. That is what lets a pass which was interrupted, for example because the system suspended the app, continue later from the cursor of the last chunk applied rather than start over, provided `changedSince` is the same as for the chunks before. A cursor the server cannot read makes it start a new pass with the first chunk instead.
+    ///
+    /// ``noteChunks(changedSince:chunkSize:)`` performs a whole pass with this call, as a stream of chunks.
+    ///
+    /// The server also offers to narrow a listing down to one category, which this deliberately never asks for: that filter narrows the identifiers of the last chunk as well, which would make every note outside the category look deleted.
+    ///
+    /// Everything else, including how `changedSince` is measured, how an unavailable app surfaces and how a note the server could not read is reported, matches ``notes(changedSince:)``.
+    ///
+    /// - Parameters:
+    ///     - changedSince: The moment to retrieve changes since, usually the ``NoteChanges/lastModified`` of the previous pass, and the same for every chunk of one pass.
+    ///     - chunkSize: The number of notes to send in full at most, which is raised to one when smaller, because the server takes zero as a request not to split the response at all.
+    ///     - cursor: The ``NoteChanges/chunkCursor`` of the previous chunk of the same pass, or `nil` to retrieve the first chunk of a new pass. Defaults to `nil`.
+    ///
+    /// - Returns: The notes of this chunk, the identifiers of the unchanged notes when it is the last chunk, and what the response headers say about them.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
+    ///     - ``RainmakerError/appUnavailable(app:)`` when the notes app is not available on the server.
+    ///     - ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)`` when it is available but older than ``Notes/minimumAPIVersion``.
+    ///     - ``RainmakerError/responseDecodingFailed(reason:)`` when a success response does not carry a list of notes.
+    ///     - Any other error that might occur during retrieval.
+    ///
+    func notes(changedSince: Date, chunkSize: Int, continuingAfter cursor: String? = nil) async throws -> NoteChanges {
+        try requireCredentials()
+        logger.debug("Fetching a chunk of notes changed since \(changedSince)...")
+
+        let request = try makeNoteChangesRequest(changedSince: changedSince, chunkSize: chunkSize, chunkCursor: cursor)
+        let (data, response) = try await notesAPIResponse(for: request)
+
+        return try makeNoteChanges(from: data, response: response)
+    }
+
+    ///
+    /// Retrieve the first chunk of the notes of the authenticated user which changed since a given moment like ``notes(changedSince:chunkSize:continuingAfter:)``, unless the answer would be the same as the one a given entity tag was taken from.
+    ///
+    /// This is to a chunked pass what ``notes(changedSince:ifChangedFrom:)`` is to a single response: the request carries the entity tag in its `If-None-Match` header, and the server answers with an empty `304 Not Modified` instead of the chunk when it would send exactly what it sent when it handed out that tag, which this returns as `nil`.
+    ///
+    /// Pass the ``NoteChanges/entityTag`` and the ``NoteChanges/lastModified`` of the last chunk of the previous pass. While no note changed, the first chunk sends no note in full and therefore already is the last one, listing nothing but identifiers, so its tag does not depend on the chunk size and matches that of a response to ``notes(changedSince:)`` as well. As with the single response, the first call after a pass which sent notes in full still receives a complete chunk, while every further call answers `nil` until something changes. When a chunk arrives which is not the last one, continue the pass with ``notes(changedSince:chunkSize:continuingAfter:)``.
+    ///
+    /// There is no conditional variant for the chunks after the first, because each of them is only requested when the first one announced that changes are pending.
+    ///
+    /// `nil` deliberately differs from an empty ``NoteChanges`` for the reasons ``notes(changedSince:ifChangedFrom:)`` gives. On `nil`, keep the previous `changedSince` and entity tag for the next call.
+    ///
+    /// The same requirement and the same failure modes as ``notes(changedSince:chunkSize:continuingAfter:)`` apply.
+    ///
+    /// - Parameters:
+    ///     - changedSince: The moment to retrieve changes since, usually the ``NoteChanges/lastModified`` of the previous pass.
+    ///     - chunkSize: The number of notes to send in full at most, which is raised to one when smaller.
+    ///     - entityTag: The ``NoteChanges/entityTag`` of the last chunk of the previous pass.
+    ///
+    /// - Returns: The first chunk of a new pass, or `nil` when the server answered that nothing changed.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
+    ///     - ``RainmakerError/appUnavailable(app:)`` when the notes app is not available on the server.
+    ///     - ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)`` when it is available but older than ``Notes/minimumAPIVersion``.
+    ///     - ``RainmakerError/responseDecodingFailed(reason:)`` when a success response does not carry a list of notes.
+    ///     - Any other error that might occur during retrieval.
+    ///
+    func notes(changedSince: Date, chunkSize: Int, ifChangedFrom entityTag: String) async throws -> NoteChanges? {
+        try requireCredentials()
+        logger.debug("Fetching the first chunk of notes changed since \(changedSince) unless unchanged...")
+
+        let request = try makeNoteChangesRequest(changedSince: changedSince, chunkSize: chunkSize, headerFields: ["If-None-Match": entityTag.unquotedEntityTag.quotedEntityTag])
+        let (data, response) = try await notesAPIResponse(for: request, allowsNotModified: true)
+
+        guard response.status != .notModified else {
+            logger.debug("Notes did not change.")
+            return nil
+        }
+
+        return try makeNoteChanges(from: data, response: response)
+    }
+
+    ///
+    /// Retrieve every chunk of one pass over the notes of the authenticated user which changed since a given moment, in order, as a stream.
+    ///
+    /// Each element is the result of one call to ``notes(changedSince:chunkSize:continuingAfter:)``, the first without a cursor and every further one with the ``NoteChanges/chunkCursor`` of the element before. The stream finishes after the element which ``NoteChanges/isComplete``, which is the only one deletions may be derived from and after which ``NoteChanges/lastModified`` is worth remembering, see there.
+    ///
+    /// A chunk is only requested when the consumer asks for the next element, so the stream never holds more than the chunk being retrieved. A consumer which applies each chunk before it continues therefore needs no more memory for a pass than for one chunk, which is the point of retrieving notes in chunks. Merging the chunks is deliberately left to the consumer, because a merged result would hold every note at once and would no longer tell which identifiers came with the last chunk.
+    ///
+    /// When the consumer stops iterating, no further chunk is requested. Cancelling the task which iterates cancels the request in flight, which finishes the stream by throwing the error the cancelled request throws, such as `URLError.cancelled`, while a cancellation between two chunks ends the stream without requesting another one. Either way the last chunk received is not complete, which is why a consumer checks ``NoteChanges/isComplete`` rather than assume that a stream which ended was a whole pass.
+    ///
+    /// The stream finishes by throwing the first error a request throws, with the same failure modes as ``notes(changedSince:chunkSize:continuingAfter:)``, including ``RainmakerError/credentialsRequired`` before anything is sent when no credentials are set. The chunks received until then remain valid, and the cursor of the last one continues the pass through ``notes(changedSince:chunkSize:continuingAfter:)``. A server which answers a chunk with the very cursor it was asked to continue from would repeat that chunk forever, so the stream finishes by throwing ``RainmakerError/responseDecodingFailed(reason:)`` instead.
+    ///
+    /// ```swift
+    /// var lastChunk: NoteChanges?
+    ///
+    /// for try await chunk in server.noteChunks(changedSince: store.lastModified ?? .distantPast, chunkSize: 50) {
+    ///     // Each chunk is applied as it arrives, so it can be released before the next one is requested.
+    ///     store.upsert(chunk.changed.filter { $0.hasError == false })
+    ///     lastChunk = chunk
+    /// }
+    ///
+    /// // Only the last chunk lists every note the account has, so deletions are derived from it alone.
+    /// guard let lastChunk, lastChunk.isComplete else {
+    ///     return
+    /// }
+    ///
+    /// store.deleteAll(exceptFor: lastChunk.changed.map(\.id) + lastChunk.unchanged)
+    /// store.lastModified = lastChunk.lastModified
+    /// store.entityTag = lastChunk.entityTag
+    /// ```
+    ///
+    /// - Parameters:
+    ///     - changedSince: The moment to retrieve changes since, usually the ``NoteChanges/lastModified`` of the previous pass.
+    ///     - chunkSize: The number of notes to send in full at most per chunk, which is raised to one when smaller.
+    ///
+    /// - Returns: A stream of the chunks of one pass, the last of which is complete.
+    ///
+    func noteChunks(changedSince: Date, chunkSize: Int) -> AsyncThrowingStream<NoteChanges, Error> {
+        logger.debug("Starting a chunked pass over notes changed since \(changedSince)...")
+
+        let pass = NoteChunkPass(server: self, changedSince: changedSince, chunkSize: chunkSize)
+
+        // Unfolding rather than producing from a task of its own makes each request wait until the consumer asks for the next chunk and run within the consumer's task, which is what bounds the memory to one chunk and lets cancelling that task cancel the request.
+        return AsyncThrowingStream {
+            try await pass.next()
+        }
     }
 
     ///
@@ -264,21 +394,35 @@ extension Server {
     }
 
     ///
-    /// Build the request ``notes(changedSince:)`` and ``notes(changedSince:ifChangedFrom:)`` send for the notes which changed since a given moment.
+    /// Build the request ``notes(changedSince:)``, ``notes(changedSince:ifChangedFrom:)`` and their chunked counterparts send for the notes which changed since a given moment.
+    ///
+    /// The `category` parameter the server also accepts is never sent, because it narrows the identifiers of the notes which were not sent in full as well, which would make every note outside the category look deleted.
     ///
     /// - Parameters:
     ///     - changedSince: The moment to retrieve changes since, sent as the `pruneBefore` parameter in whole seconds since the Unix epoch.
+    ///     - chunkSize: The number of notes to send in full at most, sent as the `chunkSize` parameter after raising it to at least one, or `nil` to have the server answer in a single response.
+    ///     - chunkCursor: The cursor to continue a chunked retrieval from, sent as the `chunkCursor` parameter, or `nil` for none.
     ///     - headerFields: Additional header fields to set, such as `If-None-Match`.
     ///
-    private func makeNoteChangesRequest(changedSince: Date, headerFields: [String: String] = [:]) throws -> URLRequest {
+    private func makeNoteChangesRequest(changedSince: Date, chunkSize: Int? = nil, chunkCursor: String? = nil, headerFields: [String: String] = [:]) throws -> URLRequest {
         // A moment at or before the Unix epoch has no positive number of seconds to express it, and pruning before it would exclude nothing anyway, so the server is asked not to prune at all.
         let pruneBefore = changedSince.wholeSecondsSince1970 ?? 0
+        var queryItems = [URLQueryItem(name: "pruneBefore", value: String(pruneBefore))]
 
-        return try makeNotesAPIRequest(for: "notes", method: .get, queryItems: [URLQueryItem(name: "pruneBefore", value: String(pruneBefore))], headerFields: headerFields)
+        // The server takes a chunk size of zero as a request not to split the response, so a caller asking for chunks always gets them, with at least one note per chunk.
+        if let chunkSize {
+            queryItems.append(URLQueryItem(name: "chunkSize", value: String(max(1, chunkSize))))
+        }
+
+        if let chunkCursor {
+            queryItems.append(URLQueryItem(name: "chunkCursor", value: chunkCursor))
+        }
+
+        return try makeNotesAPIRequest(for: "notes", method: .get, queryItems: queryItems, headerFields: headerFields)
     }
 
     ///
-    /// Read a successful response to a request built by ``makeNoteChangesRequest(changedSince:headerFields:)`` into ``NoteChanges``.
+    /// Read a successful response to a request built by ``makeNoteChangesRequest(changedSince:chunkSize:chunkCursor:headerFields:)`` into ``NoteChanges``.
     ///
     /// The body is split into the notes sent in full and the identifiers of those sent as identifiers alone, see `NoteEntry`, while the headers supply ``NoteChanges/lastModified``, ``NoteChanges/entityTag``, ``NoteChanges/chunkCursor`` and ``NoteChanges/pendingCount``.
     /// A header which is absent or cannot be read leaves its value `nil` rather than failing, because the notes themselves are what the caller cannot do without.

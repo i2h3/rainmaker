@@ -151,4 +151,22 @@ import Testing
         #expect(changes.entityTag?.isEmpty == false)
         #expect(changes.isComplete)
     }
+
+    @Test("Fetch First Chunk", arguments: ServerVersion.allCases)
+    func fetchFirstChunk(_ serverVersion: ServerVersion) async throws {
+        let server = try makeServer(serverVersion: serverVersion)
+        let changes = try await server.notes(changedSince: beforeRecording, chunkSize: 1, continuingAfter: nil)
+
+        // Both seeded notes changed since the requested moment, so a chunk of one sends one of them in full and leaves the other pending. Which one comes first depends on when the server noticed each, so only the count is asserted.
+        #expect(changes.changed.count == 1)
+        #expect(changes.pendingCount == 1)
+
+        // A chunk which is not the last one lists no identifiers, which is why deletions must not be derived from it.
+        #expect(changes.unchanged.isEmpty)
+        #expect(changes.isComplete == false)
+
+        // Only the presence of the cursor and the moment is asserted, because both are canonicalized when recorded, while a recording run is handed the live values.
+        #expect(changes.chunkCursor?.isEmpty == false)
+        #expect(changes.lastModified != nil)
+    }
 }
