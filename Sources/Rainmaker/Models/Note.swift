@@ -6,7 +6,7 @@ import Foundation
 ///
 /// A single note of the authenticated user on the server.
 ///
-/// Notes are listed through ``Server/notes()`` and, incrementally, through ``Server/notes(changedSince:)``. Whether the notes app which provides them is available at all can be checked in advance via the ``Notes`` capability, e.g. `try await capabilities().contains(Notes.self)`.
+/// Notes are listed through ``Server/notes()`` and, incrementally, through ``Server/notes(changedSince:)``, while a single one is retrieved by its ``id`` through ``Server/note(_:)``. Whether the notes app which provides them is available at all can be checked in advance via the ``Notes`` capability, e.g. `try await capabilities().contains(Notes.self)`.
 ///
 /// Every note is a file in the account's notes folder, which is why ``title`` doubles as its file name and ``category`` as the folder it sits in.
 /// Where exactly that file is, is what ``path`` says, and whether it is shared with anyone is what ``isShared`` and ``shareTypes`` say.
@@ -25,6 +25,7 @@ public struct Note: Model, Hashable, Identifiable, CustomStringConvertible, Cust
     /// The entity tag of the note, which changes if and only if the note changes on the server.
     ///
     /// This corresponds to the server's `etag` field and is what a client compares against to learn whether its local copy is stale.
+    /// ``Server/note(_:ifChangedFrom:)`` takes it to have the server make that comparison and skip the transfer of a note which did not change.
     ///
     public let entityTag: String
 

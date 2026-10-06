@@ -246,6 +246,81 @@ public extension Server {
     }
 
     ///
+    /// Retrieve a single note of the authenticated user by its identifier.
+    ///
+    /// This is what a client asks for when it needs one note as the server has it now, for example to refresh the note being opened, to look at a note it learned the identifier of through ``notes(changedSince:)``, or to perform a single lookup from a Shortcuts action, without listing every note first. The result is the same ``Note`` a listing reports for it, including its ``Note/entityTag``, which ``note(_:ifChangedFrom:)`` takes to skip the transfer while the note did not change.
+    ///
+    /// A note which does not exist is reported as ``RainmakerError/notFound``. The notes app answers that not only for an identifier which was never assigned or whose note was deleted, but also for one which belongs to a file outside the notes folder or to a file which is not a note, so this cannot be used to reach arbitrary files by their identifier. An absent notes app is reported as ``RainmakerError/appUnavailable(app:)`` instead, as with ``notes()``, so a client keeping its own copy can tell a deleted note from an app which went away.
+    ///
+    /// A note the server could not read is returned like any other rather than failing the call. It carries ``Note/hasError`` and its ``Note/content`` is a message about the failure rather than the note's text, so anything which stores what it retrieves has to check that first.
+    ///
+    /// Credentials are required: notes are user-scoped and the underlying endpoint rejects unauthenticated requests.
+    ///
+    /// - Parameters:
+    ///     - id: The ``Note/id`` of the note to retrieve.
+    ///
+    /// - Returns: The note as the server has it now.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
+    ///     - ``RainmakerError/notFound`` when the account has no note with this identifier.
+    ///     - ``RainmakerError/appUnavailable(app:)`` when the notes app is not available on the server.
+    ///     - ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)`` when it is available but older than ``Notes/minimumAPIVersion``.
+    ///     - ``RainmakerError/responseDecodingFailed(reason:)`` when a success response does not carry a note.
+    ///     - Any other error that might occur during retrieval.
+    ///
+    func note(_ id: Int) async throws -> Note {
+        try requireCredentials()
+        logger.debug("Fetching note \(id)...")
+
+        let request = try makeNotesAPIRequest(for: "notes/\(id)", method: .get)
+        let (data, _) = try await notesAPIResponse(for: request)
+
+        return try decodeNotesAPIPayload(Note.self, from: data, describing: "the note")
+    }
+
+    ///
+    /// Retrieve a single note of the authenticated user by its identifier like ``note(_:)``, unless it is still the one a given entity tag was taken from.
+    ///
+    /// The request carries the entity tag in its `If-None-Match` header. While the note is unchanged on the server, the server answers with an empty `304 Not Modified` instead of the note, which this returns as `nil`. That spares a client which checks whether its local copy of a note is stale the transfer of the note's whole content.
+    ///
+    /// Pass the ``Note/entityTag`` of the copy at hand, as a listing, ``note(_:)`` or a previous call of this method reported it. The server derives the tag from the note's ``Note/title``, ``Note/category``, ``Note/content``, ``Note/modification``, ``Note/isFavorite`` and ``Note/isReadOnly``, so `nil` means that none of these changed, while a change of anything else, such as the shares reported in ``Note/shareTypes``, goes unnoticed until one of them changes as well. A tag which does not match simply results in the note as ``note(_:)`` would return it. A tag with or without quotes and with a `W/` prefix is accepted alike.
+    ///
+    /// A note which no longer exists is reported as ``RainmakerError/notFound`` whatever the tag, so `nil` never hides a deletion.
+    ///
+    /// The same requirement and the same failure modes as ``note(_:)`` apply.
+    ///
+    /// - Parameters:
+    ///     - id: The ``Note/id`` of the note to retrieve.
+    ///     - entityTag: The ``Note/entityTag`` of the copy at hand.
+    ///
+    /// - Returns: The note as the server has it now, or `nil` when the server answered that it did not change.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
+    ///     - ``RainmakerError/notFound`` when the account has no note with this identifier.
+    ///     - ``RainmakerError/appUnavailable(app:)`` when the notes app is not available on the server.
+    ///     - ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)`` when it is available but older than ``Notes/minimumAPIVersion``.
+    ///     - ``RainmakerError/responseDecodingFailed(reason:)`` when a success response does not carry a note.
+    ///     - Any other error that might occur during retrieval.
+    ///
+    func note(_ id: Int, ifChangedFrom entityTag: String) async throws -> Note? {
+        try requireCredentials()
+        logger.debug("Fetching note \(id) unless unchanged...")
+
+        // The server only recognizes the tag when the header repeats it quoted and exactly as it computed it, so a weakness marker a proxy may have added is dropped before quoting.
+        let request = try makeNotesAPIRequest(for: "notes/\(id)", method: .get, headerFields: ["If-None-Match": entityTag.unquotedEntityTag.quotedEntityTag])
+        let (data, response) = try await notesAPIResponse(for: request, allowsNotModified: true)
+
+        guard response.status != .notModified else {
+            logger.debug("Note \(id) did not change.")
+            return nil
+        }
+
+        return try decodeNotesAPIPayload(Note.self, from: data, describing: "the note")
+    }
+
+    ///
     /// Look up the settings the notes app keeps for the authenticated user.
     ///
     /// These say where the app stores notes and which extension it gives a new one, which matters because notes are ordinary files: the folder is not a fixed name but a value derived from the account's locale by default, so anything which wants to reach notes over WebDAV rather than through ``notes()`` has to ask for it rather than assume it. See ``NotesSettings``.
