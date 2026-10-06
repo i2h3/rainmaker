@@ -64,11 +64,7 @@ enum ResponseParser {
             throw RainmakerError.responseDecodingFailed(reason: "Failed to get last modified date for: \(href.absoluteString)")
         }
 
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "E, dd MMM yyyy HH:mm:ss Z"
-
-        guard let modification = formatter.date(from: lastModifiedString) else {
+        guard let modification = Date(httpDate: lastModifiedString) else {
             throw RainmakerError.responseDecodingFailed(reason: "Failed to parse last modified date: \(lastModifiedString)")
         }
 

@@ -112,6 +112,39 @@ import Testing
         #expect(ShareType(rawValue: 42).description == "42")
     }
 
+    @Test("Note Changes Encode Every Property And No Derived One")
+    func noteChanges() throws {
+        let note = Note(id: 7, entityTag: "9cf1", title: "Changed", content: "text", modification: Date(timeIntervalSince1970: 1_700_000_000))
+        let changes = NoteChanges(changed: [note], unchanged: [8], lastModified: Date(timeIntervalSince1970: 1_700_000_000), entityTag: "c649e503", chunkCursor: "1700000000-1699999999-7", pendingCount: 3)
+
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .secondsSince1970
+        let data = try encoder.encode(changes)
+        let object = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+
+        // The completeness is derived from the cursor alone, so it is not encoded beside it.
+        #expect(Set(object.keys) == ["changed", "unchanged", "lastModified", "entityTag", "chunkCursor", "pendingCount"])
+        #expect(object["unchanged"] as? [Int] == [8])
+        #expect(object["lastModified"] as? Double == 1_700_000_000)
+        #expect(object["entityTag"] as? String == "c649e503")
+        #expect(object["chunkCursor"] as? String == "1700000000-1699999999-7")
+        #expect(object["pendingCount"] as? Int == 3)
+    }
+
+    @Test("Complete Note Changes Encode Their Absent Header Values As Null")
+    func completeNoteChanges() throws {
+        let changes = NoteChanges(changed: [], unchanged: [8])
+        let data = try JSONEncoder().encode(changes)
+        let object = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+
+        // Absent values are encoded as null so that the encoded form always has the same keys.
+        #expect(changes.isComplete)
+        #expect(object["lastModified"] is NSNull)
+        #expect(object["entityTag"] is NSNull)
+        #expect(object["chunkCursor"] is NSNull)
+        #expect(object["pendingCount"] is NSNull)
+    }
+
     @Test("Collective Encodes Under Its Property Names")
     func collective() throws {
         let payload = """

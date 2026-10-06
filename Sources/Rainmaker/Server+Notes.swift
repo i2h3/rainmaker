@@ -45,16 +45,18 @@ public extension Server {
     ///
     /// This is the incremental counterpart of ``notes()`` for a client keeping its own copy of the notes: the server returns every note it recorded a change for at or after `changedSince` in full, and reduces every note it did not to its identifier alone. Both together are the complete set of notes the account has, which is what makes deletions detectable. See ``NoteChanges`` for how the two halves are meant to be applied.
     ///
-    /// The moment is sent to the server as its `pruneBefore` parameter, converted to whole seconds since the Unix epoch. A moment at or before the epoch prunes nothing and therefore behaves like ``notes()``.
+    /// The moment is sent to the server as its `pruneBefore` parameter, converted to whole seconds since the Unix epoch. A moment at or before the epoch, such as `Date.distantPast`, prunes nothing and therefore returns every note in full, which is how a first synchronization starts.
     ///
-    /// > Warning: The server compares this moment against its own record of when it last noticed each note change, which is not the same as that note's ``Note/modification`` date. A note may be from 2020, but when the server only found it today it is not pruned from the response. Never pass a note's ``Note/modification`` back in as this moment; pass one measured on the same clock the server runs on instead, such as when the previous retrieval was made. The API defines the exact value to reuse as the `Last-Modified` header of the previous response, which is the server's own request time and which this library does not surface.
+    /// Along with the notes, the result carries what the server says about the response in its headers: ``NoteChanges/lastModified`` is the moment to pass on the next call, and ``NoteChanges/entityTag`` is what ``notes(changedSince:ifChangedFrom:)`` takes to skip the transfer while nothing changed. The whole collection is retrieved in a single response, so the result is always ``NoteChanges/isComplete``.
+    ///
+    /// > Warning: The server compares this moment against its own record of when it last noticed each note change, which is not the same as that note's ``Note/modification`` date. A note may be from 2020, but when the server only found it today it is not pruned from the response. Never pass a note's ``Note/modification`` back in as this moment; pass the ``NoteChanges/lastModified`` of the previous call, which is the server's own time at which it started answering, and which the API defines as the value to reuse.
     ///
     /// Everything else, including how an unavailable app surfaces and how a note the server could not read is reported, matches ``notes()``.
     ///
     /// - Parameters:
-    ///     - changedSince: The moment to retrieve changes since, measured against the server's own record of when it last saw a note change rather than against ``Note/modification``.
+    ///     - changedSince: The moment to retrieve changes since, usually the ``NoteChanges/lastModified`` of the previous call, and measured against the server's own record of when it last saw a note change rather than against ``Note/modification``.
     ///
-    /// - Returns: The changed notes and the identifiers of the unchanged ones.
+    /// - Returns: The changed notes, the identifiers of the unchanged ones and what the response headers say about them.
     ///
     /// - Throws:
     ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
@@ -67,23 +69,50 @@ public extension Server {
         try requireCredentials()
         logger.debug("Fetching notes changed since \(changedSince)...")
 
-        // A moment at or before the Unix epoch has no positive number of seconds to express it, and pruning before it would exclude nothing anyway, so the server is asked not to prune at all.
-        let pruneBefore = changedSince.wholeSecondsSince1970 ?? 0
-        let request = try makeNotesAPIRequest(for: "notes", method: .get, queryItems: [URLQueryItem(name: "pruneBefore", value: String(pruneBefore))])
-        let (data, _) = try await notesAPIResponse(for: request)
-        let entries = try decodeNotesAPIPayload([NoteEntry].self, from: data, describing: "the notes")
+        let request = try makeNoteChangesRequest(changedSince: changedSince)
+        let (data, response) = try await notesAPIResponse(for: request)
 
-        var changed = [Note]()
-        var unchanged = [Int]()
+        return try makeNoteChanges(from: data, response: response)
+    }
 
-        for entry in entries {
-            switch entry {
-                case let .changed(note): changed.append(note)
-                case let .unchanged(id): unchanged.append(id)
-            }
+    ///
+    /// List the notes of the authenticated user which changed since a given moment like ``notes(changedSince:)``, unless the answer would be the same as the one a given entity tag was taken from.
+    ///
+    /// The request carries the entity tag in its `If-None-Match` header. When the server would answer exactly what it answered when it handed out that tag, it responds with an empty `304 Not Modified` instead, which this returns as `nil`. That spares a frequently polling client the transfer of the identifiers of every note while nothing changed.
+    ///
+    /// Pass the ``NoteChanges/entityTag`` and the ``NoteChanges/lastModified`` of the previous result. The server computes the tag from the body it would send rather than from the moment, so the tag matches whenever the body would be the same, which is the case while no note changed, none was added and none was deleted. The first call after a result carrying notes in full still receives a complete response, because it now reduces those notes to their identifiers, while every further call answers `nil` until something changes. A tag which does not match simply results in a complete response as ``notes(changedSince:)`` would return it. A tag with or without quotes and with a `W/` prefix is accepted alike.
+    ///
+    /// `nil` deliberately differs from an empty ``NoteChanges``, which would claim that the account has no notes at all and make a client keeping its own copy delete them. On `nil`, keep the previous `changedSince` and entity tag for the next call. That never skips a change, because the server keeps every note which changed in the very second the moment names.
+    ///
+    /// The same requirement and the same failure modes as ``notes(changedSince:)`` apply.
+    ///
+    /// - Parameters:
+    ///     - changedSince: The moment to retrieve changes since, usually the ``NoteChanges/lastModified`` of the previous result.
+    ///     - entityTag: The ``NoteChanges/entityTag`` of the previous result.
+    ///
+    /// - Returns: The changed notes, the identifiers of the unchanged ones and what the response headers say about them, or `nil` when the server answered that nothing changed.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
+    ///     - ``RainmakerError/appUnavailable(app:)`` when the notes app is not available on the server.
+    ///     - ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)`` when it is available but older than ``Notes/minimumAPIVersion``.
+    ///     - ``RainmakerError/responseDecodingFailed(reason:)`` when a success response does not carry a list of notes.
+    ///     - Any other error that might occur during retrieval.
+    ///
+    func notes(changedSince: Date, ifChangedFrom entityTag: String) async throws -> NoteChanges? {
+        try requireCredentials()
+        logger.debug("Fetching notes changed since \(changedSince) unless unchanged...")
+
+        // The server only recognizes the tag when the header repeats it quoted and exactly as it computed it, so a weakness marker a proxy may have added is dropped before quoting.
+        let request = try makeNoteChangesRequest(changedSince: changedSince, headerFields: ["If-None-Match": entityTag.unquotedEntityTag.quotedEntityTag])
+        let (data, response) = try await notesAPIResponse(for: request, allowsNotModified: true)
+
+        guard response.status != .notModified else {
+            logger.debug("Notes did not change.")
+            return nil
         }
 
-        return NoteChanges(changed: changed, unchanged: unchanged)
+        return try makeNoteChanges(from: data, response: response)
     }
 
     ///
@@ -232,6 +261,51 @@ extension Server {
             default:
                 throw RainmakerError.unexpectedStatus(code: response.statusCode)
         }
+    }
+
+    ///
+    /// Build the request ``notes(changedSince:)`` and ``notes(changedSince:ifChangedFrom:)`` send for the notes which changed since a given moment.
+    ///
+    /// - Parameters:
+    ///     - changedSince: The moment to retrieve changes since, sent as the `pruneBefore` parameter in whole seconds since the Unix epoch.
+    ///     - headerFields: Additional header fields to set, such as `If-None-Match`.
+    ///
+    private func makeNoteChangesRequest(changedSince: Date, headerFields: [String: String] = [:]) throws -> URLRequest {
+        // A moment at or before the Unix epoch has no positive number of seconds to express it, and pruning before it would exclude nothing anyway, so the server is asked not to prune at all.
+        let pruneBefore = changedSince.wholeSecondsSince1970 ?? 0
+
+        return try makeNotesAPIRequest(for: "notes", method: .get, queryItems: [URLQueryItem(name: "pruneBefore", value: String(pruneBefore))], headerFields: headerFields)
+    }
+
+    ///
+    /// Read a successful response to a request built by ``makeNoteChangesRequest(changedSince:headerFields:)`` into ``NoteChanges``.
+    ///
+    /// The body is split into the notes sent in full and the identifiers of those sent as identifiers alone, see `NoteEntry`, while the headers supply ``NoteChanges/lastModified``, ``NoteChanges/entityTag``, ``NoteChanges/chunkCursor`` and ``NoteChanges/pendingCount``.
+    /// A header which is absent or cannot be read leaves its value `nil` rather than failing, because the notes themselves are what the caller cannot do without.
+    ///
+    /// - Parameters:
+    ///     - data: The response body.
+    ///     - response: The response, whose headers are read.
+    ///
+    private func makeNoteChanges(from data: Data, response: HTTPURLResponse) throws -> NoteChanges {
+        let entries = try decodeNotesAPIPayload([NoteEntry].self, from: data, describing: "the notes")
+
+        var changed = [Note]()
+        var unchanged = [Int]()
+
+        for entry in entries {
+            switch entry {
+                case let .changed(note): changed.append(note)
+                case let .unchanged(id): unchanged.append(id)
+            }
+        }
+
+        let lastModified = response.value(forHTTPHeaderField: "Last-Modified").flatMap(Date.init(httpDate:))
+        let entityTag = response.value(forHTTPHeaderField: "ETag").map(\.unquotedEntityTag)
+        let chunkCursor = response.value(forHTTPHeaderField: "X-Notes-Chunk-Cursor").flatMap { $0.isEmpty ? nil : $0 }
+        let pendingCount = response.value(forHTTPHeaderField: "X-Notes-Chunk-Pending").flatMap { Int($0.trimmingCharacters(in: .whitespaces)) }
+
+        return NoteChanges(changed: changed, unchanged: unchanged, lastModified: lastModified, entityTag: entityTag, chunkCursor: chunkCursor, pendingCount: pendingCount)
     }
 
     ///

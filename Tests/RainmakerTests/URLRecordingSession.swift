@@ -118,7 +118,7 @@ public actor URLRecordingSession: Requesting {
         let requestDirectory = locator.requestDirectory(in: testDirectory, method: method, url: url)
         try FileManager.default.createDirectory(atPath: requestDirectory.percentEncodedPath, withIntermediateDirectories: true)
 
-        let headersData = canonicalizer.headersText(statusCode: response.statusCode, headerFields: response.allHeaderFields)
+        let headersData = canonicalizer.headersText(statusCode: response.statusCode, headerFields: response.allHeaderFields, requestURL: url)
         let headersPath = locator.headersFile(in: requestDirectory).percentEncodedPath
 
         guard FileManager.default.createFile(atPath: headersPath, contents: headersData) else {

@@ -137,6 +137,11 @@ protocol Serving: Sendable {
     func notes(changedSince: Date) async throws -> NoteChanges
 
     ///
+    /// List the notes of the authenticated user which changed since a given moment, unless the answer would be the same as the one a given entity tag was taken from.
+    ///
+    func notes(changedSince: Date, ifChangedFrom entityTag: String) async throws -> NoteChanges?
+
+    ///
     /// Look up the settings the notes app keeps for the authenticated user.
     ///
     func notesSettings() async throws -> NotesSettings

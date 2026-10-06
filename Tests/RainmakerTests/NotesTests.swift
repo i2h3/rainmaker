@@ -125,6 +125,14 @@ import Testing
         #expect(changes.changed.count == 2)
         #expect(changes.unchanged.isEmpty)
         #expect(changes.changed.map(\.title).sorted() == ["Pancakes", "Rainmaker"])
+
+        // Only the presence of the moment and the entity tag is asserted, for the same reason as with the entity tag of a note: both are canonicalized when recorded, while a recording run is handed the live values.
+        #expect(changes.lastModified != nil)
+        #expect(changes.entityTag?.isEmpty == false)
+
+        // No chunk size was asked for, so the server answers in one response which lists every note.
+        #expect(changes.isComplete)
+        #expect(changes.pendingCount == nil)
     }
 
     @Test("Fetch Nothing Changed", arguments: ServerVersion.allCases)
@@ -137,5 +145,10 @@ import Testing
         #expect(changes.unchanged.count == 2)
         #expect(changes.unchanged.allSatisfy { $0 > 0 })
         #expect(Set(changes.unchanged).count == changes.unchanged.count)
+
+        // A response without a single note in full still says what to continue from and how to ask whether it changed.
+        #expect(changes.lastModified != nil)
+        #expect(changes.entityTag?.isEmpty == false)
+        #expect(changes.isComplete)
     }
 }
