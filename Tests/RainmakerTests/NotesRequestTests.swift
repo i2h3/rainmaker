@@ -121,12 +121,13 @@ import Testing
 
     @Test("Settings Decode And Ignore What Is Not Modelled")
     func settingsDecoding() async throws {
-        // The `noteMode` field is what a live server sends beyond what the API documents, so it has to be ignored rather than break the lookup.
-        let payload = #"{"notesPath":"Notizen","fileSuffix":".md","noteMode":"rich"}"#
+        // A field a future release of the notes app may add beyond what this library models has to be ignored rather than break the lookup.
+        let payload = #"{"notesPath":"Notizen","fileSuffix":".md","noteMode":"rich","futureSetting":42}"#
         let settings = try await makeServer(body: payload).notesSettings()
 
         #expect(settings.notesPath == "Notizen")
         #expect(settings.fileSuffix == ".md")
+        #expect(settings.noteMode == .rich)
     }
 
     // MARK: - Availability And Version
