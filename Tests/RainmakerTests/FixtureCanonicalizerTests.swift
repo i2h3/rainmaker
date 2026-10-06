@@ -25,6 +25,19 @@ import Testing
         return String(data: result, encoding: .utf8) ?? ""
     }
 
+    ///
+    /// Serialize headers as if they had been the response to a request for the given path and return the resulting lines.
+    ///
+    /// The path matters for the same reason it does in ``canonicalize(_:pathExtension:path:)``: which header fields are preserved depends on the API the response belongs to.
+    ///
+    func headerLines(statusCode: Int, headerFields: [AnyHashable: Any], path: String = "/remote.php/dav/files/admin/") throws -> [String] {
+        let requestURL = URL(string: "http://localhost:54540\(path)")!
+        let data = canonicalizer.headersText(statusCode: statusCode, headerFields: headerFields, requestURL: requestURL)
+        let text = try #require(String(data: data, encoding: .utf8))
+
+        return text.split(separator: "\n", omittingEmptySubsequences: true).map(String.init)
+    }
+
     @Test("Rewrites the live origin to the canonical one")
     func rewritesOrigin() {
         let body = "{\"server\":\"http://localhost:54540/remote.php\"}"
@@ -119,13 +132,71 @@ import Testing
             "Server": "nginx",
         ]
 
-        let data = canonicalizer.headersText(statusCode: 207, headerFields: headers)
-        let text = try #require(String(data: data, encoding: .utf8))
-        let lines = text.split(separator: "\n", omittingEmptySubsequences: true).map(String.init)
+        let lines = try headerLines(statusCode: 207, headerFields: headers)
 
         #expect(lines.first == "HTTP/1.1 207 Multi-Status")
         #expect(lines.contains("Content-Type: application/xml; charset=utf-8"))
         #expect(lines.contains { $0.hasPrefix("Date") } == false)
         #expect(lines.contains { $0.hasPrefix("Server") } == false)
+    }
+
+    @Test("Keeps the notes sync headers with canonical values")
+    func keepsNotesHeaders() throws {
+        let headers: [AnyHashable: Any] = [
+            "Content-Type": "application/json; charset=utf-8",
+            "Date": "Tue, 06 Oct 2026 10:00:00 GMT",
+            "ETag": "\"c649e503de046daca1b998c2e52b2a94\"",
+            "Last-Modified": "Tue, 06 Oct 2026 10:00:00 GMT",
+            "X-Notes-API-Versions": "0.2, 1.3, 1.4",
+            "X-Notes-Chunk-Cursor": "1791280800-1791280799-98",
+            "X-Notes-Chunk-Pending": "1",
+        ]
+
+        let lines = try headerLines(statusCode: 200, headerFields: headers, path: "/index.php/apps/notes/api/v1/notes")
+
+        // The listing reports what to continue from in its headers, so those have to survive, with the values differing per deployment and per moment replaced by fixed ones which still read as a quoted tag, an HTTP date and a cursor.
+        #expect(lines == [
+            "HTTP/1.1 200 OK",
+            "Content-Type: application/json; charset=utf-8",
+            "ETag: \"00000000000000000000000000000000\"",
+            "Last-Modified: Sat, 01 Jan 2000 00:00:00 GMT",
+            "X-Notes-API-Versions: 0.2, 1.3, 1.4",
+            "X-Notes-Chunk-Cursor: 946684800-946684800-0",
+            "X-Notes-Chunk-Pending: 1",
+        ])
+    }
+
+    @Test("Leaves out the notes sync headers a notes response does not send")
+    func leavesOutAbsentNotesHeaders() throws {
+        let headers: [AnyHashable: Any] = [
+            "Content-Type": "application/json; charset=utf-8",
+            "X-Notes-API-Versions": "0.2, 1.3, 1.4",
+        ]
+
+        let lines = try headerLines(statusCode: 200, headerFields: headers, path: "/index.php/apps/notes/api/v1/settings")
+
+        // A canonical value only replaces a header which was recorded, so a response without one does not gain it.
+        #expect(lines == ["HTTP/1.1 200 OK", "Content-Type: application/json; charset=utf-8", "X-Notes-API-Versions: 0.2, 1.3, 1.4"])
+    }
+
+    @Test("Drops the entity tag and modification date outside the notes app")
+    func dropsSyncHeadersElsewhere() throws {
+        let headers: [AnyHashable: Any] = [
+            "Content-Type": "application/xml; charset=utf-8",
+            "ETag": "\"69455eb955bf5\"",
+            "Last-Modified": "Fri, 19 Dec 2025 14:18:33 GMT",
+        ]
+
+        let lines = try headerLines(statusCode: 200, headerFields: headers, path: "/remote.php/dav/files/admin/Readme.md")
+
+        // WebDAV sends both headers as well, but nothing reads them from there, and keeping them would make every recording churn.
+        #expect(lines == ["HTTP/1.1 200 OK", "Content-Type: application/xml; charset=utf-8"])
+    }
+
+    @Test("Names the reason of a failed precondition")
+    func reasonPhraseOfPreconditionFailed() throws {
+        let lines = try headerLines(statusCode: 412, headerFields: [:], path: "/index.php/apps/notes/api/v1/notes/1")
+
+        #expect(lines == ["HTTP/1.1 412 Precondition Failed"])
     }
 }
