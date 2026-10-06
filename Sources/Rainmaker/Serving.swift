@@ -257,12 +257,17 @@ protocol Serving: Sendable {
     func events(_ options: ServerEventOptions) -> AsyncThrowingStream<ServerEvent, Error>
 
     ///
-    /// Look up the login flow information.
+    /// Begin a login flow, which yields an app password once the user granted access in a browser.
     ///
     func login() async throws -> LoginFlow
 
     ///
-    /// Poll the status of a login flow.
+    /// Check once whether the user completed a login flow, returning `nil` while it is pending.
+    ///
+    func poll(_ flow: LoginFlow) async throws -> LoginResult?
+
+    ///
+    /// Poll the status of a login flow, throwing while it is pending, which is deprecated on ``Server`` in favour of ``poll(_:)`` and kept here undeprecated so that the tests of its unchanged behaviour compile without warnings.
     ///
     func poll(_ endpoint: URL, token: String) async throws -> LoginResult
 
