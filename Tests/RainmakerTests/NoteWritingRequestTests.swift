@@ -6,7 +6,7 @@ import Foundation
 import Testing
 
 ///
-/// About how ``Server/createNote(title:category:content:modification:isFavorite:)``, ``Server/updateNote(_:title:category:content:modification:isFavorite:ifMatching:)`` and ``Server/deleteNote(_:)`` build their requests, and how the statuses the notes app answers them with map onto ``RainmakerError``.
+/// About how ``Server/createNote(title:category:content:modification:isFavorite:)``, ``Server/updateNote(_:title:category:content:modification:isFavorite:ifMatching:)``, ``Server/deleteNote(_:)`` and ``Server/updateNotesSettings(notesPath:fileSuffix:noteMode:showsHiddenFiles:loadsRecentNoteOnStartUp:)`` build their requests, and how the statuses the notes app answers them with map onto ``RainmakerError``.
 ///
 /// These tests deliberately do not use the fixture tree: ``URLTestSession`` neither looks at request bodies nor at request headers, so it cannot prove which values were sent and whether `If-Match` was, and a live baseline cannot be made to produce every status the notes app may answer a change with. The recorded counterparts are in ``NoteMutationTests``. A capturing ``MockRequesting`` is used instead.
 ///
@@ -17,6 +17,11 @@ import Testing
     /// A response body with a single note as the notes app sends it after creating or changing one.
     ///
     let payload = #"{"id":7,"etag":"9cf1","readonly":false,"modified":1700000000,"title":"Rainmaker","category":"Work","content":"text","favorite":true,"error":false,"errorType":"","internalPath":"/Notes/Work/Rainmaker.md","shareTypes":[],"isShared":false}"#
+
+    ///
+    /// A response body with the settings as notes app 6.1.0 sends them after changing them.
+    ///
+    let settingsPayload = #"{"notesPath":"Notes","fileSuffix":".txt","noteMode":"preview","showHidden":true,"loadRecentOnStartUp":false}"#
 
     ///
     /// The headers every supported response of the notes app carries.
@@ -327,6 +332,78 @@ import Testing
         }
     }
 
+    // MARK: - Settings
+
+    @Test("Changing Settings Puts Only The Given Values")
+    func updateSettingsSendsGivenValues() async throws {
+        let session = MockRequesting(string: settingsPayload, headerFields: supportedHeaders)
+        let settings = try await makeServer(session: session).updateNotesSettings(fileSuffix: ".txt")
+
+        let request = try #require(session.requests.first)
+        let body = try jsonBody(of: request)
+
+        // The settings are only routed below version 1 of the API, whatever newer version the app serves elsewhere.
+        #expect(session.requests.count == 1)
+        #expect(request.httpMethod == "PUT")
+        #expect(try path(of: request) == "/index.php/apps/notes/api/v1/settings")
+        #expect(request.url?.query == nil)
+        #expect(request.value(forHTTPHeaderField: "Content-Type") == "application/json")
+        #expect(request.value(forHTTPHeaderField: "Authorization")?.hasPrefix("Basic ") == true)
+        #expect(request.cachePolicy == .reloadIgnoringLocalCacheData)
+
+        // Everything not given is left out rather than sent as null, because the server resets a setting sent as null to its default.
+        #expect(Set(body.keys) == ["fileSuffix"])
+        #expect(body["fileSuffix"] as? String == ".txt")
+
+        // The result is what the server stored, which is what a caller adopts sanitized values from.
+        #expect(settings == NotesSettings(notesPath: "Notes", fileSuffix: ".txt", noteMode: .preview, showsHiddenFiles: true, loadsRecentNoteOnStartUp: false))
+    }
+
+    @Test("Changing Settings Sends The Server's Names")
+    func updateSettingsSendsEveryValue() async throws {
+        let session = MockRequesting(string: settingsPayload, headerFields: supportedHeaders)
+        _ = try await makeServer(session: session).updateNotesSettings(notesPath: "", fileSuffix: ".txt", noteMode: .preview, showsHiddenFiles: false, loadsRecentNoteOnStartUp: false)
+
+        let body = try jsonBody(of: #require(session.requests.first))
+
+        // The keys are the server's names rather than those of the model, the mode is sent as its raw value, and an empty path and false are values of their own rather than taken for absent.
+        #expect(Set(body.keys) == ["notesPath", "fileSuffix", "noteMode", "showHidden", "loadRecentOnStartUp"])
+        #expect(body["notesPath"] as? String == "")
+        #expect(body["fileSuffix"] as? String == ".txt")
+        #expect(body["noteMode"] as? String == "preview")
+        #expect(body["showHidden"] as? Bool == false)
+        #expect(body["loadRecentOnStartUp"] as? Bool == false)
+    }
+
+    @Test("Changing No Setting Sends An Empty Object")
+    func updateSettingsWithoutValues() async throws {
+        let session = MockRequesting(string: settingsPayload, headerFields: supportedHeaders)
+        _ = try await makeServer(session: session).updateNotesSettings()
+
+        let body = try jsonBody(of: #require(session.requests.first))
+
+        // The server keeps every setting the body does not name, so an empty object changes nothing and still answers with the settings.
+        #expect(body.isEmpty)
+    }
+
+    @Test("Changing Settings Without The App Is Reported As Such")
+    func updateSettingsWithoutApp() async throws {
+        let session = MockRequesting(string: "<!DOCTYPE html><html><body>Not found</body></html>", statusCode: 404, headerFields: [:])
+
+        await #expect(throws: RainmakerError.appUnavailable(app: "notes")) {
+            _ = try await makeServer(session: session).updateNotesSettings(fileSuffix: ".md")
+        }
+    }
+
+    @Test("Changing Settings Requires A Supported App")
+    func updateSettingsOnOutdatedApp() async throws {
+        let session = MockRequesting(string: settingsPayload, headerFields: ["X-Notes-API-Versions": "0.2, 1.3"])
+
+        await #expect(throws: RainmakerError.unsupportedAPIVersion(app: "notes", required: "1.4", advertised: ["0.2", "1.3"])) {
+            _ = try await makeServer(session: session).updateNotesSettings(fileSuffix: ".md")
+        }
+    }
+
     // MARK: - Credentials
 
     @Test("Changes Require Credentials")
@@ -344,6 +421,10 @@ import Testing
 
         await #expect(throws: RainmakerError.credentialsRequired) {
             try await server.deleteNote(7)
+        }
+
+        await #expect(throws: RainmakerError.credentialsRequired) {
+            _ = try await server.updateNotesSettings(fileSuffix: ".md")
         }
 
         // Nothing is sent without credentials.

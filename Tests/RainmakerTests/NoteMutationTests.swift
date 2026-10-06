@@ -9,7 +9,7 @@ import Testing
 ///
 /// About creating, changing and deleting notes of the authenticated user against the notes app.
 ///
-/// The fixtures backing this suite are recorded like those of ``NotesTests``, against a container with the notes app installed. Every test deletes the notes it creates and never changes the notes ``FixtureProvisioner`` seeds, because the baseline reset between recordings removes what a test leaves behind but does not restore a seeded note which is newer on the server than in the baseline.
+/// The fixtures backing this suite are recorded like those of ``NotesTests``, against a container with the notes app installed. Every test deletes the notes it creates, changes the settings of the notes app only to values they already have, and never changes the notes ``FixtureProvisioner`` seeds, because the baseline reset between recordings removes what a test leaves behind but does not restore a seeded note which is newer on the server than in the baseline.
 ///
 /// The requests of one test differ in method or path, which is what lets the fixture tree replay them: the identifier the server assigned is part of the path of every request after the creation, and it is taken from the recorded creation rather than pinned. Moments are pinned so that the `modified` the server reports replays as well. How the requests are built and how the statuses the notes app may answer with map onto ``RainmakerError`` is covered by ``NoteWritingRequestTests`` instead.
 ///
@@ -41,6 +41,10 @@ import Testing
 
         await #expect(throws: RainmakerError.credentialsRequired) {
             try await server.deleteNote(1)
+        }
+
+        await #expect(throws: RainmakerError.credentialsRequired) {
+            _ = try await server.updateNotesSettings(notesPath: nil, fileSuffix: ".md", noteMode: nil, showsHiddenFiles: nil, loadsRecentNoteOnStartUp: nil)
         }
     }
 
@@ -140,6 +144,21 @@ import Testing
         #expect(created.path?.hasSuffix("/ABC.md") == true)
 
         try await server.deleteNote(created.id)
+    }
+
+    @Test("Update Settings", arguments: ServerVersion.allCases)
+    func updateSettings(_ serverVersion: ServerVersion) async throws {
+        let server = try makeServer(serverVersion: serverVersion)
+        let before = try await server.notesSettings()
+
+        // The suffix is set to the value the baseline already has, so the account's settings are the same after the recording as before, which keeps every other suite's recordings independent of this one.
+        let updated = try await server.updateNotesSettings(notesPath: nil, fileSuffix: ".md", noteMode: nil, showsHiddenFiles: nil, loadsRecentNoteOnStartUp: nil)
+
+        #expect(updated.fileSuffix == ".md")
+
+        // Settings which were not given are left out of the request rather than sent as null, which would reset them, so they come back exactly as they were, including the folder derived from the container's locale.
+        #expect(updated == before)
+        #expect(updated.notesPath.isEmpty == false)
     }
 
     @Test("Delete Missing", arguments: ServerVersion.allCases)

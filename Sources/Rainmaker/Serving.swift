@@ -187,6 +187,11 @@ protocol Serving: Sendable {
     func notesSettings() async throws -> NotesSettings
 
     ///
+    /// Change the settings the notes app keeps for the authenticated user and return them as the server stored them.
+    ///
+    func updateNotesSettings(notesPath: String?, fileSuffix: String?, noteMode: NoteMode?, showsHiddenFiles: Bool?, loadsRecentNoteOnStartUp: Bool?) async throws -> NotesSettings
+
+    ///
     /// Retrieve one page of the activity stream the server records for the authenticated user.
     ///
     func activities(filter: String, since: Int, limit: Int, sort: ActivitySort, previews: Bool, objectType: String?, objectId: String?) async throws -> ActivityPage

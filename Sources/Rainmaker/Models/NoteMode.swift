@@ -6,7 +6,7 @@ import Foundation
 ///
 /// The way the notes app's web interface presents a note when it is opened.
 ///
-/// This is the ``NotesSettings/noteMode`` of an account as retrieved through ``Server/notesSettings()``. It is a preference of the web interface only: the notes API serves the same Markdown in ``Note/content`` whatever it says, so a client may honor it to feel familiar but does not have to.
+/// This is the ``NotesSettings/noteMode`` of an account as retrieved through ``Server/notesSettings()`` and changed through ``Server/updateNotesSettings(notesPath:fileSuffix:noteMode:showsHiddenFiles:loadsRecentNoteOnStartUp:)``. It is a preference of the web interface only: the notes API serves the same Markdown in ``Note/content`` whatever it says, so a client may honor it to feel familiar but does not have to.
 ///
 /// The raw values are the strings the server sends. A value this library does not know about does not decode as a case but leaves ``NotesSettings/noteMode`` `nil`, which is why this enum needs no catch-all case.
 ///

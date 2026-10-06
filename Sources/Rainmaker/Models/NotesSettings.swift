@@ -6,11 +6,11 @@ import Foundation
 ///
 /// The settings the notes app keeps for the authenticated user.
 ///
-/// Retrieved through ``Server/notesSettings()``. These describe where and how the app stores notes, which a client needs to know because notes are ordinary files: ``notesPath`` is what makes them reachable over WebDAV, for example through ``Server/enumerate(at:recursively:)->[Item]``, and ``fileSuffix`` is the extension the app gives a note it creates.
+/// Retrieved through ``Server/notesSettings()`` and changed through ``Server/updateNotesSettings(notesPath:fileSuffix:noteMode:showsHiddenFiles:loadsRecentNoteOnStartUp:)``, which returns them as the server stored them. These describe where and how the app stores notes, which a client needs to know because notes are ordinary files: ``notesPath`` is what makes them reachable over WebDAV, for example through ``Server/enumerate(at:recursively:)->[Item]``, and ``fileSuffix`` is the extension the app gives a note it creates.
 ///
 /// The app resolves both lazily and persists them the first time it is asked about notes, so asking the server is the only reliable way to learn them. ``Notes/notesPath`` advertises the same path alongside the capabilities, which spares a second request to a client which fetched those anyway.
 ///
-/// The remaining settings are preferences of the app's web interface which a client may honor to feel familiar. Each of them is optional, because older releases of the notes app do not send all of them.
+/// ``noteMode`` and ``loadsRecentNoteOnStartUp`` are preferences of the app's web interface which a client may honor to feel familiar, while ``showsHiddenFiles`` also decides which notes the server lists. Each of these three is optional, because older releases of the notes app do not send all of them.
 ///
 public struct NotesSettings: Model, Hashable, Decodable {
     ///
@@ -23,7 +23,7 @@ public struct NotesSettings: Model, Hashable, Decodable {
     ///
     /// The file extension the app gives a note it creates, e.g. `".md"`, which is also the default.
     ///
-    /// The app reads a note from any file it recognizes regardless of this, so it says what new notes will look like rather than what existing ones do.
+    /// The app reads notes from files with any extension it recognizes, which are `.txt`, `.org`, `.markdown`, `.md`, `.note` and the custom suffix set most recently, so this says what new notes will look like rather than what existing ones do.
     ///
     public let fileSuffix: String
 
@@ -35,9 +35,10 @@ public struct NotesSettings: Model, Hashable, Decodable {
     public let noteMode: NoteMode?
 
     ///
-    /// Whether the app's web interface lists files and folders whose names start with a dot, which corresponds to the server's `showHidden` field.
+    /// Whether the notes app lists files and folders whose names start with a dot as notes and categories, which corresponds to the server's `showHidden` field.
     ///
-    /// The notes app sends this since release 6.1.0, so it is `nil` for older releases.
+    /// This applies to the API as much as to the app's web interface: while it is `false`, which is the default, ``Server/notes()`` and the other listings leave such notes out, although ``Server/note(_:)`` still finds one by its identifier.
+    /// The notes app sends this since release 6.1.0, so it is `nil` for older releases, which always list such notes.
     ///
     public let showsHiddenFiles: Bool?
 
