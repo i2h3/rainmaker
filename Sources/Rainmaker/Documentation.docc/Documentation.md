@@ -116,6 +116,7 @@ Each fetch bypasses the local HTTP cache, and the endpoint publishes no version 
 Retrieve the notes of an account, either all of them at once or, for a client keeping its own copy, only those the server recorded a change for since a given moment.
 Whether the app providing them is installed at all is advertised through the ``Notes`` capability, which matters more here than elsewhere because the notes app is not part of a Nextcloud installation, and which also reports whether it is new enough to be usable.
 Notes are ordinary files, so ``NotesSettings`` says where to find them when reaching for them over WebDAV instead.
+An absent notes app is reported as ``RainmakerError/appUnavailable(app:)`` rather than as ``RainmakerError/notFound``, which is reserved for a note that does not exist, so a client keeping its own copy never mistakes a missing app for deleted notes.
 
 - ``Server/notes()``
 - ``Server/notes(changedSince:)``
@@ -176,6 +177,9 @@ List the server apps, such as Files, Photos and Activity, which the server adver
 - ``Version``
 
 ### Handling Errors
+
+Every error this library raises on its own is a ``RainmakerError``.
+The notes features map the statuses the notes app answers with onto dedicated cases, such as ``RainmakerError/readOnly``, ``RainmakerError/locked``, ``RainmakerError/insufficientStorage`` and ``RainmakerError/noteConflict(current:)``, but only when the response actually comes from that app, while anything a proxy or the server answers on its behalf stays ``RainmakerError/unexpectedStatus(code:)``.
 
 - ``RainmakerError``
 

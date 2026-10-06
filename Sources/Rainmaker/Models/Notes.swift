@@ -27,12 +27,14 @@ public struct Notes: Capability {
     ///
     /// The minor component of ``minimumAPIVersion``.
     ///
-    static let minimumMinorAPIVersion = 3
+    static let minimumMinorAPIVersion = 4
 
     ///
-    /// The oldest version of the notes API this library works with, which notes app 4.5 introduced in 2022.
+    /// The oldest version of the notes API this library works with, which is notes API version 1.4 as introduced by notes app 4.12.3 in 2025.
     ///
-    /// Everything older is unsupported: ``Note/entityTag`` and ``Note/isReadOnly`` arrived with API version 1.2 and are relied upon rather than treated as optional, and custom file suffixes arrived with 1.3. A server whose notes app is older makes ``Server/notes()`` and ``Server/notes(changedSince:)`` throw ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)``.
+    /// Version 1.4 is the one which exposes the attachments of a note, below a path every release of the notes app advertising it serves, so requiring it is what lets the notes features rely on that path rather than probe for it.
+    /// Everything older is unsupported: ``Note/entityTag`` and ``Note/isReadOnly`` arrived with API version 1.2 and are relied upon rather than treated as optional, custom file suffixes arrived with 1.3, and the attachment endpoints with 1.4.
+    /// A server whose notes app is older makes ``Server/notes()``, ``Server/notes(changedSince:)`` and ``Server/notesSettings()`` throw ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)``.
     ///
     public static var minimumAPIVersion: String {
         "\(minimumMajorAPIVersion).\(minimumMinorAPIVersion)"
@@ -41,7 +43,7 @@ public struct Notes: Capability {
     ///
     /// Whether any of the given API versions satisfies ``minimumAPIVersion``.
     ///
-    /// The strings are in the `"<major>.<minor>"` form the server uses, both in the ``apiVersion`` capability and in the `X-Notes-API-Versions` header every response of the notes API carries. Any further components are tolerated and ignored, so a server which one day reports a patch component as well still reads as supported. An entry which does not parse at all is skipped rather than treated as a rejection, so a version scheme this library does not know about cannot make an otherwise supported server look unsupported.
+    /// The strings are in the `"<major>.<minor>"` form the server uses, both in the ``apiVersion`` capability and in the `X-Notes-API-Versions` header every response the notes app sends itself carries, which `HTTPURLResponse.notesAPIVersions` reads. Any further components are tolerated and ignored, so a server which one day reports a patch component as well still reads as supported. An entry which does not parse at all is skipped rather than treated as a rejection, so a version scheme this library does not know about cannot make an otherwise supported server look unsupported.
     ///
     static func supports(apiVersions: [String]) -> Bool {
         apiVersions.contains { version in
@@ -58,7 +60,7 @@ public struct Notes: Capability {
     ///
     /// The versions of the REST API the server supports, e.g. `["0.2", "1.3", "1.4"]`.
     ///
-    /// Both retrieval methods require at least ``minimumAPIVersion``, which ``isSupported`` checks for.
+    /// Every notes feature of ``Server`` requires at least ``minimumAPIVersion``, which ``isSupported`` checks for. A server advertising `"1.3"` as its newest version runs a notes app older than 4.12.3, which those features refuse.
     ///
     public let apiVersion: [String]?
 

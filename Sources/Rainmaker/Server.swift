@@ -18,6 +18,21 @@ public final class Server {
     static let activityLimits = 1 ... 200
 
     ///
+    /// The path of the notes app's REST API relative to ``appsAddress``, which every notes endpoint except those for attachments is resolved against.
+    ///
+    /// The `v1` segment selects the major version of the API, while the minor version the installed app serves is only learned from the `X-Notes-API-Versions` header of each response and checked against ``Notes/minimumAPIVersion``.
+    /// Endpoints for attachments are resolved against ``notesAttachmentAPIRoot`` instead.
+    ///
+    static let notesAPIRoot = "notes/api/v1/"
+
+    ///
+    /// The path of the notes app's attachment endpoints relative to ``appsAddress``, which differs from ``notesAPIRoot`` in naming the minor version as well.
+    ///
+    /// Releases of the notes app before 6.1 route their attachment endpoints only below the `v1.4` segment and answer the same paths below `v1` with an error, while every release advertising API version 1.4 accepts this one.
+    ///
+    static let notesAttachmentAPIRoot = "notes/api/v1.4/"
+
+    ///
     /// The chunk size ``upload(_:to:force:chunkSize:)`` uses when the caller does not choose one, which is 10 MiB.
     ///
     /// This matches the default of the official desktop client. It keeps a single request well below what reverse proxies commonly cap request bodies at, see ``ChunkedUpload/maxSize``, while a file of many gigabytes still fits into the ten thousand chunks a transfer may consist of.
@@ -47,7 +62,23 @@ public final class Server {
 
     nonisolated(unsafe) let fileManager = FileManager.default
     let logger = Logger(category: "Server")
+
+    ///
+    /// The decoder every JSON response body is read with, shared across calls rather than created per endpoint.
+    ///
+    /// It is configured once in ``init(address:password:user:session:webSocket:userAgent:)`` and never changed afterwards, which is what keeps it safe to share across concurrent calls.
+    /// Its counterpart for request bodies is ``jsonEncoder``.
+    ///
     let jsonDecoder: JSONDecoder
+
+    ///
+    /// The encoder every JSON request body is written with, the counterpart of ``jsonDecoder`` for what is sent rather than what is received.
+    ///
+    /// It is configured once in ``init(address:password:user:session:webSocket:userAgent:)`` and never changed afterwards, for the same reason as ``jsonDecoder``.
+    /// The notes app is the first API this library sends JSON to, and the request bodies for it encode their dates themselves in the form that app expects, so the date strategy set here only keeps both directions consistent for whatever does not.
+    ///
+    let jsonEncoder: JSONEncoder
+
     let session: any Requesting
     let webSocket: any WebSocketConnecting
 
@@ -128,53 +159,14 @@ public final class Server {
     ///
     /// Helper method which ensures this object was setup up with a user name and password.
     ///
+    /// It is internal rather than private because the extensions of ``Server`` in other files, such as the notes features in `Server+Notes.swift`, guard their calls with it as well.
+    ///
     /// - Throws: If this is called and the ``user`` or ``password`` are not defined.
     ///
-    private func requireCredentials() throws {
+    func requireCredentials() throws {
         guard user != nil, password != nil else {
             throw RainmakerError.credentialsRequired
         }
-    }
-
-    ///
-    /// Request an endpoint of the notes app's API and return its raw payload.
-    ///
-    /// This is what every notes feature shares: the base path, the mapping of an absent app onto a not found error, and the enforcement of ``Notes/minimumAPIVersion``.
-    ///
-    /// None of those endpoints answers with an OCS envelope, so unlike every other JSON endpoint in this library there is no `meta` status vouching for a payload. A success response carrying something else entirely, for example an HTML login or maintenance page served by a proxy, therefore has to surface as ``RainmakerError/responseDecodingFailed(reason:)`` rather than as an opaque Foundation error, which is why every caller wraps its decoding. The payload is left out of those messages so that note contents cannot leak into logs.
-    ///
-    /// - Parameters:
-    ///     - path: The path relative to the notes app's API root, e.g. `"notes"` or `"settings"`.
-    ///     - queryItems: The query parameters to append, in the order they should appear.
-    ///
-    private func notesAPIPayload(for path: String, queryItems: [URLQueryItem] = []) async throws -> Data {
-        let request = try makeAppRequest(for: "notes/api/v1/\(path)", method: .get, queryItems: queryItems)
-        let (data, urlResponse) = try await session.data(for: request)
-
-        guard let response = urlResponse as? HTTPURLResponse else {
-            throw RainmakerError.responseDecodingFailed(reason: "Failed to cast URLResponse to HTTPURLResponse.")
-        }
-
-        // The endpoint only exists while the notes app is installed and enabled, so its absence surfaces as a not found error. A notes app too old to serve this major version of the API is reported the same way.
-        if response.status == .notFound {
-            throw RainmakerError.notFound
-        }
-
-        guard response.status == .ok else {
-            throw RainmakerError.unexpectedStatus(code: response.statusCode)
-        }
-
-        // Every response of the notes API advertises which versions of it the installed app can serve, so the requirement is enforced from the response already in hand rather than by asking for the server's capabilities first.
-        let advertisedAPIVersions = (response.value(forHTTPHeaderField: "X-Notes-API-Versions") ?? "")
-            .split(separator: ",")
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { $0.isEmpty == false }
-
-        guard Notes.supports(apiVersions: advertisedAPIVersions) else {
-            throw RainmakerError.unsupportedAPIVersion(app: Notes.key, required: Notes.minimumAPIVersion, advertised: advertisedAPIVersions)
-        }
-
-        return data
     }
 
     ///
@@ -874,6 +866,10 @@ public final class Server {
 
         // Every JSON date the server sends is ISO 8601, so the strategy belongs on the shared decoder rather than on a throwaway one per endpoint. It is set once here and never changed afterwards, which keeps the decoder as safe to share across calls as it already was.
         jsonDecoder.dateDecodingStrategy = .iso8601
+
+        // The encoder mirrors the decoder for the same reasons, so a date round-trips in the form the server reads and writes elsewhere.
+        jsonEncoder = JSONEncoder()
+        jsonEncoder.dateEncodingStrategy = .iso8601
 
         self.password = password
         self.session = session
@@ -1783,125 +1779,6 @@ extension Server: Serving {
         }
 
         return envelope.ocs.data.pages
-    }
-
-    ///
-    /// List all notes of the authenticated user.
-    ///
-    /// Notes are provided by the server's notes app which, unlike most of what this library covers, is not part of a Nextcloud installation and has to be installed separately. Whether it is available can be checked in advance via the ``Notes`` capability, e.g. `try await capabilities().contains(Notes.self)`. When the app is unavailable the underlying endpoint does not exist and this call throws ``RainmakerError/notFound``.
-    ///
-    /// The very same not found error is what a server answers whose `index.php` routing is disabled or whose reverse proxy swallows the route, so those causes cannot be told apart from the response alone.
-    ///
-    /// An app which is installed but older than ``Notes/minimumAPIVersion`` is reported separately, as ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)``. That requirement is checked on every response, because the notes API advertises the versions it serves in a header of its own, and it can be checked in advance through ``Notes/isSupported``.
-    ///
-    /// The whole collection is retrieved in a single request, because the endpoint returns everything at once unless a chunk size is requested, which this deliberately does not do. Use ``notes(changedSince:)`` to retrieve only what changed since an earlier call.
-    ///
-    /// > Warning: Every note including its full content is fetched and held in memory at once, so what this costs grows with the size of the account's notes.
-    ///
-    /// A note the server could not read is listed like any other and does not fail the call. It carries ``Note/hasError`` and its ``Note/content`` is a message about the failure rather than the note's text, so anything which stores what it retrieves has to check that first.
-    ///
-    /// Credentials are required: notes are user-scoped and the underlying endpoint rejects unauthenticated requests.
-    ///
-    /// - Returns: The notes in the order returned by the server.
-    ///
-    /// - Throws:
-    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
-    ///     - ``RainmakerError/notFound`` when the notes app is not available on the server.
-    ///     - ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)`` when it is available but older than ``Notes/minimumAPIVersion``.
-    ///     - ``RainmakerError/responseDecodingFailed(reason:)`` when a success response does not carry a list of notes.
-    ///     - Any other error that might occur during retrieval.
-    ///
-    public func notes() async throws -> [Note] {
-        try requireCredentials()
-        logger.debug("Fetching notes...")
-
-        let data = try await notesAPIPayload(for: "notes")
-
-        do {
-            return try jsonDecoder.decode([Note].self, from: data)
-        } catch {
-            throw RainmakerError.responseDecodingFailed(reason: "Failed to decode the notes: \(error)")
-        }
-    }
-
-    ///
-    /// List the notes of the authenticated user which changed since a given moment, together with the identifiers of those which did not.
-    ///
-    /// This is the incremental counterpart of ``notes()`` for a client keeping its own copy of the notes: the server returns every note it recorded a change for at or after `changedSince` in full, and reduces every note it did not to its identifier alone. Both together are the complete set of notes the account has, which is what makes deletions detectable. See ``NoteChanges`` for how the two halves are meant to be applied.
-    ///
-    /// The moment is sent to the server as its `pruneBefore` parameter, converted to whole seconds since the Unix epoch. A moment at or before the epoch prunes nothing and therefore behaves like ``notes()``.
-    ///
-    /// > Warning: The server compares this moment against its own record of when it last noticed each note change, which is not the same as that note's ``Note/modification`` date. A note may be from 2020, but when the server only found it today it is not pruned from the response. Never pass a note's ``Note/modification`` back in as this moment; pass one measured on the same clock the server runs on instead, such as when the previous retrieval was made. The API defines the exact value to reuse as the `Last-Modified` header of the previous response, which is the server's own request time and which this library does not surface.
-    ///
-    /// Everything else, including how an unavailable app surfaces and how a note the server could not read is reported, matches ``notes()``.
-    ///
-    /// - Parameters:
-    ///     - changedSince: The moment to retrieve changes since, measured against the server's own record of when it last saw a note change rather than against ``Note/modification``.
-    ///
-    /// - Returns: The changed notes and the identifiers of the unchanged ones.
-    ///
-    /// - Throws:
-    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
-    ///     - ``RainmakerError/notFound`` when the notes app is not available on the server.
-    ///     - ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)`` when it is available but older than ``Notes/minimumAPIVersion``.
-    ///     - ``RainmakerError/responseDecodingFailed(reason:)`` when a success response does not carry a list of notes.
-    ///     - Any other error that might occur during retrieval.
-    ///
-    public func notes(changedSince: Date) async throws -> NoteChanges {
-        try requireCredentials()
-        logger.debug("Fetching notes changed since \(changedSince)...")
-
-        // A moment at or before the Unix epoch has no positive number of seconds to express it, and pruning before it would exclude nothing anyway, so the server is asked not to prune at all.
-        let pruneBefore = changedSince.wholeSecondsSince1970 ?? 0
-        let data = try await notesAPIPayload(for: "notes", queryItems: [URLQueryItem(name: "pruneBefore", value: String(pruneBefore))])
-        let entries: [NoteEntry]
-
-        do {
-            entries = try jsonDecoder.decode([NoteEntry].self, from: data)
-        } catch {
-            throw RainmakerError.responseDecodingFailed(reason: "Failed to decode the notes: \(error)")
-        }
-
-        var changed = [Note]()
-        var unchanged = [Int]()
-
-        for entry in entries {
-            switch entry {
-                case let .changed(note): changed.append(note)
-                case let .unchanged(id): unchanged.append(id)
-            }
-        }
-
-        return NoteChanges(changed: changed, unchanged: unchanged)
-    }
-
-    ///
-    /// Look up the settings the notes app keeps for the authenticated user.
-    ///
-    /// These say where the app stores notes and which extension it gives a new one, which matters because notes are ordinary files: the folder is not a fixed name but a value derived from the account's locale by default, so anything which wants to reach notes over WebDAV rather than through ``notes()`` has to ask for it rather than assume it. See ``NotesSettings``.
-    ///
-    /// The same requirement and the same failure modes as ``notes()`` apply, since this is the same app's API.
-    ///
-    /// - Returns: The notes app's settings for the authenticated user.
-    ///
-    /// - Throws:
-    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
-    ///     - ``RainmakerError/notFound`` when the notes app is not available on the server.
-    ///     - ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)`` when it is available but older than ``Notes/minimumAPIVersion``.
-    ///     - ``RainmakerError/responseDecodingFailed(reason:)`` when a success response does not carry the settings.
-    ///     - Any other error that might occur during retrieval.
-    ///
-    public func notesSettings() async throws -> NotesSettings {
-        try requireCredentials()
-        logger.debug("Fetching note settings...")
-
-        let data = try await notesAPIPayload(for: "settings")
-
-        do {
-            return try jsonDecoder.decode(NotesSettings.self, from: data)
-        } catch {
-            throw RainmakerError.responseDecodingFailed(reason: "Failed to decode the note settings: \(error)")
-        }
     }
 
     ///
