@@ -180,8 +180,10 @@ struct FixtureCanonicalizer {
     /// Replacements applied only to the bodies of the login flow, which is the one API whose `token` is a secret rather than an identifier.
     ///
     /// These used to be part of ``volatileReplacements`` and applied to every body, which was safe only while the login flow was the sole API sending a field named `token`. Talk sends one too, and its value addresses a conversation in every further request, so the two must not share a rule.
+    /// The login URL is matched twice, because the server's JSON escapes its slashes as `\/`, which the plain pattern does not match and which left the flow tokens of recorded responses unredacted.
     ///
     private static let loginReplacements: [(pattern: String, replacement: String)] = [
+        ("\\\\/login\\\\/v2\\\\/flow\\\\/[^\"<\\s]+", "\\\\/login\\\\/v2\\\\/flow\\\\/REDACTED"),
         ("/login/v2/flow/[^\"<\\s]+", "/login/v2/flow/REDACTED"),
         ("\"token\"[ ]*:[ ]*\"[^\"]*\"", "\"token\": \"REDACTED\""),
         ("\"appPassword\"[ ]*:[ ]*\"[^\"]*\"", "\"appPassword\": \"REDACTED\""),
