@@ -80,6 +80,12 @@ public final class Server {
     let jsonEncoder: JSONEncoder
 
     let session: any Requesting
+
+    ///
+    /// Opens the `notify_push` WebSocket for ``events(_:)``, through which ``ServerEventCoordinator`` hands it to each ``PushNotificationsConnection``.
+    ///
+    /// It is never used with the ``ServerEventTransport/polling`` transport or on watchOS, where ``ServerEventCoordinator/platformSupportsWebSocket`` is `false`.
+    ///
     let webSocket: any WebSocketConnecting
 
     ///
@@ -871,7 +877,7 @@ public final class Server {
     ///     - password: In most cases, this is the app password and not the account password.
     ///     - user: The Nextcloud user name used to identify as.
     ///     - session: A ``Requesting`` object (e.g. a `URLSession`) to use for network requests. Defaults to a new ephemeral `URLSession`.
-    ///     - webSocket: A ``WebSocketConnecting`` object (e.g. a `URLSession`) to open the `notify_push` WebSocket with, used by ``events(_:)``. It is a separate parameter from `session` only because a `URLSession` typed as `any Requesting` does not expose its WebSocket features. Defaults to a new ephemeral `URLSession`, matching `session`, since notify_push authenticates over the socket itself and needs no persistent cookie, credential, or cache storage.
+    ///     - webSocket: A ``WebSocketConnecting`` object (e.g. a `URLSession`) to open the `notify_push` WebSocket with, used by ``events(_:)`` with the ``ServerEventTransport/automatic`` transport on every platform but watchOS. It is a separate parameter from `session` only because a `URLSession` typed as `any Requesting` does not expose its WebSocket features. Defaults to a new ephemeral `URLSession`, matching `session`, since notify_push authenticates over the socket itself and needs no persistent cookie, credential, or cache storage.
     ///     - userAgent: The user agent to report as in HTTP request headers.
     ///
     public init(address: URL, password: String? = nil, user: String? = nil, session: any Requesting = URLSession(configuration: .ephemeral), webSocket: any WebSocketConnecting = URLSession(configuration: .ephemeral), userAgent: String = "Rainmaker") {
