@@ -121,7 +121,9 @@ Notes are created, changed and deleted one at a time, and a change can be made c
 Whether the app providing them is installed at all is advertised through the ``Notes`` capability, which matters more here than elsewhere because the notes app is not part of a Nextcloud installation, and which also reports whether it is new enough to be usable.
 Notes are ordinary files, so ``NotesSettings`` says where to find them when reaching for them over WebDAV instead, and ``Note/path`` says where exactly the file of each note is.
 Those settings can be changed as well, which may change which notes the server lists, so a client keeping its own copy retrieves them anew afterwards.
-Some behaviours of the notes app are tied to its release rather than to its API version, which ``Notes/isAppVersion(atLeast:)`` and the helpers built on it, such as ``Notes/supportsAttachmentDeletion``, tell apart.
+Files such as images are attached to a note by uploading them, which returns the path a note's content references them by, relative to the folder of the note's category, and they are retrieved by that path into memory or streamed into a local file.
+Some behaviours of the notes app are tied to its release rather than to its API version, which ``Notes/isAppVersion(atLeast:)`` and the helpers built on it, such as ``Notes/supportsAttachmentDeletion``, tell apart: only release 6.1.0 and newer keep the attachments of a note in a folder of their own and can delete them.
+An attachment is retrieved bypassing the local HTTP cache, but a session still stores the response in its `URLCache`, so a session shared by several accounts or handling private files is best configured without one, see ``Server/init(address:password:user:session:webSocket:userAgent:)``.
 An absent notes app is reported as ``RainmakerError/appUnavailable(app:)`` rather than as ``RainmakerError/notFound``, which is reserved for a note that does not exist, so a client keeping its own copy never mistakes a missing app for deleted notes.
 
 - ``Server/notes()``
@@ -135,6 +137,11 @@ An absent notes app is reported as ``RainmakerError/appUnavailable(app:)`` rathe
 - ``Server/createNote(title:category:content:modification:isFavorite:)``
 - ``Server/updateNote(_:title:category:content:modification:isFavorite:ifMatching:)``
 - ``Server/deleteNote(_:)``
+- ``Server/attachment(at:ofNote:)``
+- ``Server/downloadAttachment(at:ofNote:to:force:)``
+- ``Server/addAttachment(_:toNote:fileName:)-(URL,Int,String?)``
+- ``Server/addAttachment(_:toNote:fileName:)-(Data,Int,String)``
+- ``Server/deleteAttachment(at:ofNote:)``
 - ``Server/notesSettings()``
 - ``Server/updateNotesSettings(notesPath:fileSuffix:noteMode:showsHiddenFiles:loadsRecentNoteOnStartUp:)``
 - ``Note``
@@ -142,6 +149,8 @@ An absent notes app is reported as ``RainmakerError/appUnavailable(app:)`` rathe
 - ``ShareType``
 - ``NotesSettings``
 - ``NoteMode``
+- ``NoteAttachment``
+- ``NoteAttachmentFile``
 
 ### Collectives
 
@@ -206,6 +215,7 @@ The notes features map the statuses the notes app answers with onto dedicated ca
 If the built in features of Rainmaker do not suffice for your use case, you can use the following methods to build your own on top.
 This is useful for API endpoints not covered by Rainmaker.
 In example a third-party Nextcloud server app.
+The names and values of query items are passed as they are and percent-encoded by the factories, including `+`, `&`, `=` and `#`, so a value such as `a+b` reaches the server as `a+b` rather than as `a b`.
 
 - ``Server/makeAppRequest(for:method:queryItems:)``
 - ``Server/makeOCSRequest(for:method:queryItems:)``

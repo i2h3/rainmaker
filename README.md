@@ -9,7 +9,7 @@
 [![Tests](https://github.com/i2h3/rainmaker/actions/workflows/test.yml/badge.svg)](https://github.com/i2h3/rainmaker/actions/workflows/test.yml)
 [![REUSE](https://api.reuse.software/badge/github.com/i2h3/rainmaker)](https://api.reuse.software/info/github.com/i2h3/rainmaker)
 
-A simple Swift library and CLI to access [Nextcloud](https://www.nextcloud.com) programmatically: files, notifications, activities, notes, collectives and Talk conversations.
+A simple Swift library and CLI to access [Nextcloud](https://www.nextcloud.com) programmatically: files, notifications, activities, notes (including their attachments), collectives and Talk conversations.
 The notes features require the notes app to serve its API in version 1.4 or newer, which it does since release 4.12.3.
 For further information, see [the documentation which is built from the source code and deployed to GitHub pages](https://i2h3.github.io/rainmaker/). 
 

@@ -33,9 +33,27 @@ final class MockRequesting: Requesting, @unchecked Sendable {
     private var capturedRequests = [URLRequest]()
 
     ///
+    /// The local files uploads were sent from so far, in order.
+    ///
+    private var capturedUploadSources = [URL]()
+
+    ///
+    /// The local files this mock was asked to upload from so far, in the order the uploads were issued, which a test checks to have been removed after a staged upload.
+    ///
+    var uploadSources: [URL] {
+        lock.lock()
+
+        defer {
+            lock.unlock()
+        }
+
+        return capturedUploadSources
+    }
+
+    ///
     /// The requests this mock received so far, in the order they were issued.
     ///
-    /// A request received through ``upload(for:fromFile:delegate:)`` carries the bytes of the uploaded file in its `httpBody`, which a real session leaves empty for a file upload, so that a test can assert on what would have been sent.
+    /// A request received through ``upload(for:fromFile:delegate:)`` carries the bytes of the uploaded file in its `httpBody`, which a real session leaves empty for a file upload, so that a test can assert on what would have been sent. A request received through ``download(for:delegate:)`` is answered like any other, with the body written to a temporary file.
     ///
     var requests: [URLRequest] {
         lock.lock()
@@ -86,7 +104,7 @@ final class MockRequesting: Requesting, @unchecked Sendable {
     ///
     /// Record a request, from a synchronous context because the lock may not be taken from an asynchronous one.
     ///
-    private func capture(_ request: URLRequest) {
+    private func capture(_ request: URLRequest, uploadingFrom source: URL? = nil) {
         lock.lock()
 
         defer {
@@ -94,6 +112,10 @@ final class MockRequesting: Requesting, @unchecked Sendable {
         }
 
         capturedRequests.append(request)
+
+        if let source {
+            capturedUploadSources.append(source)
+        }
     }
 
     ///
@@ -110,15 +132,22 @@ final class MockRequesting: Requesting, @unchecked Sendable {
         return answer(request)
     }
 
-    func download(for _: URLRequest, delegate _: (any URLSessionTaskDelegate)?) async throws -> (URL, URLResponse) {
-        throw MockWebSocketError.closed
+    func download(for request: URLRequest, delegate _: (any URLSessionTaskDelegate)?) async throws -> (URL, URLResponse) {
+        capture(request)
+        let (body, response) = answer(request)
+
+        // Like a download task, the body is handed over in a temporary file of its own, which the caller is expected to move or remove.
+        let location = FileManager.default.temporaryDirectory.appendingPathComponent("MockRequesting-\(UUID().uuidString).download")
+        try body.write(to: location)
+
+        return (location, response)
     }
 
     func upload(for request: URLRequest, fromFile fileURL: URL, delegate _: (any URLSessionTaskDelegate)?) async throws -> (Data, URLResponse) {
         // The file is read right away because the caller may remove it as soon as this returns, as ``Server`` does with a staged chunk.
         var captured = request
         captured.httpBody = try Data(contentsOf: fileURL)
-        capture(captured)
+        capture(captured, uploadingFrom: fileURL)
         return answer(request)
     }
 }

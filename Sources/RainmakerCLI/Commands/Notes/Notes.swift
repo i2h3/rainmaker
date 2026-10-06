@@ -6,7 +6,7 @@ import Foundation
 import Rainmaker
 
 ///
-/// Notes command grouping the listing, the retrieval, the creation, the change and the deletion of notes.
+/// Notes command grouping the listing, the retrieval, the creation, the change and the deletion of notes, as well as the ``Notes/Attachment`` group for the files attached to them.
 ///
 /// This is a group because every subcommand reads or writes the same app through the same credentials, mirroring how ``Conversations`` groups its subcommands. Each subcommand is declared in a file of its own as an extension of this type, such as ``Notes/List`` in `Notes+List.swift`.
 /// ``Notes/List`` is the default subcommand, so `notes` and `notes --changed-since <seconds>` keep listing notes as they did before this became a group.
@@ -15,8 +15,8 @@ import Rainmaker
 ///
 struct Notes: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
-        abstract: "List, retrieve, create, change and delete the notes of the authenticated user. Requires authentication and the server's notes app.",
-        subcommands: [List.self, Get.self, Create.self, Update.self, Delete.self],
+        abstract: "List, retrieve, create, change and delete the notes of the authenticated user and their attachments. Requires authentication and the server's notes app.",
+        subcommands: [List.self, Get.self, Create.self, Update.self, Delete.self, Attachment.self],
         defaultSubcommand: List.self
     )
 

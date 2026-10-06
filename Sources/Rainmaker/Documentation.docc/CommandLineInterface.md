@@ -28,7 +28,7 @@ SUBCOMMANDS:
   login                   Fetch the login flow information from a server.
   move                    Move or rename a remote file or directory on the server.
   navigation              List the apps navigation entries advertised by a server. Requires authentication.
-  notes                   List, retrieve, create, change and delete the notes of the authenticated user. Requires authentication and the server's notes app.
+  notes                   List, retrieve, create, change and delete the notes of the authenticated user and their attachments. Requires authentication and the server's notes app.
   notes-settings          Show or change where and how the notes app stores the notes of the authenticated user. Requires authentication and the server's notes app.
   notifications           List the notifications queued for the authenticated user. Requires authentication and the server's notifications app.
   poll                    Poll the status of a previously initiated login flow.

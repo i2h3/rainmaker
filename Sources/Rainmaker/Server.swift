@@ -852,6 +852,20 @@ public final class Server {
     ///
     /// Create a new server object.
     ///
+    /// Every request authenticates itself and refuses cookies, so one session can be shared by the ``Server`` objects of several accounts. Requests which must not be answered from a cache, such as those of the notes features and the retrieval of avatars and of attachments through ``attachment(at:ofNote:)``, bypass the session's `URLCache`, but bypassing it does not keep the session from storing their responses in it. A session's cache is keyed by URL alone, while the same URL may stand for different files for different accounts, because the path of an attachment is resolved relative to the account's own folders, and the default configuration of `URLSession` keeps its cache on disk, where the attachments of private notes would outlive the session. A session shared by several accounts, or one which handles private files, should therefore keep no cache at all:
+    ///
+    /// ```swift
+    /// let configuration = URLSessionConfiguration.ephemeral
+    /// configuration.urlCache = nil
+    /// configuration.httpCookieStorage = nil
+    /// configuration.httpShouldSetCookies = false
+    ///
+    /// let session = URLSession(configuration: configuration)
+    /// let server = Server(address: address, password: password, user: user, session: session)
+    /// ```
+    ///
+    /// The ephemeral session this creates when none is given keeps its cache in memory only and is not shared with any other ``Server``.
+    ///
     /// - Parameters:
     ///     - address: HTTP address of the Nextcloud host.
     ///     - password: In most cases, this is the app password and not the account password.
@@ -1917,6 +1931,8 @@ extension Server: Serving {
     ///
     /// `queryItems` defaults to an empty array, so endpoints which are parameterized through the path alone are requested without naming it. Passing an empty array produces exactly the URL a call without any query would.
     ///
+    /// The names and values of `queryItems` are passed without any percent-encoding and reach the server exactly as given. Every character a query may not contain, such as `#`, is percent-encoded, and so are `+`, `&` and `=`, which a query may contain but which the server would read as a space or as delimiters, so that a value such as the file name `a+b.png` does not arrive as `a b.png`.
+    ///
     /// - Parameters:
     ///     - path: The path relative to the OCS root, e.g. `"apps/activity/api/v2/activity/all"`.
     ///     - method: The HTTP method to use.
@@ -1927,8 +1943,9 @@ extension Server: Serving {
         var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
 
         // The query is only assigned when there is one so that a request without query parameters produces a bare URL rather than one with a trailing question mark.
+        // Characters which are legal in a query but which the server reads as delimiters or as a space, such as `+`, are percent-encoded as well, so every value reaches the server as given.
         if queryItems.isEmpty == false {
-            components?.queryItems = queryItems
+            components?.setEncodedQueryItems(queryItems)
         }
 
         var request = makeRequest(for: components?.url ?? url, method: method)
@@ -1951,6 +1968,8 @@ extension Server: Serving {
     ///
     /// `queryItems` defaults to an empty array, so endpoints which are parameterized through the path alone are requested without naming it. Passing an empty array produces exactly the URL a call without any query would.
     ///
+    /// The names and values of `queryItems` are passed without any percent-encoding and reach the server exactly as given. Every character a query may not contain, such as `#`, is percent-encoded, and so are `+`, `&` and `=`, which a query may contain but which the server would read as a space or as delimiters, so that a value such as the file name `a+b.png` does not arrive as `a b.png`.
+    ///
     /// - Parameters:
     ///     - path: The path relative to the apps root (see ``Server/appsAddress``), e.g. `"notes/api/v1/notes"`.
     ///     - method: The HTTP method to use.
@@ -1961,8 +1980,9 @@ extension Server: Serving {
         var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
 
         // The query is only assigned when there is one so that a request without query parameters produces a bare URL rather than one with a trailing question mark.
+        // Characters which are legal in a query but which the server reads as delimiters or as a space, such as `+`, are percent-encoded as well, so every value reaches the server as given.
         if queryItems.isEmpty == false {
-            components?.queryItems = queryItems
+            components?.setEncodedQueryItems(queryItems)
         }
 
         var request = makeRequest(for: components?.url ?? url, method: method)

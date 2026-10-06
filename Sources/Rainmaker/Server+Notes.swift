@@ -469,6 +469,225 @@ public extension Server {
     }
 
     ///
+    /// Retrieve a file a note refers to, such as an image embedded into it, into memory.
+    ///
+    /// The path is relative to the folder of the note's category, which is the folder the note's file is in. It is what ``addAttachment(_:toNote:fileName:)-(URL,Int,String?)`` returned, or what the note's text references, after percent-decoding the reference. The server reads `\` as `/`, skips empty components and resolves `..` as a step up, but never above the notes folder, so a path reaches every file in the notes folder and nothing outside of it. Attachments uploaded through the notes app land in a folder named `.attachments.<id>` next to the note on releases which keep them per note, see ``Notes/storesAttachmentsPerNote``, and right next to the note on older releases.
+    ///
+    /// This is a standalone call which needs nothing but credentials, the note's identifier and the path, so it suits a single action such as one of Shortcuts as well as a client keeping its own copy of the notes. It runs within the calling task, so cancelling that task cancels the request. The whole file is held in memory, so a large file or a process with little memory to spare, such as an extension, is better served by ``downloadAttachment(at:ofNote:to:force:)``, which writes it to a local file instead.
+    ///
+    /// Unlike every other notes feature, the notes app answers this request without its version header and reports every failure the same way, with `404`: a note which does not exist, a path which names nothing or a folder, and a file it cannot read. An absent notes app answers `404` as well, so all of these are reported as ``RainmakerError/notFound`` and cannot be told apart, which is why the ``Notes`` capability is the way to learn whether the app is there. A release of the notes app older than ``Notes/minimumAPIVersion`` does not know the path at all and answers with its version header, which is reported as ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)``.
+    ///
+    /// The request bypasses the local HTTP cache, because the server allows caching an attachment for an hour while it sends neither an entity tag nor a modification moment which a later request could be made conditional on. Keep what this returns in a store of your own instead, keyed by server, account, note and path. Bypassing the cache does not keep the session from storing the response in its `URLCache` though, which a session whose configuration keeps one on disk does, and a session shared by several accounts should not keep one at all. See ``init(address:password:user:session:webSocket:userAgent:)`` for a fitting configuration.
+    ///
+    /// - Parameters:
+    ///     - path: The path of the file relative to the folder of the note's category, as ``addAttachment(_:toNote:fileName:)-(URL,Int,String?)`` returned it or as the note references it after percent-decoding.
+    ///     - noteId: The ``Note/id`` of the note the path is relative to.
+    ///
+    /// - Returns: The bytes of the file together with their MIME type.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
+    ///     - ``RainmakerError/notFound`` when the note or the file does not exist, the file cannot be read, or the notes app is not available on the server.
+    ///     - ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)`` when the notes app is older than ``Notes/minimumAPIVersion``.
+    ///     - ``RainmakerError/unexpectedStatus(code:)`` for any other non-success response.
+    ///     - Any other error that might occur during retrieval.
+    ///
+    func attachment(at path: String, ofNote noteId: Int) async throws -> NoteAttachment {
+        try requireCredentials()
+        logger.debug("Fetching an attachment of note \(noteId)...")
+
+        let request = try makeAttachmentRetrievalRequest(at: path, ofNote: noteId)
+        let (data, urlResponse) = try await session.data(for: request)
+        let response = try validateAttachmentRetrieval(urlResponse)
+
+        return NoteAttachment(data: data, contentType: attachmentContentType(of: response))
+    }
+
+    ///
+    /// Retrieve a file a note refers to, such as an image embedded into it, into a local file.
+    ///
+    /// This is the counterpart of ``attachment(at:ofNote:)`` for a file which is not to be held in memory: the session streams the file to disk, and it is put in place only once it arrived completely and successfully, so a failed or cancelled call never leaves a partial file at the destination. Everything about the path, the statuses and caching is the same as there.
+    ///
+    /// The destination is the location of the file itself, not of the folder it goes to, and that folder has to exist. When a file exists there already and `force` is not set, the call throws ``RainmakerError/fileAlreadyExists(_:)`` before anything is sent, and once more when such a file appeared while the download was in progress. With `force` set, an existing file is replaced, and it is kept intact until the new one is completely in place.
+    ///
+    /// - Parameters:
+    ///     - path: The path of the file relative to the folder of the note's category, as ``addAttachment(_:toNote:fileName:)-(URL,Int,String?)`` returned it or as the note references it after percent-decoding.
+    ///     - noteId: The ``Note/id`` of the note the path is relative to.
+    ///     - destination: The local location to write the file to, in a folder which exists.
+    ///     - force: Whether to replace a file which exists at the destination. Defaults to `false`.
+    ///
+    /// - Returns: The location the file was written to, which is `destination`, together with its MIME type.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
+    ///     - ``RainmakerError/fileAlreadyExists(_:)`` when a file exists at the destination and `force` is not set.
+    ///     - ``RainmakerError/notFound`` when the note or the file does not exist, the file cannot be read, or the notes app is not available on the server.
+    ///     - ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)`` when the notes app is older than ``Notes/minimumAPIVersion``.
+    ///     - ``RainmakerError/unexpectedStatus(code:)`` for any other non-success response.
+    ///     - Any other error that might occur during retrieval or while putting the file in place.
+    ///
+    func downloadAttachment(at path: String, ofNote noteId: Int, to destination: URL, force: Bool = false) async throws -> NoteAttachmentFile {
+        try requireCredentials()
+        logger.debug("Downloading an attachment of note \(noteId) to \"\(destination.compatibilityPath(percentEncoded: false))\"...")
+
+        // Checked before the download so that a call which cannot succeed sends nothing.
+        if force == false {
+            try fileManager.assertFileDoesNotExist(at: destination)
+        }
+
+        let request = try makeAttachmentRetrievalRequest(at: path, ofNote: noteId)
+        let (location, urlResponse) = try await session.download(for: request, delegate: nil)
+
+        // The session leaves the payload in a temporary location, which would otherwise be left behind on every failure below, and which is gone already once the payload was moved on.
+        defer {
+            try? fileManager.removeItem(at: location)
+        }
+
+        let response = try validateAttachmentRetrieval(urlResponse)
+
+        // A file may have appeared at the destination while the download was in progress.
+        if force == false {
+            try fileManager.assertFileDoesNotExist(at: destination)
+        }
+
+        // The payload is staged next to its destination so that putting it in place stays within one volume, see ``URL/downloadStagingLocation()``.
+        let stagingLocation = destination.downloadStagingLocation()
+
+        defer {
+            try? fileManager.removeItem(at: stagingLocation)
+        }
+
+        try fileManager.moveItem(at: location, to: stagingLocation)
+
+        if fileManager.fileExists(atPath: destination.compatibilityPath(percentEncoded: false)) {
+            // Replacing keeps the existing file intact until the new one is completely in place, unlike deleting it first.
+            _ = try fileManager.replaceItemAt(destination, withItemAt: stagingLocation)
+        } else {
+            try fileManager.moveItem(at: stagingLocation, to: destination)
+        }
+
+        return NoteAttachmentFile(location: destination, contentType: attachmentContentType(of: response))
+    }
+
+    ///
+    /// Attach a local file to a note of the authenticated user and return the path the server stored it at.
+    ///
+    /// The file is sent as the field `file` of a form, as the web interface of the notes app uploads it. Its body is staged in a temporary file which is copied from `source` through a small buffer and removed again when the call ends, whatever its outcome, so neither the file nor the body is held in memory. The call runs within the calling task, so cancelling that task cancels the upload. It needs nothing but credentials and the note's identifier, so it suits a single action such as one of Shortcuts as well as a client keeping its own copy of the notes.
+    ///
+    /// Where the file ends up and therefore what this returns depends on the release of the notes app, see ``Notes/storesAttachmentsPerNote``:
+    ///
+    /// - Releases which keep attachments per note store the file in the folder `.attachments.<id>` next to the note under the given name, appending a number such as `" (1)"` before its extension when the name is taken, and return `.attachments.<id>/<name>`. They refuse a name which is not a valid file name on the server with `400`.
+    /// - Older releases store the file right next to the note under a random name of 32 hexadecimal digits followed by a dot and what follows the last dot of the given name, or all of the given name when it has no dot, and return that name.
+    ///
+    /// The server's form handling keeps only what follows the last `/` or `\` of the name, as it does for every uploaded file. The returned path is relative to the folder of the note's category and is what ``attachment(at:ofNote:)``, ``downloadAttachment(at:ofNote:to:force:)`` and ``deleteAttachment(at:ofNote:)`` take.
+    ///
+    /// Adding an attachment does not change the note. To embed it, the caller changes the note's content through ``updateNote(_:title:category:content:modification:isFavorite:ifMatching:)`` to reference the returned path, for example as `![](.attachments.123/Photo%20%281%29.png)`. The notes app's editor encodes each component of such a reference as JavaScript's `encodeURIComponent` does and additionally encodes `!`, `'`, `(`, `)` and `*`, which keeps a name from ending the markdown link early.
+    ///
+    /// > Important: Adding an attachment is not idempotent. Every call which reaches the server stores another file, and a call whose response was lost may have stored one all the same. The notes app offers no way to list the attachments of a note, but they are ordinary files, which ``enumerate(at:recursively:)->[Item]`` lists in the folder the note's ``Note/path`` names.
+    ///
+    /// Credentials are required: notes are user-scoped and the underlying endpoint rejects unauthenticated requests.
+    ///
+    /// - Parameters:
+    ///     - source: The local file to attach.
+    ///     - noteId: The ``Note/id`` of the note to attach the file to.
+    ///     - fileName: The name to store the file under, or `nil` for the last component of `source`. Defaults to `nil`.
+    ///
+    /// - Returns: The path the server stored the file at, relative to the folder of the note's category.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
+    ///     - ``RainmakerError/notFound`` when the account has no note with this identifier.
+    ///     - ``RainmakerError/locked`` when a file the server has to write is locked, after the server already retried for several seconds.
+    ///     - ``RainmakerError/methodNotAllowed`` when the notes app is older than ``Notes/minimumAPIVersion`` and therefore does not offer the upload at all.
+    ///     - ``RainmakerError/appUnavailable(app:)`` when the notes app is not available on the server.
+    ///     - ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)`` when the response does not advertise ``Notes/minimumAPIVersion``.
+    ///     - ``RainmakerError/responseDecodingFailed(reason:)`` when a success response does not carry the stored path.
+    ///     - Any other error that might occur while staging or sending the file, such as ``RainmakerError/unexpectedStatus(code:)`` with `400` for a name the server refuses and with `500` for a failure to store the file, for example because the quota is exceeded or the note is shared without permission to change it.
+    ///
+    func addAttachment(_ source: URL, toNote noteId: Int, fileName: String? = nil) async throws -> String {
+        try requireCredentials()
+        logger.debug("Adding an attachment to note \(noteId)...")
+
+        let form = MultipartFormData()
+        let body = makeMultipartStagingLocation()
+
+        // The staged body is removed whatever the outcome, also when staging it failed halfway.
+        defer {
+            try? fileManager.removeItem(at: body)
+        }
+
+        try form.writeFile(from: source, fieldName: "file", fileName: fileName ?? source.lastPathComponent, to: body, bufferSize: Self.stagingBufferSize)
+
+        return try await uploadAttachment(stagedAt: body, as: form, toNote: noteId)
+    }
+
+    ///
+    /// Attach the given bytes as a file to a note of the authenticated user and return the path the server stored it at.
+    ///
+    /// This is the counterpart of ``addAttachment(_:toNote:fileName:)-(URL,Int,String?)`` for bytes already in memory, for example an image a Shortcuts action was handed, which is why the name to store them under is required. Everything about where the file ends up, what this returns and how it fails is the same as there. The bytes are written into a staged body which is sent through an upload task and removed when the call ends, as there.
+    ///
+    /// - Parameters:
+    ///     - data: The bytes to attach.
+    ///     - noteId: The ``Note/id`` of the note to attach the bytes to.
+    ///     - fileName: The name to store the bytes under, whose extension is what the server derives the type of the attachment from.
+    ///
+    /// - Returns: The path the server stored the file at, relative to the folder of the note's category.
+    ///
+    /// - Throws: The same errors as ``addAttachment(_:toNote:fileName:)-(URL,Int,String?)``.
+    ///
+    func addAttachment(_ data: Data, toNote noteId: Int, fileName: String) async throws -> String {
+        try requireCredentials()
+        logger.debug("Adding an attachment to note \(noteId)...")
+
+        let form = MultipartFormData()
+        let body = makeMultipartStagingLocation()
+
+        defer {
+            try? fileManager.removeItem(at: body)
+        }
+
+        try form.write(data, fieldName: "file", fileName: fileName, to: body)
+
+        return try await uploadAttachment(stagedAt: body, as: form, toNote: noteId)
+    }
+
+    ///
+    /// Delete a file attached to a note of the authenticated user.
+    ///
+    /// Only releases of the notes app which keep attachments per note offer this, see ``Notes/supportsAttachmentDeletion``, and older releases answer with ``RainmakerError/methodNotAllowed``. Those releases only delete a file in the note's own `.attachments.<id>` folder: of the path, only its last component counts, which names the file in that folder, so a path such as `.attachments.123/Photo.png` and the bare `Photo.png` delete the same file, and no path reaches any other file. A folder left empty is removed as well.
+    ///
+    /// Deleting an attachment does not change the note, so a caller removes any reference to it from the note's content through ``updateNote(_:title:category:content:modification:isFavorite:ifMatching:)`` as well. Deleting the note itself deletes all of its attachments along with it on these releases, see ``deleteNote(_:)``. This is a standalone call which needs nothing but credentials, the note's identifier and the path, so it suits a single action such as one of Shortcuts as well.
+    ///
+    /// A file which does not exist is reported as ``RainmakerError/notFound``, which a caller deleting an attachment can take as the attachment being gone already.
+    ///
+    /// Credentials are required: notes are user-scoped and the underlying endpoint rejects unauthenticated requests.
+    ///
+    /// - Parameters:
+    ///     - path: The path of the attachment as ``addAttachment(_:toNote:fileName:)-(URL,Int,String?)`` returned it, of which only the last component counts.
+    ///     - noteId: The ``Note/id`` of the note the attachment belongs to.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
+    ///     - ``RainmakerError/notFound`` when the note or the attachment does not exist.
+    ///     - ``RainmakerError/methodNotAllowed`` when the notes app does not offer the deletion of attachments, see ``Notes/supportsAttachmentDeletion``.
+    ///     - ``RainmakerError/readOnly`` when the note cannot be changed by the authenticated user.
+    ///     - ``RainmakerError/locked`` when the file is locked, after the server already retried for several seconds.
+    ///     - ``RainmakerError/appUnavailable(app:)`` when the notes app is not available on the server.
+    ///     - ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)`` when it is available but older than ``Notes/minimumAPIVersion``.
+    ///     - Any other error that might occur during the request, such as ``RainmakerError/unexpectedStatus(code:)`` with `400` for a last component which is not a valid file name.
+    ///
+    func deleteAttachment(at path: String, ofNote noteId: Int) async throws {
+        try requireCredentials()
+        logger.debug("Deleting an attachment of note \(noteId)...")
+
+        let request = try makeNotesAPIRequest(for: "attachment/\(noteId)", method: .delete, root: Self.notesAttachmentAPIRoot, queryItems: [URLQueryItem(name: "path", value: path)])
+
+        // The server answers with an empty list, which carries nothing worth decoding.
+        _ = try await notesAPIResponse(for: request)
+        logger.debug("Deleted an attachment of note \(noteId).")
+    }
+
+    ///
     /// Look up the settings the notes app keeps for the authenticated user.
     ///
     /// These say where the app stores notes and which extension it gives a new one, which matters because notes are ordinary files: the folder is not a fixed name but a value derived from the account's locale by default, so anything which wants to reach notes over WebDAV rather than through ``notes()`` has to ask for it rather than assume it. See ``NotesSettings``.
@@ -548,7 +767,7 @@ public extension Server {
 
 extension Server {
     ///
-    /// Build a request for an endpoint of the notes app's REST API, which every notes feature of ``Server`` sends through ``notesAPIResponse(for:uploadingFrom:allowsNotModified:)``.
+    /// Build a request for an endpoint of the notes app's REST API, which every notes feature of ``Server`` sends through ``notesAPIResponse(for:uploadingFrom:allowsNotModified:)``, except for the retrieval of an attachment, whose response ``validateAttachmentRetrieval(_:)`` checks instead.
     ///
     /// The request is built by ``makeAppRequest(for:method:queryItems:)`` and therefore carries the credentials when there are any, so callers check for them with ``requireCredentials()`` first.
     /// Its cache policy is `reloadIgnoringLocalCacheData`, so a response is never answered from a `URLCache`, which could otherwise hide the server's real answer to a conditional request from the caller or serve bytes cached for another account sharing the same session.
@@ -663,6 +882,95 @@ extension Server {
             default:
                 throw RainmakerError.unexpectedStatus(code: response.statusCode)
         }
+    }
+
+    ///
+    /// Build the request ``attachment(at:ofNote:)`` and ``downloadAttachment(at:ofNote:to:force:)`` send for a file a note refers to.
+    ///
+    /// It is built by ``makeNotesAPIRequest(for:method:root:queryItems:headerFields:jsonBody:)`` below ``notesAttachmentAPIRoot`` and therefore bypasses the local cache as well, while it announces that it accepts any type, because the response is the file itself rather than JSON. The path is sent as the `path` parameter, percent-encoded through ``makeAppRequest(for:method:queryItems:)`` so that names with characters such as `+` or `&` arrive as they are.
+    ///
+    /// - Parameters:
+    ///     - path: The path of the file relative to the folder of the note's category.
+    ///     - noteId: The ``Note/id`` of the note the path is relative to.
+    ///
+    private func makeAttachmentRetrievalRequest(at path: String, ofNote noteId: Int) throws -> URLRequest {
+        try makeNotesAPIRequest(for: "attachment/\(noteId)", method: .get, root: Self.notesAttachmentAPIRoot, queryItems: [URLQueryItem(name: "path", value: path)], headerFields: ["Accept": "*/*"])
+    }
+
+    ///
+    /// Map the status of a response to a request built by ``makeAttachmentRetrievalRequest(at:ofNote:)`` onto ``RainmakerError`` and return the response when it is a success.
+    ///
+    /// This differs from ``notesAPIResponse(for:uploadingFrom:allowsNotModified:)`` because the notes app sends the file without its version header and answers every failure with a bare `404`, so neither the version requirement nor the meaning of a status can rest on that header:
+    ///
+    /// - `200` is a success.
+    /// - `404` is ``RainmakerError/notFound``, whether the note, the file or the app itself is missing.
+    /// - Any other status from a release of the notes app older than ``Notes/minimumAPIVersion``, which recognizes itself by the header advertising only older versions, is ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)``, because such a release does not know the path at all.
+    /// - Everything else is ``RainmakerError/unexpectedStatus(code:)``.
+    ///
+    /// - Parameters:
+    ///     - urlResponse: The response to check.
+    ///
+    /// - Returns: The response as an `HTTPURLResponse`, whose status is `200`.
+    ///
+    private func validateAttachmentRetrieval(_ urlResponse: URLResponse) throws -> HTTPURLResponse {
+        guard let response = urlResponse as? HTTPURLResponse else {
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to cast URLResponse to HTTPURLResponse.")
+        }
+
+        if response.status == .ok {
+            return response
+        }
+
+        if response.status == .notFound {
+            throw RainmakerError.notFound
+        }
+
+        let advertisedAPIVersions = response.notesAPIVersions
+
+        // An outdated release routes the unknown path to its catch-all, which answers with an error and the versions it serves.
+        if advertisedAPIVersions.isEmpty == false, Notes.supports(apiVersions: advertisedAPIVersions) == false {
+            throw RainmakerError.unsupportedAPIVersion(app: Notes.key, required: Notes.minimumAPIVersion, advertised: advertisedAPIVersions)
+        }
+
+        throw RainmakerError.unexpectedStatus(code: response.statusCode)
+    }
+
+    ///
+    /// The MIME type of a file ``attachment(at:ofNote:)`` or ``downloadAttachment(at:ofNote:to:force:)`` received, as ``NoteAttachment/contentType`` and ``NoteAttachmentFile/contentType`` report it.
+    ///
+    /// The notes app always states one, but a response without it is taken to be `application/octet-stream`, as HTTP prescribes for a body of unknown type, rather than failing a call whose file arrived intact.
+    ///
+    /// - Parameters:
+    ///     - response: The successful response to read the type from.
+    ///
+    private func attachmentContentType(of response: HTTPURLResponse) -> String {
+        response.value(forHTTPHeaderField: "Content-Type") ?? "application/octet-stream"
+    }
+
+    ///
+    /// A new location in the temporary directory to stage the ``MultipartFormData`` body of an upload of an attachment at, which the caller removes once it has been sent.
+    ///
+    private func makeMultipartStagingLocation() -> URL {
+        fileManager.temporaryDirectory.appendingCompatibility(component: "Rainmaker-\(UUID().uuidString).multipart", directoryHint: .notDirectory)
+    }
+
+    ///
+    /// Send a staged ``MultipartFormData`` body as a new attachment of a note and return the path the server stored it at, which both variants of ``addAttachment(_:toNote:fileName:)-(URL,Int,String?)`` end in.
+    ///
+    /// The body is sent from its file through an upload task by ``notesAPIResponse(for:uploadingFrom:allowsNotModified:)``, which maps the statuses as for every other notes feature, because the notes app answers an upload with its version header.
+    ///
+    /// - Parameters:
+    ///     - body: The location of the staged body.
+    ///     - form: The body, whose boundary the request announces.
+    ///     - noteId: The ``Note/id`` of the note to attach the file to.
+    ///
+    private func uploadAttachment(stagedAt body: URL, as form: MultipartFormData, toNote noteId: Int) async throws -> String {
+        let request = try makeNotesAPIRequest(for: "attachment/\(noteId)", method: .post, root: Self.notesAttachmentAPIRoot, headerFields: ["Content-Type": form.contentType])
+        let (data, _) = try await notesAPIResponse(for: request, uploadingFrom: body)
+        let path = try decodeNotesAPIPayload(AttachmentUploadResponse.self, from: data, describing: "the added attachment").filename
+        logger.debug("Added an attachment to note \(noteId).")
+
+        return path
     }
 
     ///
