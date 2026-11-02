@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<d:error xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns">
+  <s:exception>Sabre\DAV\Exception\NotFound</s:exception>
+  <s:message>File with name /Talk/Rainmaker-a54y8nsx/Draft/46fc6e52147fb69783fec2e4e7beab3b.txt could not be located</s:message>
+</d:error>

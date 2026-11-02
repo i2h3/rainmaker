@@ -25,10 +25,11 @@
         ///
         /// Excluded are suites that never touch the network (request-factory and fixture self-tests) and those whose fixtures are hand-authored with synthetic, version-independent values that a live server cannot reproduce: `TrashTests` (asserts fixed trash identifiers and deletion timestamps), `PollTests` (a successful poll needs a completed browser flow, and it targets the canonical address rather than the container), `NotificationsTests` (the queued notifications depend on server state a plain baseline does not produce) , `ActivityTests` (the recorded activities depend on the same, and the end of the stream, the previews and an absent activity app cannot be provoked on a live container) and `CollectivesTests` (the collectives app is not part of a Nextcloud installation, and installing it mounts a folder of its own into the account's files, which both changes the listings `ListingTests` records and makes the forced baseline reset of ``FixtureProvisioner/reset()`` treat that mount as an orphan to delete). Those are carried forward across versions instead.
         ///
-        /// `ConversationsTests` records although the Talk app it needs is not part of a Nextcloud installation either, because Talk keeps its conversations outside the account's files and mounts nothing into them, so neither `ListingTests` nor the baseline reset notices it. See ``installedApps``.
+        /// `ConversationsTests` and `ConversationMutationTests` record although the Talk app they need is not part of a Nextcloud installation either, because Talk keeps its conversations outside the account's files and mounts nothing into them, so neither `ListingTests` nor the baseline reset notices it. The file `ConversationMutationTests` sends on Talk 24 does land in the account's files, in a folder below `Talk` which the next baseline reset removes together with the share of that folder. See ``installedApps``.
         ///
         static let recordableSuites: Set<String> = [
             "CapabilitiesTests",
+            "ConversationMutationTests",
             "ConversationsTests",
             "CreateDirectoryTests",
             "CurrentUserTests",
@@ -53,7 +54,7 @@
         static let notesApp = "notes"
 
         ///
-        /// The identifier of the Talk app, which `ConversationsTests` cannot record anything without.
+        /// The identifier of the Talk app, which `ConversationsTests` and `ConversationMutationTests` cannot record anything without.
         ///
         /// Talk is the app's presented name while `spreed` is the identifier it has always had internally, which is also the key it advertises its ``Talk`` capability under.
         ///

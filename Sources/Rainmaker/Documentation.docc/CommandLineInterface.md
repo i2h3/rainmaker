@@ -18,7 +18,7 @@ SUBCOMMANDS:
   activity-filters        List the filters the server offers to narrow the activity stream down with. Requires authentication and the server's activity app.
   capabilities            Fetch the capabilities advertised by a server. Authentication is optional.
   collectives             List the collectives of the authenticated user and their pages. Requires authentication and the server's collectives app.
-  conversations           List the Talk conversations of the authenticated user and retrieve their images. Requires authentication and the server's Talk app.
+  conversations           List the Talk conversations of the authenticated user, retrieve their images, start one-to-one conversations and send messages and files into them. Requires authentication and the server's Talk app.
   create-directory        Create a directory on the server.
   current-user            Show the identifier and the display name of the authenticated account. Requires authentication.
   delete                  Delete a file or directory from the server.
@@ -33,6 +33,7 @@ SUBCOMMANDS:
   notes-settings          Show or change where and how the notes app stores the notes of the authenticated user. Requires authentication and the server's notes app.
   notifications           List the notifications queued for the authenticated user. Requires authentication and the server's notifications app.
   poll                    Poll the status of a previously initiated login flow.
+  search-users            Search the users of the server by name or identifier, for example to start a Talk conversation with one. Requires authentication.
   trash                   Manage the server trash bin.
   upload                  Upload a file or directory to a folder on the server.
   watch                   Observe server-side changes over notify_push (or polling when unavailable or asked to) and print each event. Runs until interrupted.
@@ -106,6 +107,99 @@ OPTIONS:
                           Whether files and folders whose names start with a dot are listed as notes and categories, 'true' or 'false'. Requires notes app 6.1.0 or newer.
   --load-recent-note-on-start-up <load-recent-note-on-start-up>
                           Whether the web interface opens the most recently edited note when it starts, 'true' or 'false'. Requires notes app 6.1.0 or newer.
+  -h, --help              Show help information.
+```
+
+## Talk
+
+The `conversations` command is a group of subcommands, of which `list` is the default.
+Sending something to a person takes three steps: `search-users` prints the identifier and the display name of every matching user, `conversations create` takes such an identifier as `--user-id` and prints the token and the name of the one-to-one conversation with that user, creating it unless it already exists, and `conversations send` and `conversations send-file` take that token.
+The option is called `--user-id` because `--user` names the account to authenticate with.
+`conversations send` and `conversations send-file` print nothing when they succeed.
+
+```plaintext
+$ swift run rainmaker-cli conversations --help
+OVERVIEW: List the Talk conversations of the authenticated user, retrieve their images, start one-to-one conversations and send messages and files into them. Requires authentication and the server's Talk app.
+
+USAGE: rainmaker conversations <subcommand>
+
+OPTIONS:
+  -h, --help              Show help information.
+
+SUBCOMMANDS:
+  list (default)          List the Talk conversations the authenticated user takes part in.
+  avatar                  Retrieve the image of a Talk conversation.
+  create                  Start a one-to-one Talk conversation with a user, or find the existing one, and print it. Requires the server's Talk app.
+  send                    Send a chat message into a Talk conversation. Requires the server's Talk app.
+  send-file               Send a local file into a Talk conversation, optionally with a caption. Requires Talk 24 or later on the server.
+
+  See 'rainmaker help conversations <subcommand>' for detailed help.
+```
+
+```plaintext
+$ swift run rainmaker-cli search-users --help
+OVERVIEW: Search the users of the server by name or identifier, for example to start a Talk conversation with one. Requires authentication.
+
+USAGE: rainmaker search-users [--user <user>] [--password <password>] [--output-format <output-format>] [--host <host>] --term <term>
+
+OPTIONS:
+  -u, --user <user>       The user account name to authenticate with. Can also be set via RAINMAKER_USER environment variable.
+  -p, --password <password>
+                          The password to authenticate with. Can also be set via RAINMAKER_PASSWORD environment variable.
+  --output-format <output-format>
+                          In what form to render the output. (default: plain)
+  -h, --host <host>       The Nextcloud instance to connect to. Can also be set via RAINMAKER_HOST environment variable.
+  --term <term>           What to search for, such as part of a display name or an identifier.
+  -h, --help              Show help information.
+```
+
+```plaintext
+$ swift run rainmaker-cli conversations create --help
+OVERVIEW: Start a one-to-one Talk conversation with a user, or find the existing one, and print it. Requires the server's Talk app.
+
+USAGE: rainmaker conversations create [--user <user>] [--password <password>] [--output-format <output-format>] [--host <host>] --user-id <user-id>
+
+OPTIONS:
+  -u, --user <user>       The user account name to authenticate with. Can also be set via RAINMAKER_USER environment variable.
+  -p, --password <password>
+                          The password to authenticate with. Can also be set via RAINMAKER_PASSWORD environment variable.
+  --output-format <output-format>
+                          In what form to render the output. (default: plain)
+  -h, --host <host>       The Nextcloud instance to connect to. Can also be set via RAINMAKER_HOST environment variable.
+  --user-id <user-id>     The identifier of the user to start the conversation with, as shown by `search-users`.
+  -h, --help              Show help information.
+```
+
+```plaintext
+$ swift run rainmaker-cli conversations send --help
+OVERVIEW: Send a chat message into a Talk conversation. Requires the server's Talk app.
+
+USAGE: rainmaker conversations send [--user <user>] [--password <password>] [--host <host>] --token <token> --message <message>
+
+OPTIONS:
+  -u, --user <user>       The user account name to authenticate with. Can also be set via RAINMAKER_USER environment variable.
+  -p, --password <password>
+                          The password to authenticate with. Can also be set via RAINMAKER_PASSWORD environment variable.
+  -h, --host <host>       The Nextcloud instance to connect to. Can also be set via RAINMAKER_HOST environment variable.
+  --token <token>         The token of the conversation to send to, as shown by `conversations list` or `conversations create`.
+  --message <message>     The text to send.
+  -h, --help              Show help information.
+```
+
+```plaintext
+$ swift run rainmaker-cli conversations send-file --help
+OVERVIEW: Send a local file into a Talk conversation, optionally with a caption. Requires Talk 24 or later on the server.
+
+USAGE: rainmaker conversations send-file [--user <user>] [--password <password>] [--host <host>] --token <token> --file <file> [--caption <caption>]
+
+OPTIONS:
+  -u, --user <user>       The user account name to authenticate with. Can also be set via RAINMAKER_USER environment variable.
+  -p, --password <password>
+                          The password to authenticate with. Can also be set via RAINMAKER_PASSWORD environment variable.
+  -h, --host <host>       The Nextcloud instance to connect to. Can also be set via RAINMAKER_HOST environment variable.
+  --token <token>         The token of the conversation to send to, as shown by `conversations list` or `conversations create`.
+  --file <file>           The local file to send. Its name becomes the name of the file on the server.
+  --caption <caption>     A text to show together with the file.
   -h, --help              Show help information.
 ```
 

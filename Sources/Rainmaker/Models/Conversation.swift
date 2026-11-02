@@ -6,13 +6,13 @@ import Foundation
 ///
 /// A single Nextcloud Talk conversation the authenticated user takes part in.
 ///
-/// Conversations are listed through ``Server/conversations()`` and their image is retrieved through ``Server/conversationAvatar(_:darkTheme:)``. They are provided by the Talk app (`spreed`) which, like the notes app, is not part of a Nextcloud installation and has to be installed separately. Whether it is available can be checked in advance via the ``Talk`` capability, e.g. `try await capabilities().contains(Talk.self)`.
+/// Conversations are listed through ``Server/conversations()`` and their image is retrieved through ``Server/conversationAvatar(_:darkTheme:)``. A one-to-one conversation is started or found through ``Server/createConversation(with:)``, which returns it as this type as well, and messages and files are sent into a conversation by its ``token`` through ``Server/sendMessage(_:toConversation:)`` and ``Server/sendFile(_:toConversation:caption:)``, which take no instance of this type because sending needs nothing but the token. They are provided by the Talk app (`spreed`) which, like the notes app, is not part of a Nextcloud installation and has to be installed separately. Whether it is available can be checked in advance via the ``Talk`` capability, e.g. `try await capabilities().contains(Talk.self)`.
 ///
 /// The server's own API calls a conversation a "room", which is why the endpoint behind ``Server/conversations()`` is `apps/spreed/api/v4/room`, while its user interface calls it a conversation. This type follows the latter.
 ///
 /// Only ``token`` addresses a conversation in the server's API. ``id`` is a plain number unique per server and is what makes this type `Identifiable`, but every other Talk endpoint takes the token in its path instead.
 ///
-/// The server sends far more about a conversation than is modelled here, because this type exists to list conversations rather than to take part in one. The last message, the read markers (`lastReadMessage`, `lastCommonReadMessage`), the permission bit fields (`permissions`, `attendeePermissions`, `defaultPermissions`, `callPermissions`), the attendee and session details (`attendeeId`, `actorId`, `actorType`, `sessionId`, `lastPing`), the call state (`hasCall`, `callFlag`, `callStartTime`, `callRecording`, `canStartCall`), `isCustomAvatar`, the lobby, breakout room, message expiration, SIP and federation fields as well as `name`, `description`, `listable`, `notificationLevel`, `participantType`, `hasPassword`, `isFavorite`, `isArchived`, `isImportant`, `isSensitive` and `tagIds` are intentionally not modelled, as chatting, calling and moderating are out of scope. A client needing any of them can build its own request with ``Server/makeOCSRequest(for:method:queryItems:)``.
+/// The server sends far more about a conversation than is modelled here, because this type exists to list conversations and to address them, while what is sent into one is never read back. The last message, the read markers (`lastReadMessage`, `lastCommonReadMessage`), the permission bit fields (`permissions`, `attendeePermissions`, `defaultPermissions`, `callPermissions`), the attendee and session details (`attendeeId`, `actorId`, `actorType`, `sessionId`, `lastPing`), the call state (`hasCall`, `callFlag`, `callStartTime`, `callRecording`, `canStartCall`), `isCustomAvatar`, the lobby, breakout room, message expiration, SIP and federation fields as well as `name`, `description`, `listable`, `notificationLevel`, `participantType`, `hasPassword`, `isFavorite`, `isArchived`, `isImportant`, `isSensitive` and `tagIds` are intentionally not modelled, as reading the messages of a conversation, calling and moderating are out of scope. A client needing any of them can build its own request with ``Server/makeOCSRequest(for:method:queryItems:)``.
 ///
 public struct Conversation: Model, Hashable, Identifiable, CustomStringConvertible, CustomDebugStringConvertible, Decodable {
     ///
@@ -25,7 +25,7 @@ public struct Conversation: Model, Hashable, Identifiable, CustomStringConvertib
     ///
     /// The opaque token identifying the conversation, e.g. `"oypsiy6j"`.
     ///
-    /// Every Talk endpoint beyond the listing takes this in its path, which is why it is also what ``Server/conversationAvatar(_:darkTheme:)`` and any request built with ``Server/makeOCSRequest(for:method:queryItems:)`` are given.
+    /// Every Talk endpoint which addresses a single conversation takes this in its path, which is why it is also what ``Server/conversationAvatar(_:darkTheme:)``, ``Server/sendMessage(_:toConversation:)``, ``Server/sendFile(_:toConversation:caption:)`` and any request built with ``Server/makeOCSRequest(for:method:queryItems:)`` are given.
     ///
     public let token: String
 
@@ -96,7 +96,7 @@ public struct Conversation: Model, Hashable, Identifiable, CustomStringConvertib
     ///
     /// Decode a conversation from the server's payload.
     ///
-    /// Every modelled field is required: the listing endpoint declares all of them for every server version this library supports, so a missing one means a response this type cannot describe. Whatever else the payload carries is ignored, which is what lets one client read the conversations of servers running different releases of the Talk app.
+    /// Every modelled field is required: the listing endpoint and the endpoint ``Server/createConversation(with:)`` uses declare all of them for every server version this library supports, so a missing one means a response this type cannot describe. Whatever else the payload carries is ignored, which is what lets one client read the conversations of servers running different releases of the Talk app.
     ///
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
