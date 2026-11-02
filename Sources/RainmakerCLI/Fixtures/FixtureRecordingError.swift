@@ -28,6 +28,11 @@
         ///
         case conversationSeedingFailed
 
+        ///
+        /// The second account the conversation mutation fixtures are recorded against could not be created.
+        ///
+        case userSeedingFailed
+
         var description: String {
             switch self {
                 case .verificationFailed:
@@ -36,6 +41,8 @@
                     "Gave up waiting for \(subject): \(reason)."
                 case .conversationSeedingFailed:
                     "The Talk conversation the conversation fixtures are recorded against could not be created. Check that the Talk app is installed and enabled for the account being recorded."
+                case .userSeedingFailed:
+                    "The second account the conversation mutation fixtures are recorded against could not be created. Check that the recording authenticates as an administrator and that the provisioning API app is enabled."
                 case let .appInstallationFailed(app):
                     "The \"\(app)\" app could not be installed into the container. It is fetched from the Nextcloud app store, so check that the store is reachable and that it offers a release compatible with the server version being recorded."
             }

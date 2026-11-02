@@ -46,11 +46,18 @@
         ]
 
         ///
-        /// The name of the Talk conversation seeded for `ConversationsTests`, which is what makes it findable without relying on a token or an identifier.
+        /// The name of the Talk conversation seeded for `ConversationsTests` and `ConversationMutationTests`, which is what makes it findable without relying on a token or an identifier.
         ///
-        /// A conversation with a known name is needed because a plain Talk installation only creates conversations of its own, whose names are localized to the account's language and whose unread counts follow the release of the app rather than of the server. The same literal appears in the test suite, which cannot import this module.
+        /// A conversation with a known name is needed because a plain Talk installation only creates conversations of its own, whose names are localized to the account's language and whose unread counts follow the release of the app rather than of the server. The same literal appears in both test suites, which cannot import this module.
         ///
         static let seededConversation = "Rainmaker"
+
+        ///
+        /// The identifier and the display name of the second account seeded for `ConversationMutationTests`, which its user search finds and its one-to-one conversation is started with.
+        ///
+        /// A container only has the administrator's account, and neither a search which only finds the searching account nor a conversation with oneself proves anything. The same literals appear in the test suite, which cannot import this module.
+        ///
+        static let seededUser = (id: "alice", displayName: "Alice")
 
         ///
         /// Generate the baseline tree on disk and upload it to the server.
@@ -88,6 +95,10 @@
                 try? await server.delete("/Documents")
             } else if testID.contains("ConversationsTests/") {
                 try await seedConversation()
+            } else if testID.contains("ConversationMutationTests/") {
+                // The suite searches for and starts a conversation with a second account, and sends into the seeded conversation.
+                try await seedUser()
+                try await seedConversation()
             } else if testID.contains("NotesTests/fetchNone") {
                 // The fixture records an account without a single note, so the seeded notes folder has to be gone beforehand. The baseline is restored before every following test, which brings it back.
                 try? await server.delete("/\(notesFolder)")
@@ -105,7 +116,7 @@
         ///
         /// Create the Talk conversation named ``seededConversation`` unless it already exists.
         ///
-        /// Conversations live outside the account's files, so ``reset()`` neither removes nor restores them and the one created here survives for the rest of the container's life. That is why this is idempotent and why every test of the suite asks for it rather than only the first: the recorder runs them in whichever order `swift test list` reports, so no test can rely on another having run before it.
+        /// Conversations live outside the account's files, so ``reset()`` neither removes nor restores them and the one created here survives for the rest of the container's life. That is why this is idempotent and why every test of the suites relying on it asks for it rather than only the first: the recorder runs them in whichever order `swift test list` reports, so no test can rely on another having run before it.
         ///
         /// Talk has no WebDAV surface to provision through, so the request is built with ``Server/makeOCSRequest(for:method:queryItems:)`` and performed on a session of its own. That is the sanctioned route for reaching an endpoint the library itself does not cover.
         ///
@@ -126,6 +137,36 @@
 
             guard let response = urlResponse as? HTTPURLResponse, response.statusCode == 200 || response.statusCode == 201 else {
                 throw FixtureRecordingError.conversationSeedingFailed
+            }
+        }
+
+        ///
+        /// Create the account described by ``seededUser`` unless it already exists.
+        ///
+        /// Accounts live outside the account's files just like conversations, so ``reset()`` neither removes nor restores them and the one created here survives for the rest of the container's life. That is why this is idempotent and why every test of `ConversationMutationTests` asks for it rather than only the first, for the same reason ``seedConversation()`` gives.
+        ///
+        /// The library covers no administration of accounts, so the requests to the provisioning API are built with ``Server/makeOCSRequest(for:method:queryItems:)`` and performed on a session of their own, as the administrator the recording authenticates as. The server asks for the administrator's password to be confirmed before it creates an account, which a request authenticated with that password already counts as.
+        ///
+        /// The password is built from two random UUIDs, which is long and varied enough for a password policy to accept, and it is never used, because no recording logs in as this account.
+        ///
+        private func seedUser() async throws {
+            let session = URLSession(configuration: .ephemeral)
+            let lookup = try server.makeOCSRequest(for: "cloud/users/\(Self.seededUser.id)", method: .get)
+            let (_, lookupResponse) = try await session.data(for: lookup)
+
+            // The server answers `404` for an account which does not exist, and any other failure surfaces when creating it.
+            guard (lookupResponse as? HTTPURLResponse)?.statusCode != 200 else {
+                return
+            }
+
+            var request = try server.makeOCSRequest(for: "cloud/users", method: .post)
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONSerialization.data(withJSONObject: ["userid": Self.seededUser.id, "password": UUID().uuidString + UUID().uuidString, "displayName": Self.seededUser.displayName])
+
+            let (_, urlResponse) = try await session.data(for: request)
+
+            guard (urlResponse as? HTTPURLResponse)?.statusCode == 200 else {
+                throw FixtureRecordingError.userSeedingFailed
             }
         }
 

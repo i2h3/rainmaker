@@ -45,6 +45,7 @@ public enum RainmakerError: Error, Equatable, CustomStringConvertible {
     /// The server does not have enough storage left for the account to save what was sent.
     ///
     /// The notes features report this when the notes app answers with the status `507` itself, for example when a note or an attachment would exceed the account's quota.
+    /// ``Server/sendFile(_:toConversation:caption:)`` reports this whenever the server answers `507` while it prepares, uploads or posts the file.
     ///
     case insufficientStorage
 
@@ -75,6 +76,7 @@ public enum RainmakerError: Error, Equatable, CustomStringConvertible {
     /// Whatever you were looking for is not there.
     ///
     /// The notes features report this when the notes app itself answers that a note or an attachment does not exist, and ``appUnavailable(app:)`` when the app is not there at all, except for ``Server/attachment(at:ofNote:)`` and ``Server/downloadAttachment(at:ofNote:to:force:)``, which report every failure including an absent app as this case, see there.
+    /// The Talk features ``Server/createConversation(with:)``, ``Server/sendMessage(_:toConversation:)`` and ``Server/sendFile(_:toConversation:caption:)`` report this for every `404`, which the server answers alike for a user or conversation which does not exist and for an absent Talk app.
     ///
     case notFound
 
@@ -82,6 +84,7 @@ public enum RainmakerError: Error, Equatable, CustomStringConvertible {
     /// The intended change was refused because the subject is read-only for the authenticated user.
     ///
     /// The notes features report this when the notes app answers with the status `403` itself, for example for a note shared without write access, see ``Note/isReadOnly``.
+    /// ``Server/sendMessage(_:toConversation:)`` and ``Server/sendFile(_:toConversation:caption:)`` report this for every `403`, which the server answers for a read-only conversation or one the account may not chat in.
     ///
     case readOnly
 

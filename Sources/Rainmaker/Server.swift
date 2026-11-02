@@ -179,6 +179,34 @@ public final class Server {
     }
 
     ///
+    /// Map the status of a response to one of the Talk app's chat endpoints onto ``RainmakerError``, which is what ``sendMessage(_:toConversation:)`` and ``sendFile(_:toConversation:caption:)`` share.
+    ///
+    /// The chat endpoints answer `403` for a conversation the account may not write to, `404` for one it cannot reach as well as for a route the installed release does not offer, and `507` when the account's quota is exhausted, while every other status than the expected one surfaces as such.
+    ///
+    /// - Parameters:
+    ///     - urlResponse: The response to check.
+    ///     - expected: The status the endpoint answers with on success, which differs between them.
+    ///
+    private func validateChatResponse(_ urlResponse: URLResponse, expecting expected: HTTPStatus) throws {
+        guard let response = urlResponse as? HTTPURLResponse else {
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to cast URLResponse to HTTPURLResponse.")
+        }
+
+        switch response.status {
+            case expected:
+                return
+            case .forbidden:
+                throw RainmakerError.readOnly
+            case .notFound:
+                throw RainmakerError.notFound
+            case .insufficientStorage:
+                throw RainmakerError.insufficientStorage
+            default:
+                throw RainmakerError.unexpectedStatus(code: response.statusCode)
+        }
+    }
+
+    ///
     /// List the content of the remote directory.
     ///
     private func content(at path: String, depth: UInt = 1) async throws -> [Item] {
@@ -832,6 +860,19 @@ public final class Server {
 
         // Every request authenticates itself, so cookies have no part to play and are refused in both directions. Accepting them is actively harmful: a request to an app's own API makes the server open a session and send its cookies back, and a later WebDAV request carrying them is authenticated through that session instead of through its own credentials, which then fails the server's cross-site request check. The symptom is a WebDAV call answering 401 or 412 for no reason other than an unrelated call having preceded it. OCS requests avoid this by announcing themselves as such, which no other endpoint has an equivalent for.
         request.httpShouldHandleCookies = false
+
+        return request
+    }
+
+    ///
+    /// Set up a request for an OCS endpoint which takes its parameters as a JSON body, such as those of the Talk app which create or send something.
+    ///
+    /// This is ``makeOCSRequest(for:method:queryItems:)`` with the body encoded by ``jsonEncoder`` and announced as such, which the server reads the parameters of an OCS endpoint from just as it reads them from a query. A body is used rather than a query because what is sent, a chat message for one, can be far longer than an address may be.
+    ///
+    private func makeOCSRequest(for path: String, method: Method, jsonBody: some Encodable) throws -> URLRequest {
+        var request = try makeOCSRequest(for: path, method: method)
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try jsonEncoder.encode(jsonBody)
 
         return request
     }
@@ -1710,6 +1751,233 @@ extension Server: Serving {
         }
 
         return ConversationAvatar(data: data, contentType: contentType)
+    }
+
+    ///
+    /// Search the users of the server whose name or identifier matches the given term, for example to pick the person ``createConversation(with:)`` starts a conversation with.
+    ///
+    /// This asks the server's autocompletion the way the Talk clients do when a new conversation is started, so that the server ranks and filters the results for that purpose. Only user accounts are searched, which is the kind the server searches for unless told otherwise, so groups, teams and email addresses never appear.
+    ///
+    /// What the server reveals is up to its sharing settings: an administrator can turn the enumeration of users off, in which case only a full match of a name, an identifier or an email address is found, or limit it to people sharing a group with the account or in its phone book. The server returns at most ten users, exact matches first.
+    /// The display name is the label the server shows for a match, which can carry a disambiguating suffix such as an email address in parentheses when the term matched one of the user's additional email addresses.
+    ///
+    /// This is a single request without any state, and cancelling the calling task cancels it.
+    ///
+    /// - Parameters:
+    ///     - term: What to search for, such as part of a display name or an identifier.
+    ///
+    /// - Returns: The matching users with their identifiers, which ``createConversation(with:)`` and ``userAvatar(_:size:darkTheme:)`` expect, and their display names.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
+    ///     - ``RainmakerError/unexpectedStatus(code:)`` for any non-success response.
+    ///     - ``RainmakerError/responseDecodingFailed(reason:)`` when the server answers with something other than a list of users.
+    ///     - Any other error that might occur during retrieval.
+    ///
+    public func searchUsers(_ term: String) async throws -> [User] {
+        try requireCredentials()
+        logger.debug("Searching users matching \"\(term)\"...")
+
+        // A new Talk conversation is the context the Talk clients search in when they start one, and naming it lets the server tailor its results to that.
+        let queryItems = [
+            URLQueryItem(name: "search", value: term),
+            URLQueryItem(name: "itemType", value: "call"),
+            URLQueryItem(name: "itemId", value: "new"),
+        ]
+
+        let request = try makeOCSRequest(for: "core/autocomplete/get", method: .get, queryItems: queryItems)
+        let (data, urlResponse) = try await session.data(for: request)
+
+        guard let response = urlResponse as? HTTPURLResponse else {
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to cast URLResponse to HTTPURLResponse.")
+        }
+
+        // The autocompletion is part of every installation, so a missing route is not a condition of its own.
+        guard response.status == .ok else {
+            throw RainmakerError.unexpectedStatus(code: response.statusCode)
+        }
+
+        let envelope: UserSearchResponse
+
+        do {
+            envelope = try jsonDecoder.decode(UserSearchResponse.self, from: data)
+        } catch {
+            throw RainmakerError.responseDecodingFailed(reason: "The server did not answer with the users matching the search.")
+        }
+
+        guard envelope.ocs.meta.status == "ok" else {
+            throw RainmakerError.responseDecodingFailed(reason: "OCS request failed (\(envelope.ocs.meta.statuscode)): \(envelope.ocs.meta.message ?? "No message.")")
+        }
+
+        return envelope.ocs.data.map { User(id: $0.id, displayName: $0.label) }
+    }
+
+    ///
+    /// Start a one-to-one Nextcloud Talk conversation with the given user, or find the one which already exists.
+    ///
+    /// The server keeps a single one-to-one conversation per pair of users and answers with that one when it exists, so calling this repeatedly is safe and is the way to find the conversation with a person before ``sendMessage(_:toConversation:)`` or ``sendFile(_:toConversation:caption:)`` is used, for example in a single action which sends something to a person.
+    /// Find the identifier of the user with ``searchUsers(_:)``.
+    ///
+    /// Group conversations are deliberately not offered: a client sending something to a person needs the one-to-one conversation, while naming and populating a group is the work of a Talk client.
+    ///
+    /// Credentials are required, and the same availability considerations as for ``conversations()`` apply.
+    ///
+    /// - Parameters:
+    ///     - userId: The identifier of the other user, which is neither their display name nor necessarily the name they log in with, see ``User/id``.
+    ///
+    /// - Returns: The conversation, whose ``Conversation/token`` addresses it in every further request and whose ``Conversation/type`` is ``ConversationType/oneToOne``.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
+    ///     - ``RainmakerError/notFound`` when no such user exists or the Talk app is not available on the server. The server answers `404` for both, so they are deliberately not told apart.
+    ///     - ``RainmakerError/unexpectedStatus(code:)`` for any other non-success response, such as `403` when the account names itself, when the server's sharing settings do not let it find the other user, or when the account may not use Talk.
+    ///     - ``RainmakerError/responseDecodingFailed(reason:)`` when the server answers with something other than a conversation.
+    ///     - Any other error that might occur during creation.
+    ///
+    public func createConversation(with userId: String) async throws -> Conversation {
+        try requireCredentials()
+        logger.debug("Starting a Talk conversation with \(userId)...")
+
+        // A room type of 1 is a one-to-one conversation, for which the server takes the other user from `invite` and ignores a name.
+        let request = try makeOCSRequest(for: "apps/spreed/api/v4/room", method: .post, jsonBody: ConversationCreationRequest(roomType: 1, invite: userId))
+        let (data, urlResponse) = try await session.data(for: request)
+
+        guard let response = urlResponse as? HTTPURLResponse else {
+            throw RainmakerError.responseDecodingFailed(reason: "Failed to cast URLResponse to HTTPURLResponse.")
+        }
+
+        if response.status == .notFound {
+            throw RainmakerError.notFound
+        }
+
+        // The server answers with `200` for the conversation which already existed and with `201` for one it created, and both carry the conversation.
+        guard response.status == .ok || response.status == .created else {
+            throw RainmakerError.unexpectedStatus(code: response.statusCode)
+        }
+
+        let envelope: ConversationResponse
+
+        do {
+            envelope = try jsonDecoder.decode(ConversationResponse.self, from: data)
+        } catch {
+            throw RainmakerError.responseDecodingFailed(reason: "The server did not answer with the conversation: \(error)")
+        }
+
+        guard envelope.ocs.meta.status == "ok" else {
+            throw RainmakerError.responseDecodingFailed(reason: "OCS request failed (\(envelope.ocs.meta.statuscode)): \(envelope.ocs.meta.message ?? "No message.")")
+        }
+
+        return envelope.ocs.data
+    }
+
+    ///
+    /// Send a chat message into a Nextcloud Talk conversation as the authenticated user.
+    ///
+    /// The message is sent as given. Talk clients render Markdown and show previews of links, so text or an address shared from another app needs no preparation, while mentions require the server's own syntax and are not added here.
+    /// The server refuses a message longer than 32000 characters.
+    ///
+    /// This is a single request without any state, and cancelling the calling task cancels it. A message which reached the server before the cancellation is sent all the same.
+    ///
+    /// - Parameters:
+    ///     - message: The text to send.
+    ///     - token: The ``Conversation/token`` of the conversation to send to, as listed by ``conversations()`` or returned by ``createConversation(with:)``.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
+    ///     - ``RainmakerError/readOnly`` when the conversation is read-only or the account may not chat in it, such as the ``ConversationType/changelog`` conversation.
+    ///     - ``RainmakerError/notFound`` when no such conversation exists, the account does not take part in it, or the Talk app is not available on the server. The server answers `404` in all of those cases, so they are deliberately not told apart.
+    ///     - ``RainmakerError/unexpectedStatus(code:)`` for any other non-success response, such as `412` while the conversation's lobby keeps the account out or `413` for a message which is too long.
+    ///     - Any other error that might occur during sending.
+    ///
+    public func sendMessage(_ message: String, toConversation token: String) async throws {
+        try requireCredentials()
+        logger.debug("Sending a message to Talk conversation \(token)...")
+
+        let request = try makeOCSRequest(for: "apps/spreed/api/v1/chat/\(token)", method: .post, jsonBody: ChatMessageRequest(message: message))
+        let (_, urlResponse) = try await session.data(for: request)
+
+        // The server answers with the message as it stored it, which nothing here needs, so only the status is looked at.
+        try validateChatResponse(urlResponse, expecting: .created)
+    }
+
+    ///
+    /// Send a local file into a Nextcloud Talk conversation as the authenticated user, optionally with a caption.
+    ///
+    /// The file is uploaded into the account's files first, into the folder Talk keeps for what the account sends into this conversation, and then posted as a message which other participants can open the file from. That folder is shared with the conversation, so the file stays in the account's files and counts towards its quota.
+    /// The server keeps the name of the file and appends a number to it when the folder already holds one of the same name.
+    ///
+    /// This requires Talk 24 or later with its folders per conversation enabled, which ``Talk/storesAttachmentsPerConversation`` tells in advance, e.g. `try await capabilities().get(Talk.self)?.storesAttachmentsPerConversation == true`. Older releases only offer an earlier way of sending a file, which this method deliberately does not fall back to.
+    ///
+    /// A conversation federated from another server cannot receive files this way, which its server answers with `406`.
+    ///
+    /// Three steps run in turn, each within the calling task: a request which asks the server for a private draft folder, the upload of the file into it, and a request which moves the file from there into the shared folder and posts the message. Nobody but the account sees the draft folder, and the file is deleted from it again when posting the message fails before the server moved it, while a file the server moved before failing stays in the shared folder without a message. That is what happens to a caption which makes the stored message exceed 32000 characters, a limit the server counts after escaping the caption, which turns every character beyond plain ASCII into six characters or more, so a caption should stay well below it. Cancelling the calling task while the message is posted can leave the file in the draft folder as well.
+    /// The name of the file in the draft folder is derived from the conversation, the file name, the size and the modification date, so that sending the same file again after a failure overwrites the draft left behind rather than adding another one, while two sends of the same file into the same conversation at the same time share one draft and one of them can fail with ``RainmakerError/notFound``.
+    /// A file larger than ``defaultChunkSize`` is uploaded in chunks, exactly as ``upload(_:to:force:chunkSize:)`` does.
+    ///
+    /// - Parameters:
+    ///     - source: The local file to send, whose last path component becomes the name of the file on the server.
+    ///     - token: The ``Conversation/token`` of the conversation to send to, as listed by ``conversations()`` or returned by ``createConversation(with:)``.
+    ///     - caption: A text the message shows together with the file, or `nil` for none, which has to stay well below the 32000 characters a message may have.
+    ///
+    /// - Throws:
+    ///     - ``RainmakerError/credentialsRequired`` when no credentials are set.
+    ///     - ``RainmakerError/notFound`` when `source` is not a file, when no such conversation exists or the account does not take part in it, when the Talk app is not available on the server, or when its release is older than Talk 24. The server answers `404` in all of the latter cases, so they are deliberately not told apart.
+    ///     - ``RainmakerError/readOnly`` when the conversation is read-only or the account may not chat in it.
+    ///     - ``RainmakerError/insufficientStorage`` when the account's quota does not leave room for the file.
+    ///     - ``RainmakerError/sourceChanged(_:)`` when the file changes while it is uploaded in chunks.
+    ///     - ``RainmakerError/unexpectedStatus(code:)`` for any other non-success response, such as `501` when an administrator turned off the folders per conversation, `412` while the conversation's lobby keeps the account out, or `406` for a federated conversation.
+    ///     - ``RainmakerError/responseDecodingFailed(reason:)`` when the server does not answer with the draft folder.
+    ///     - Any other error that might occur during the upload or the sending.
+    ///
+    public func sendFile(_ source: URL, toConversation token: String, caption: String? = nil) async throws {
+        try requireCredentials()
+        logger.debug("Sending \"\(source.compatibilityPath(percentEncoded: false))\" to Talk conversation \(token)...")
+
+        var isDirectory: ObjCBool = false
+
+        guard fileManager.fileExists(atPath: source.compatibilityPath(percentEncoded: false), isDirectory: &isDirectory), isDirectory.boolValue == false else {
+            throw RainmakerError.notFound
+        }
+
+        let folderRequest = try makeOCSRequest(for: "apps/spreed/api/v1/chat/\(token)/attachment/folder", method: .post)
+        let (folderData, folderResponse) = try await session.data(for: folderRequest)
+        try validateChatResponse(folderResponse, expecting: .ok)
+
+        let folder: String
+
+        do {
+            folder = try jsonDecoder.decode(AttachmentFolderResponse.self, from: folderData).ocs.data.folder
+        } catch {
+            throw RainmakerError.responseDecodingFailed(reason: "The server did not answer with the draft folder of the conversation.")
+        }
+
+        let attributes = try fileManager.attributesOfItem(atPath: source.compatibilityPath(percentEncoded: false))
+        let size = (attributes[.size] as? NSNumber)?.int64Value ?? 0
+        let fileName = source.lastPathComponent
+
+        // The draft name only has to be unique within the draft folder. Deriving it from the file rather than drawing it at random makes a retry of the same file overwrite its earlier draft instead of piling up copies, and keeps the requests of a recording replayable. The extension is kept because the server derives the type of the file from it.
+        let transferName = Self.uploadTransferName(for: "\(token)/\(fileName)", size: size, modification: attributes[.modificationDate] as? Date)
+        let draftPath = source.pathExtension.isEmpty ? "\(folder)/\(transferName)" : "\(folder)/\(transferName).\(source.pathExtension)"
+
+        do {
+            try await uploadFile(source, to: "/\(draftPath)", force: true, chunkSize: Self.defaultChunkSize)
+        } catch RainmakerError.unexpectedStatus(code: HTTPStatus.insufficientStorage.rawValue) {
+            // The upload reports an exhausted quota as a plain status, which would make the same condition surface differently depending on the step it hit.
+            throw RainmakerError.insufficientStorage
+        }
+
+        let talkMetaData = try caption.map { try String(decoding: jsonEncoder.encode(["caption": $0]), as: UTF8.self) }
+        let attachment = ChatAttachmentRequest(filePath: draftPath, fileName: fileName, referenceId: UUID().uuidString, talkMetaData: talkMetaData)
+
+        do {
+            let request = try makeOCSRequest(for: "apps/spreed/api/v1/chat/\(token)/attachment", method: .post, jsonBody: attachment)
+            let (_, urlResponse) = try await session.data(for: request)
+            try validateChatResponse(urlResponse, expecting: .ok)
+        } catch {
+            // Only the account sees the draft folder, so a file left there is clutter rather than a leak, which is why a failure to delete it is not reported over the error which matters.
+            try? await delete("/\(draftPath)")
+            throw error
+        }
     }
 
     ///

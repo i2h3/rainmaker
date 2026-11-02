@@ -85,6 +85,10 @@ import Testing
         #expect(talk.supports("no-such-talk-feature") == false)
         #expect(capabilities.contains(Talk.self))
 
+        // The folders per conversation which sending a file needs arrived with Talk 24, and older releases do not advertise the flag at all. The release of the app rather than of the server decides, because the app store hands each server its own one.
+        let talkMajorVersion = try #require(talk.version.flatMap { Int($0.prefix { $0 != "." }) })
+        #expect(talk.storesAttachmentsPerConversation == (talkMajorVersion >= 24))
+
         #expect(capabilities.version.string == serverVersion.rawValue)
         #expect(capabilities.version.major > 0)
     }
@@ -110,6 +114,10 @@ import Testing
         let talk = try #require(try capabilities.get(Talk.self))
         #expect(talk.supports("conversation-v4"))
         #expect(capabilities.contains(Talk.self))
+
+        // The flag is part of what Talk shows anonymous clients too, so it reads the same as for an authenticated one.
+        let talkMajorVersion = try #require(talk.version.flatMap { Int($0.prefix { $0 != "." }) })
+        #expect(talk.storesAttachmentsPerConversation == (talkMajorVersion >= 24))
 
         #expect(capabilities.version.string == serverVersion.rawValue)
     }
