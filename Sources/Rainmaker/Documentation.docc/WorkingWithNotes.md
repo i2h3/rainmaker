@@ -5,7 +5,6 @@ Retrieve, create, change and delete the notes of an account, attach files to the
 ## Overview
 
 The notes app is not part of a Nextcloud installation, so whether it is installed at all is advertised through the ``Notes`` capability, which also reports whether it is new enough to be usable.
-The two articles below put the calls of this page together, one for a client keeping its own copy of the notes and one for single actions such as those of Shortcuts.
 
 ### Retrieving Notes
 
@@ -45,11 +44,6 @@ An absent notes app is reported as ``RainmakerError/appUnavailable(app:)`` rathe
 An outdated notes app is reported as ``RainmakerError/unsupportedAPIVersion(app:required:advertised:)``, and a request the installed release does not offer at all, such as deleting an attachment before release 6.1.0, as ``RainmakerError/methodNotAllowed``.
 
 ## Topics
-
-### Articles
-
-- <doc:SynchronizingNotes>
-- <doc:UsingNotesFromAppIntents>
 
 ### Retrieving Notes
 
