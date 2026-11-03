@@ -1,0 +1,1 @@
+{"ocs":{"meta":{"status":"ok","statuscode":200,"message":"OK"},"data":[{"id":"alice","label":"Alice","icon":"icon-user","source":"users","status":"","subline":"","shareWithDisplayNameUnique":"alice"}]}}

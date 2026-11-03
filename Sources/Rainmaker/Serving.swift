@@ -117,6 +117,26 @@ protocol Serving: Sendable {
     func conversationAvatar(_ token: String, darkTheme: Bool) async throws -> ConversationAvatar
 
     ///
+    /// Search the users of the server whose name or identifier matches the given term.
+    ///
+    func searchUsers(_ term: String) async throws -> [User]
+
+    ///
+    /// Start a one-to-one Nextcloud Talk conversation with the given user, or find the one which already exists.
+    ///
+    func createConversation(with userId: String) async throws -> Conversation
+
+    ///
+    /// Send a chat message into a Nextcloud Talk conversation as the authenticated user.
+    ///
+    func sendMessage(_ message: String, toConversation token: String) async throws
+
+    ///
+    /// Send a local file into a Nextcloud Talk conversation as the authenticated user, optionally with a caption.
+    ///
+    func sendFile(_ source: URL, toConversation token: String, caption: String?) async throws
+
+    ///
     /// Retrieve the avatar of a single Nextcloud user.
     ///
     func userAvatar(_ userId: String, size: AvatarSize, darkTheme: Bool) async throws -> UserAvatar

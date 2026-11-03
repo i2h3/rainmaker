@@ -1,0 +1,1 @@
+{"ocs":{"meta":{"status":"ok","statuscode":201,"message":"OK"},"data":{"id":71,"token":"7raa4vr8","actorType":"users","actorId":"admin","actorDisplayName":"admin","timestamp": 1700000000,"message":"Hello from Rainmaker","messageParameters":[],"systemMessage":"","messageType":"comment","isReplyable":true,"referenceId":"","reactions":{},"expirationTimestamp":0,"markdown":true}}}
