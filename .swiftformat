@@ -1,3 +1,4 @@
 --indent-case true
 --disable swiftTestingTestCaseNames
+--disable repeatedGuard
 --trailing-commas collections-only
